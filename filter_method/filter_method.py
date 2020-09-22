@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 # 例用
-from sklearn.datasets import load_boston
+# from sklearn.datasets import load_boston
 
 '''
 X: pd.DataFrame or 2次元のnp.ndarray．すでに作成された特徴量空間．
@@ -62,7 +62,7 @@ def filter_method(X, r = 0.9, alpha = 0.05):
     return boolean, corr
 
 if __name__ == '__main__':
-    boston = load_boston()
-    X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
-    boolean, corr = filter_method(X, r = 0.9)
-    print(boolean, corr)
+    # boston = load_boston()
+    # X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
+    # boolean, corr = filter_method(X, r = 0.9)
+    # print(boolean, corr)

@@ -1,5 +1,3 @@
 numpy>=1.17.3
-scikit-learn>=0.21.3
-xgboost>=0.90
-ngboost>=0.2.0
-optuna>=1.3.0
+pandas>=0.25.1
+scipy>=1.3.1
