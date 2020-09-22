@@ -66,3 +66,4 @@ if __name__ == '__main__':
     # X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
     # boolean, corr = filter_method(X, r = 0.9)
     # print(boolean, corr)
+    pass
