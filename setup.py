@@ -5,7 +5,7 @@ with open('requirements.txt') as requirements_file:
 
 setup(
     name='wrapper_method',
-    version='0.0.1',
+    version='0.0.2',
     description='for wrapper method. (by using boruta_py)',
     author='yu-9824',
     author_email='yu.9824@gmail.com',
