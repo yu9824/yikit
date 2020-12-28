@@ -5,10 +5,10 @@ import pandas as pd
 import numpy as np
 
 class WrapperMethod:
-    def __init__(self, estimator = RandomForestRegressor(), random_state = None):
+    def __init__(self, estimator = RandomForestRegressor(), random_state = None, max_iter = 100, perc = 80, two_step = False, verbose = 2, n_estimators = 'auto'):
         self.estimator = estimator
         self.random_state = random_state
-        self.feature_selector = BorutaPy(self.estimator, n_estimators = 'auto', two_step = False,verbose = 2, random_state = self.random_state, perc = 80, max_iter = 10)
+        self.feature_selector = BorutaPy(self.estimator, n_estimators = n_estimators, two_step = two_step, verbose = verbose, random_state = self.random_state, perc = perc, max_iter = max_iter)
 
     def __call__(self, X, y, cv = None, threshold = 1):
         '''
