@@ -1,1 +1,1 @@
-from .wrapper_method import WrapperMethod
+from .wrapper_method import *
