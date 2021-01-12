@@ -12,10 +12,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils.estimator_checks import check_estimator
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_predict, cross_val_score
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.linear_model import LinearRegression
+from sklearn.base import clone
+from sklearn.svm import SVR
 
 from lightgbm import LGBMRegressor
-
+import optuna
 from tqdm import tqdm
 
 import numpy as np
@@ -44,11 +49,11 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
-        if isinstance(X, pd.DataFrame) or isinstance(X, np.ndarray):
-            n_features_ = X.shape[1]
-        elif isinstance(X, list):
+        
+        if isinstance(X, list):
             X = np.array(X)
-            n_features_ = np.array(X)
+        n_features_ = X.shape[1]
+            
 
         # 標準化
         if self.scale:
@@ -136,11 +141,12 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         X = check_array(X)
 
         if self.scale:
-            X_ = self.scaler_X_.fit_transform(X)
-            y_pred_ = self.estimator_.predict(X)
+            X_ = self.scaler_X_.transform(X)
+            y_pred_ = self.estimator_.predict(X_)
             y_pred_ = self.scaler_y_.inverse_transform(y_pred_).flatten()
         else:
-            y_pred_ = self.estimator_.predict(X).flatten()
+            X_ = X
+            y_pred_ = self.estimator_.predict(X_).flatten()
         return y_pred_
     
 
@@ -221,9 +227,169 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
         return self.estimator_.predict(X)
 
 
+# スケールの概念が入っていないので，それらを内包したscikit-learn準拠モデルを自分で定義する必要がある．
+class EnsembleRegressor(BaseEstimator, RegressorMixin):
+    def __init__(self, estimators = [RandomForestRegressor()], method = 'blending', cv = 5, n_jobs = -1, random_state = None, metric = 'mse', silent = True):
+        self.estimators = estimators
+        self.method = method
+        self.cv = cv
+        self.n_jobs = n_jobs
+        self.random_state = random_state
+        self.metric = metric
+        self.silent = silent
+
+    def fit(self, X, y):
+        '''
+        self.estimatorsはfitしてないモデル．self.estimators_はfitしたモデル．
+        '''
+        # 入力されたXとyが良い感じか判定（サイズが適切かetc)
+        X, y = check_X_y(X, y)
+
+        # よく使うので変数化
+        n_estimators_ = len(self.estimators)
+
+        # metricの処理
+        if self.metric == 'r2':
+            metric_ = r2_score
+            direction_ = 'maximize'
+        else:
+            direction_ = 'minimize'
+            if self.metric == 'mse':
+                metric_ = mean_squared_error
+            elif self.metric == 'mae':
+                metric_ = mean_absolute_error
+            elif self.metric == 'rmse':
+                metric_ = lambda x, y:mean_squared_error(x, y, squared=False)
+            else:
+                raise NotImplementedError('{}'.format(self.metric))
+        
+        # 各モデルのOOFの予測値を求める．
+        self.y_oof_s_ = [cross_val_predict(estimator, X, y, cv = self.cv, n_jobs = self.n_jobs) for estimator in self.estimators]
+
+        if self.method == 'blending':
+            def objective(trial):
+                params = {'weight{0}'.format(i): trial.suggest_uniform('weight{0}'.format(i), 0, 1) for i in range(n_estimators_)}
+                weights = np.array(list(params.values()))
+                y_oof_ave = np.average(self.y_oof_s_, weights = weights, axis = 0)
+                return metric_(y_oof_ave, y)
+            # optunaのログを非表示
+            if self.silent:
+                optuna.logging.disable_default_handler()
+
+            # 重みの最適化
+            # sampler_ = optuna.samplers.RandomSampler(seed = self.random_state)
+            sampler_ = optuna.samplers.TPESampler(seed = self.random_state)
+            study = optuna.create_study(sampler = sampler_, direction = direction_)
+            study.optimize(objective, n_trials = 100, n_jobs = 1)   # -1にするとバグる
+
+            # optunaのログを再表示
+            if self.silent:
+                optuna.logging.enable_default_handler()
+
+            self.weights_ = np.array(list(study.best_params.values()))
+            self.weights_ /= np.sum(self.weights_)
+        elif self.method == 'average':
+            self.weights_ = np.ones(n_estimators_) / n_estimators_
+        elif self.method == 'stacking':
+            # 線形モデルの定義
+            self.stacking_model_ = LinearRegression(n_jobs = self.n_jobs)
+            self.stacking_model_.fit(np.array(self.y_oof_s_).transpose(), y)
+        else:
+            raise NotImplementedError
+        
+        # すべてのモデルをfitして保存（copyしないと元のオブジェクトまで変わってしまい，エラーが生じる．）
+        self.estimators_ = []
+        for i in range(n_estimators_):
+            estimator_ = clone(self.estimators[i])
+            estimator_.fit(X, y)
+            self.estimators_.append(estimator_)
+        return self
+
+
+    def predict(self, X):
+        # fitが行われたかどうかをインスタンス変数が定義されているかで判定（第二引数を文字列ではなくてリストで与えることでより厳密に判定可能）
+        check_is_fitted(self, 'estimators_')
+
+        # 入力されたXが妥当か判定
+        X = check_array(X)
+
+        # 各予測モデルの予測結果をまとめる
+        y_pred_s_ = [estimator_.predict(X) for estimator_ in self.estimators_]
+        
+        if self.method in ('blending', 'average'):
+            y_pred_ = np.average(y_pred_s_, weights = self.weights_, axis = 0)
+        elif self.method == 'stacking':
+            y_pred_ = self.stacking_model_.predict(np.array(y_pred_s_).transpose())
+        return y_pred_
+
+
+
+class SupportVectorRegressor(BaseEstimator, RegressorMixin):
+    def __init__(self, kernel = 'rbf', gamma = 'auto', tol = 0.01, C = 1.0, epsilon = 0.1, scale = True):
+        self.kernel = kernel
+        self.gamma = gamma
+        self.tol = tol
+        self.C = C
+        self.epsilon = epsilon
+        self.scale = scale
+
+    def fit(self, X, y):
+        # 入力されたXとyが良い感じか判定（サイズが適切かetc)
+        X, y = check_X_y(X, y)
+
+        if self.scale:
+            self.scaler_X_ = StandardScaler()
+            X_ = self.scaler_X_.fit_transform(X)
+
+            self.scaler_y_ = StandardScaler()
+            y_ = self.scaler_y_.fit_transform(np.array(y).reshape(-1, 1))
+        else:
+            X_ = X
+            y_ = y
+
+        self.estimator_ = SVR(kernel=self.kernel, gamma=self.gamma, tol=self.tol, C=self.C, epsilon=self.epsilon)
+        self.estimator_.fit(X_, y_)
+
+        return self
+
+    def predict(self, X):
+        # fitが行われたかどうかをインスタンス変数が定義されているかで判定（第二引数を文字列ではなくてリストで与えることでより厳密に判定可能）
+        check_is_fitted(self, 'estimator_')
+
+        # 入力されたXが妥当か判定
+        X = check_array(X)
+
+        if self.scale:
+            X_ = self.scaler_X_.transform(X)
+        else:
+            X_ = X
+
+        y_pred_ = self.estimator_.predict(X_)
+        if self.scale:
+            y_pred_ = self.scaler_y_.inverse_transform(np.array(y_pred_).reshape(-1, 1)).flatten()
+        
+        return y_pred_
+
+
+
 if __name__ == '__main__':
     import warnings
     warnings.simplefilter('ignore', FutureWarning)
+
+    from pdb import set_trace
     
     check_estimator(GBDTRegressor)
-    # check_estimator(NNRegressor)
+    check_estimator(NNRegressor)
+    check_estimator(EnsembleRegressor(random_state = 334, n_jobs = -1, estimators = [RandomForestRegressor(random_state=334)]))
+    check_estimator(SupportVectorRegressor)
+
+    # from sklearn.datasets import load_boston
+    # boston = load_boston()
+    # X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
+    # y = pd.Series(boston['target'], name = 'PRICE')
+
+    # for method in ('blending', 'average', 'stacking'):
+    #     print(method)
+    #     er = EnsembleRegressor(random_state = 334, n_jobs = -1, estimators = [RandomForestRegressor(random_state=334)], cv = 5)
+    #     {print('MSE{0}: {1:.3f}'.format(i, -score)) for i, score in enumerate(cross_val_score(er, X, y, scoring = 'neg_mean_squared_error', cv = 20))}
+
