@@ -1,7 +1,9 @@
-from my_models import NNRegressor, GBDTRegressor, SupportVectorRegressor
+from my_models import NNRegressor, GBDTRegressor, SupportVectorRegressor, LinearModelRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
+from sklearn.cross_decomposition import PLSRegression
 from lightgbm import LGBMRegressor
+
 import numpy as np
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
@@ -96,6 +98,7 @@ class Objective:
                 'n_jobs' : -1,
             }
         elif isinstance(self.estimator, (SupportVectorRegressor, SVR)):
+            # 最適化するべきパラメータ
             params_ = {
                 'C' : trial.suggest_loguniform('C', 2 ** -5, 2 ** 10),
                 'epsilon' : trial.suggest_loguniform('epsilon', 2 ** -10, 2 ** 0),
@@ -104,6 +107,19 @@ class Objective:
             self.fixed_params_ = {
                 'gamma' : 'auto',
                 'kernel' : 'rbf'
+            }
+        elif isinstance(self.estimator, LinearModelRegressor):
+            # 最適化するべきパラメータ
+            params_ = {
+                'linear_model' : trial.suggest_categorical('linear_model', ['ridge', 'lasso']),
+                'alpha' : trial.suggest_loguniform('alpha', 0.1, 10),
+                'fit_intercept' : trial.suggest_categorical('fit_intercept', [True, False]),
+                'max_iter' : trial.suggest_loguniform('max_iter', 100, 10000),
+                'tol' : trial.suggest_loguniform('tol', 0.0001, 0.01),
+            }
+            # 固定するパラメータ (外でも取り出せるようにインスタンス変数としてる．)
+            self.fixed_params_ = {
+                'random_state' : self.random_state,
             }
         else:
             raise NotImplementedError('{0}'.format(self.estimator))
