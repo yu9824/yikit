@@ -1,4 +1,6 @@
 numpy
 pandas
+Boruta
+kennard_stone
 scipy
 scikit-learn>=0.23.2
