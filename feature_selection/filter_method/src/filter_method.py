@@ -18,21 +18,20 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         self.r = r
         self.alpha = alpha
 
-    def fit(self, X):
+    def fit(self, X, y = None):
         '''
         X: pd.DataFrame or 2次元のnp.ndarray or 2次元のlist．すでに作成された特徴量空間．
+        y: 不要．
         '''
+        # checkかつnp.ndarrayに変換される．
         X = check_array(X)
-
-        # すでに作成された特徴量空間をXとして読み込み，念のため，np.ndarrayに変換
-        X = np.array(X)
 
         # よくつかうので列数を変数で保存
         n_features = X.shape[1]
 
         # 相関係数とそのp値を入れるリストの鋳型を作成
         # [i, j, 0]が相関係数， [i, j, 1]がp値
-        self.corr = np.empty((n_features, n_features, 2), dtype = float)
+        self.corr_ = np.empty((n_features, n_features, 2), dtype = float)
 
         # i番目の要素は，i番目と相関係数がcorr以上かつp値が有意水準alpha未満のものの集合．これの鋳型を作成
         pair = [set() for _ in range(n_features)]
@@ -40,11 +39,11 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         for i in range(n_features):
             for j in range(i, n_features):
                 if i == j:  # 一緒の時はそもそも相関係数1, p値0は自明なので例外処理
-                    self.corr[i, i] = [1.0, 0.0]
+                    self.corr_[i, i] = [1.0, 0.0]
                 else:
-                    self.corr[i, j] = list(pearsonr(X[:, i], X[:, j]))
-                    self.corr[j, i] = self.corr[i, j]
-                    if self.corr[i, j, 0] > self.r and self.corr[i, j, 1] < self.alpha:    # 相関係数が高く， かつp値が小さい (信頼に足る) とき．
+                    self.corr_[i, j] = list(pearsonr(X[:, i], X[:, j]))
+                    self.corr_[j, i] = self.corr_[i, j]
+                    if self.corr_[i, j, 0] > self.r and self.corr_[i, j, 1] < self.alpha:    # 相関係数が高く， かつp値が小さい (信頼に足る) とき．
                         # i, j番目の要素の集合にそれぞれj, iを追加
                         pair[i].add(j)
                         pair[j].add(i)
@@ -78,4 +77,14 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         return self.support_
 
 if __name__ == '__main__':
-    pass
+    from pdb import set_trace
+    from sklearn.datasets import load_boston
+
+    data = load_boston()
+    X = pd.DataFrame(data.data, columns = data.feature_names)
+    # X = pd.concat([X, pd.Series(np.ones(X.shape[0]))], axis = 1)
+
+    selector = FilterSelector()
+    selector.fit(X)
+
+    set_trace()
