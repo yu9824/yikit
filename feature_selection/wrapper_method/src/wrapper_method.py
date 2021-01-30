@@ -34,7 +34,7 @@ class WrapperSelector(BaseEstimator, SelectorMixin):
         if self.perc == 'auto':
             # ランダムに並べ替えてどれくらいでてしまうのかを調べ，自動で決める．
             self.pears_ = []    # 相関係数を足していくリスト
-            for shuf in tqdm(range(self.max_shuf), desc = 'Calc r_ccmax'):
+            for shuf in tqdm(range(self.max_shuf), desc = 'Calc r_ccmax') if self.verbose else range(self.max_shuf):
                 X_shuffled = shuffle(X, random_state = self.rng_)
                 temp = [pearsonr(X_shuffled[:, i], y)[0] for i in range(X_shuffled.shape[1])]
                 self.pears_.extend(temp)

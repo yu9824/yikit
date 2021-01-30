@@ -5,7 +5,7 @@ with open('requirements.txt') as requirements_file:
 
 setup(
     name='feature_selection',
-    version='0.0.1',
+    version='0.1.0',
     description='feature_selection method. (by using boruta_py)',
     author='yu-9824',
     author_email='yu.9824@gmail.com',
