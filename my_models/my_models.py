@@ -10,7 +10,7 @@ from keras.backend import clear_session
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.estimator_checks import check_estimator
-from sklearn.utils import check_array, check_X_y
+from sklearn.utils import check_array, check_X_y, check_random_state
 from sklearn.utils.validation import check_is_fitted
 from sklearn.model_selection import train_test_split, cross_val_predict, cross_val_score
 from sklearn.ensemble import RandomForestRegressor
@@ -49,6 +49,8 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
+        # check_random_state
+        self.rng_ = self.random_state
         
         if isinstance(X, list):
             X = np.array(X)
@@ -76,7 +78,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         self.estimator_ = Sequential()
 
         # 入力層
-        self.estimator_.add(Dropout(self.input_dropout, input_shape = (n_features_,), seed = self.random_state, name = 'Dropout_' + str(j)))
+        self.estimator_.add(Dropout(self.input_dropout, input_shape = (n_features_,), seed = self.rng_.randint(2 ** 32), name = 'Dropout_' + str(j)))
         if self.progress_bar:
             pbar.update(1)
 
@@ -95,7 +97,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
             else:
                 raise NotImplementedError
 
-            self.estimator_.add(Dropout(self.hidden_dropout, seed = self.random_state, name = 'Dropout_' + str(j+i+1)))
+            self.estimator_.add(Dropout(self.hidden_dropout, seed = self.rng_.randint(2 ** 32), name = 'Dropout_' + str(j+i+1)))
 
             # プログレスバー
             if self.progress_bar:
@@ -182,6 +184,10 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
             kwargs = self.kwargs
         except:
             kwargs = {}
+
+        # check_random_state
+        self.rng_ = check_random_state(self.random_state)
+
         # fitしたあとに確定する値は変数名 + '_' としなければならない．
         self.estimator_ = LGBMRegressor(boosting_type = self.boosting_type,
             num_leaves = self.num_leaves,
@@ -199,7 +205,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
             colsample_bytree = self.colsample_bytree,
             reg_alpha = self.reg_alpha,
             reg_lambda = self.reg_lambda,
-            random_state = self.random_state,
+            random_state = self.rng_,
             n_jobs = self.n_jobs,
             silent = self.silent,
             importance_type = self.importance_type,
@@ -209,7 +215,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = self.random_state, test_size = 0.2)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = self.rng_, test_size = 0.2)
 
         self.estimator_.fit(X, y, eval_set = [(X_test, y_test)], eval_metric = ['mse', 'mae'], early_stopping_rounds = 20, verbose = False)
 
@@ -245,6 +251,9 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
+        # check_random_state
+        self.rng_ = check_random_state(self.random_state)
+
         # よく使うので変数化
         n_estimators_ = len(self.estimators)
 
@@ -259,7 +268,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
             elif self.metric == 'mae':
                 metric_ = mean_absolute_error
             elif self.metric == 'rmse':
-                metric_ = lambda x, y:mean_squared_error(x, y, squared=False)
+                metric_ = lambda x, y:mean_squared_error(x, y, squared = False)
             else:
                 raise NotImplementedError('{}'.format(self.metric))
         
@@ -277,8 +286,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                 optuna.logging.disable_default_handler()
 
             # 重みの最適化
-            # sampler_ = optuna.samplers.RandomSampler(seed = self.random_state)
-            sampler_ = optuna.samplers.TPESampler(seed = self.random_state)
+            sampler_ = optuna.samplers.TPESampler(seed = self.rng_.randint(2 ** 32))
             study = optuna.create_study(sampler = sampler_, direction = direction_)
             study.optimize(objective, n_trials = 100, n_jobs = 1)   # -1にするとバグる
 
@@ -383,6 +391,8 @@ class LinearModelRegressor(BaseEstimator, RegressorMixin):
     def fit(self, X, y):
         X, y = check_X_y(X, y)
 
+        self.rng_ = check_random_state(self.random_state)
+
         # max_iterを引数に入れてるとこの変数ないとダメ！って怒られるから．
         self.n_iter_ = 1
 
@@ -393,7 +403,7 @@ class LinearModelRegressor(BaseEstimator, RegressorMixin):
         else:
             raise NotImplementedError
 
-        self.estimator_ = model_(alpha = self.alpha, fit_intercept = self.fit_intercept, max_iter = self.max_iter, tol = self.tol, random_state = self.random_state)
+        self.estimator_ = model_(alpha = self.alpha, fit_intercept = self.fit_intercept, max_iter = self.max_iter, tol = self.tol, random_state = self.rng_)
         self.estimator_.fit(X, y)
         return self
     
