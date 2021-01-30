@@ -9,7 +9,6 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils import shuffle
 import pandas as pd
-import numpy as np
 from scipy.stats import pearsonr
 from tqdm import tqdm
 
@@ -26,7 +25,7 @@ class WrapperSelector(BaseEstimator, SelectorMixin):
         self.max_shuf = max_shuf
 
     def fit(self, X, y):
-        # checkかつnp.ndarrayに変換
+        # checkかつnumpy.ndarrayに変換
         X, y = check_X_y(X, y)
 
         # random_state
