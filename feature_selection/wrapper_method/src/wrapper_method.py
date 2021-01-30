@@ -5,6 +5,7 @@ from sklearn.feature_selection import SelectorMixin
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils import check_X_y
+from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils import shuffle
 import pandas as pd
@@ -12,7 +13,6 @@ import numpy as np
 from scipy.stats import pearsonr
 from tqdm import tqdm
 
-#  cross_validateでやったほうがより現実的？
 
 class WrapperSelector(BaseEstimator, SelectorMixin):
     def __init__(self, estimator = RandomForestRegressor(), random_state = None, max_iter = 100, perc = 'auto', two_step = False, verbose = 2, n_estimators = 'auto', max_shuf = 10000):
@@ -26,18 +26,17 @@ class WrapperSelector(BaseEstimator, SelectorMixin):
         self.max_shuf = max_shuf
 
     def fit(self, X, y):
+        # checkかつnp.ndarrayに変換
         X, y = check_X_y(X, y)
 
-        # np.ndarrayに変換
-        X = np.array(X)
-        y = np.array(y)
+        # random_state
+        self.rng_ = check_random_state(self.random_state)
 
         if self.perc == 'auto':
-            # ランダムに並べ替えてどれくらいでてしまうのかを調べる
-            np.random.seed(self.random_state)
-            self.pears_ = []
+            # ランダムに並べ替えてどれくらいでてしまうのかを調べ，自動で決める．
+            self.pears_ = []    # 相関係数を足していくリスト
             for shuf in tqdm(range(self.max_shuf), desc = 'Calc r_ccmax'):
-                X_shuffled = shuffle(X, random_state = np.random.randint(0, 2 ** 32))
+                X_shuffled = shuffle(X, random_state = self.rng_)
                 temp = [pearsonr(X_shuffled[:, i], y)[0] for i in range(X_shuffled.shape[1])]
                 self.pears_.extend(temp)
             r_ccmax = max(self.pears_)
@@ -48,7 +47,7 @@ class WrapperSelector(BaseEstimator, SelectorMixin):
             raise NotImplementedError("The 'perc' must be 'auto' or a number greater than 0 and less than or equal to 100.")
 
         # boruta
-        self.feature_selector_ = BorutaPy(self.estimator, n_estimators = self.n_estimators, two_step = self.two_step, verbose = self.verbose, random_state = self.random_state, perc = self.perc, max_iter = self.max_iter)
+        self.feature_selector_ = BorutaPy(self.estimator, n_estimators = self.n_estimators, two_step = self.two_step, verbose = self.verbose, random_state = self.rng_, perc = self.perc, max_iter = self.max_iter)
         self.feature_selector_.fit(X, y)
         
         return self
@@ -59,10 +58,11 @@ class WrapperSelector(BaseEstimator, SelectorMixin):
 
 
 if __name__ == '__main__':
+    from pdb import set_trace
     from sklearn.datasets import load_boston
+
     boston = load_boston()
     X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
     y = pd.Series(boston['target'], name = 'PRICE')
-    selector = WrapperSelector(cv = 5, max_iter = 100)
+    selector = WrapperSelector(estimator = RandomForestRegressor(n_jobs = -1))
     print(selector.fit_transform(X, y))
-    # print(selector.get_support())
