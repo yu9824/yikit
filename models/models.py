@@ -255,7 +255,33 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
 
 # スケールの概念が入っていないので，それらを内包したscikit-learn準拠モデルを自分で定義する必要がある．
 class EnsembleRegressor(BaseEstimator, RegressorMixin):
-    def __init__(self, estimators = (RandomForestRegressor(),), method = 'blending', cv = 5, n_jobs = -1, random_state = None, scoring = None, verbose = 1, boruta = True, opt = True):
+    def __init__(self, estimators = (RandomForestRegressor(),), method = 'blending', cv = 5, n_jobs = -1, random_state = None, scoring = 'neg_mean_squared_error', verbose = 0, boruta = True, opt = True):
+        '''
+        Parameters
+        ----------
+        estimators: 1-d list, default = (RandomForestRegressor(), )
+            List of estimators to ensemble.
+
+        method: {'blending', 'average', 'stacking'}, default = 'blending'
+            How to ensemble.
+
+        cv: int or callable, default = 5
+
+        n_jobs: int, default = -1
+
+        random_state: None, int or callable, default = None
+
+        scoring: str, callable or list, default = 'neg_mean_squared_error'
+            https://scikit-learn.org/stable/modules/model_evaluation.html
+
+        verbose: int, default = 0
+
+        boruta: bool, default = True
+            Do boruta or not.
+
+        opt: bool, default = True
+            Do hyperparameter optimization or not.
+        '''
         self.estimators = estimators
         self.method = method
         self.cv = cv
@@ -415,10 +441,13 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
         # OOFの予測結果を取得
         dfs_y_oof_ = [pd.concat([lst[n] for lst in self.results_['y_test']], axis = 0).sort_index() for n in range(self.n_estimators_)]
         y_oof_ = pd.concat([df.loc[:, 'pred'] for df in dfs_y_oof_], axis = 1)
-        y_oof_.columns = ['estimator{}'.format(n) for n in range(y_oof_.shape[1])]
+        y_oof_.columns = ['estimator{}'.format(n) for n in range(self.n_estimators_)]
 
-        # ensemble
-        if self.method == 'blending':
+        # *** ensemble ***
+        # モデルがひとつのとき．
+        if self.method == 'average' or self.n_estimators_ == 1:
+            self.weights_ = None
+        elif self.method == 'blending':
             # rmseで最適化（今後指定できるようにしてもいいかも．）
             def objective(trial):
                 params = {'weight{0}'.format(i): trial.suggest_uniform('weight{0}'.format(i), 0, 1) for i in range(self.n_estimators_)}
@@ -439,10 +468,8 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
             if self.verbose == 0:
                 optuna.logging.enable_default_handler()
 
-            self.weights_ = np.array(list(study.best_params.values()))
+            self.weights_ = np.array(list(study.best_params.values()), dtype = np.float64)
             self.weights_ /= np.sum(self.weights_)
-        elif self.method == 'average':
-            self.weights_ = np.ones(self.n_estimators_) / self.n_estimators_
         elif self.method == 'stacking':
             # 線形モデルの定義
             self.stacking_model_ = LinearRegression(n_jobs = self.n_jobs)
@@ -467,7 +494,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
         # 各予測モデルの予測結果をまとめる．(内包リストで得られる配列は3-Dベクトル (n_estimators_, cv, n_samples))
         y_preds_ = np.average(np.array([[estimators[n].predict(X[:, self.results_.support_[m]]) for m, estimators in enumerate(self.results_.estimators)] for n in range(self.n_estimators_)]), axis = 1).transpose()   # 同じ種類のやつは単純に平均を取る．
         
-        if self.method in ('blending', 'average'):
+        if self.method in ('blending', 'average') or self.n_estimators_ == 1:
             y_pred_ = np.average(y_preds_, weights = self.weights_, axis = 1)
         elif self.method == 'stacking':
             y_pred_ = self.stacking_model_.predict(y_preds_)
