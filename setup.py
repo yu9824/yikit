@@ -8,7 +8,7 @@ setup(
     version='0.0.3',
     description='',
     author='yu-9824',
-    author_email='yu.9824@gmail.com',
+    author_email='{0}@{1}'.format('yu.9824.job', 'gmail.com'),
     install_requires=install_requirements,
     url='https://github.com/yu-9824/yi',
     license=license,
