@@ -4,13 +4,13 @@ with open('requirements.txt') as requirements_file:
     install_requirements = requirements_file.read().splitlines()
 
 setup(
-    name='my_models',
-    version='0.0.2',
+    name='yi',
+    version='0.0.3',
     description='',
     author='yu-9824',
     author_email='yu.9824@gmail.com',
     install_requires=install_requirements,
-    url='https://github.com/yu-9824/my_models',
+    url='https://github.com/yu-9824/yi',
     license=license,
     packages=find_packages(exclude=['example'])
 )
