@@ -142,7 +142,7 @@ else:
         license = LICENSE,
         packages = find_packages(exclude=['example']),
         classifiers = [
-            'License :: OSI Approved :: MIT License',
+            'License :: OSI Approved :: Apache Software License',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.6',
             'Programming Language :: Python :: 3.7',
