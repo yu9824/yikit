@@ -17,7 +17,7 @@ sys.setrecursionlimit(10 ** 9)
 
 # ------------------------ ここを変更 --------------------------------
 PACKAGE_NAME = 'yikit'    # フォルダの名前も統一
-DESCRIPTION = ''
+DESCRIPTION = 'This is my own tool kit.'
 
 # py2app用の変数
 SRC = ['main.py']
