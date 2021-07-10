@@ -1,5 +1,0 @@
-numpy
-pandas
-Boruta
-scipy
-scikit-learn>=0.23.2
