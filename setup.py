@@ -16,7 +16,7 @@ import re
 sys.setrecursionlimit(10 ** 9)
 
 # ------------------------ ここを変更 --------------------------------
-PACKAGE_NAME = 'yi'    # フォルダの名前も統一
+PACKAGE_NAME = 'yikit'    # フォルダの名前も統一
 DESCRIPTION = ''
 
 # py2app用の変数
