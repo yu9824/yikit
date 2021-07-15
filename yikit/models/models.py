@@ -51,7 +51,7 @@ if 'ipykernel' in sys.modules:
 else:
     from tqdm import tqdm
 
-from feature_selection.wrapper_method import WrapperSelector
+from ..feature_selection.wrapper_method import WrapperSelector
 
 import optuna
 from joblib import Parallel, delayed
