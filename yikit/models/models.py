@@ -50,7 +50,7 @@ import optuna
 from tqdm import tqdm
 import sys
 
-from feature_selection import WrapperSelector
+from .feature_selection.wrapper_method import WrapperSelector
 
 from joblib import Parallel, delayed
 
