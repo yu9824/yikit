@@ -28,7 +28,6 @@ from keras.backend import clear_session
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.base import is_classifier, is_regressor
 from sklearn.preprocessing import StandardScaler
-from sklearn.utils.estimator_checks import check_estimator
 from sklearn.utils import check_array, check_X_y, check_random_state
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils import Bunch
@@ -46,12 +45,15 @@ from sklearn.cross_decomposition import PLSRegression
 from sklearn.inspection import permutation_importance
 from lightgbm import LGBMRegressor
 
-import optuna
-from tqdm import tqdm
 import sys
+if 'ipykernel' in sys.modules:
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
-from .feature_selection.wrapper_method import WrapperSelector
+from feature_selection.wrapper_method import WrapperSelector
 
+import optuna
 from joblib import Parallel, delayed
 
 import numpy as np
@@ -89,11 +91,18 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
+        '''
+        sklearn/utils/estimator_checks.py:3063:
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        unless the 'no_validation' tag is True.
+        This attribute should be equal to the number of features passed to the fit method.
+        An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
+        See SLEP010: https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html
+        '''
+        self.n_features_in_ = X.shape[1]    # check_X_yのあとでないとエラーになりうる．
+
         # check_random_state
         self.rng_ = check_random_state(self.random_state)
-        
-        n_features_ = X.shape[1]
-            
 
         # 標準化
         if self.scale:
@@ -116,7 +125,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         self.estimator_ = Sequential()
 
         # 入力層
-        self.estimator_.add(Dropout(self.input_dropout, input_shape = (n_features_,), seed = self.rng_.randint(2 ** 32), name = 'Dropout_' + str(j)))
+        self.estimator_.add(Dropout(self.input_dropout, input_shape = (self.n_features_in_,), seed = self.rng_.randint(2 ** 32), name = 'Dropout_' + str(j)))
         if self.progress_bar:
             pbar.update(1)
 
@@ -253,6 +262,16 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
+        '''
+        sklearn/utils/estimator_checks.py:3063:
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        unless the 'no_validation' tag is True.
+        This attribute should be equal to the number of features passed to the fit method.
+        An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
+        See SLEP010: https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html
+        '''
+        self.n_features_in_ = X.shape[1]    # check_X_yのあとでないとエラーになりうる．
+
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = self.rng_, test_size = 0.2)
 
         self.estimator_.fit(X, y, eval_set = [(X_test, y_test)], eval_metric = ['mse', 'mae'], early_stopping_rounds = 20, verbose = False)
@@ -316,6 +335,16 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
 
         # check_X_y
         X, y = check_X_y(X, y)
+
+        '''
+        sklearn/utils/estimator_checks.py:3063:
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        unless the 'no_validation' tag is True.
+        This attribute should be equal to the number of features passed to the fit method.
+        An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
+        See SLEP010: https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html
+        '''
+        self.n_features_in_ = X.shape[1]    # check_X_yのあとでないとエラーになりうる．
         
         # check_random_state
         rng_ = check_random_state(self.random_state)
@@ -532,6 +561,16 @@ class SupportVectorRegressor(BaseEstimator, RegressorMixin):
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
+        '''
+        sklearn/utils/estimator_checks.py:3063:
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        unless the 'no_validation' tag is True.
+        This attribute should be equal to the number of features passed to the fit method.
+        An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
+        See SLEP010: https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html
+        '''
+        self.n_features_in_ = X.shape[1]    # check_X_yのあとでないとエラーになりうる．
+
         if self.scale:
             self.scaler_X_ = StandardScaler()
             X_ = self.scaler_X_.fit_transform(X)
@@ -576,6 +615,16 @@ class LinearModelRegressor(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y):
         X, y = check_X_y(X, y)
+
+        '''
+        sklearn/utils/estimator_checks.py:3063:
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        unless the 'no_validation' tag is True.
+        This attribute should be equal to the number of features passed to the fit method.
+        An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
+        See SLEP010: https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html
+        '''
+        self.n_features_in_ = X.shape[1]    # check_X_yのあとでないとエラーになりうる．
 
         self.rng_ = check_random_state(self.random_state)
 
@@ -700,18 +749,20 @@ class Objective:
 
 
 if __name__ == '__main__':
-    import warnings
-    warnings.simplefilter('ignore', FutureWarning)
-
-    from pdb import set_trace
-    
-    # check_estimator(GBDTRegressor)
-    # check_estimator(NNRegressor)
-    check_estimator(EnsembleRegressor)
-    # check_estimator(SupportVectorRegressor)
-    # check_estimator(LinearModelRegressor)
-
+    from sklearn.utils.estimator_checks import check_estimator
+    from sklearn.model_selection import train_test_split
     from sklearn.datasets import load_boston
+
+    # 0.24からclassを入れる機能は削除された．
+    # check_estimator(GBDTRegressor())
+    # check_estimator(NNRegressor())
+    check_estimator(EnsembleRegressor())
+    print(EnsembleRegressor)
+    check_estimator(SupportVectorRegressor())
+    print(SupportVectorRegressor)
+    check_estimator(LinearModelRegressor())
+    print(LinearModelRegressor)
+
     boston = load_boston()
     X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
     y = pd.Series(boston['target'], name = 'PRICE')
@@ -724,7 +775,6 @@ if __name__ == '__main__':
     # })
     # print(objective(trial))
 
-    from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(X, y)
 
     # estimator = EnsembleRegressor(scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, verbose = 1, boruta = True, opt = False, method = 'stacking')
