@@ -3,8 +3,9 @@
 
 from .models import *
 from .tools import *
+from .feature_selection import FilterSelector, WrapperSelector
 
-__version__      = '0.1.4'
+__version__      = '0.1.5'
 __license__      = 'Apache License 2.0'
 __author__       = 'yu9824'
 __copyright__    = 'Copyright © 2021 yu9824'
@@ -13,8 +14,8 @@ __user_id__ = 'yu9824'
 __app_name__ = 'yikit'
 __url__ = 'http://github.com/yu9824/yikit/'
 
-__all__ = [
-    'models',
-    'tools',
-    'feature_selection',
-    ]
+# __all__ = [
+#     'models',
+#     'tools',
+#     'feature_selection',
+#     ]
