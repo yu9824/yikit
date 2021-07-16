@@ -1,2 +1,2 @@
-from .filter_method import *
-from .wrapper_method import *
+from .filter_method import FilterSelector
+from .wrapper_method import WrapperSelector
