@@ -1,6 +1,4 @@
 scikit-learn>=0.23.2
-keras
-tensorflow
 numpy
 pandas
 tqdm

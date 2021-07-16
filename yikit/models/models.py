@@ -15,16 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-
-from keras.callbacks import EarlyStopping
-from keras.layers.advanced_activations import ReLU, PReLU
-from keras.layers import Dense, Dropout
-from keras.layers.normalization import BatchNormalization
-from keras.models import Sequential
-from keras.optimizers import SGD, Adam
-from keras.regularizers import l2
-from keras.backend import clear_session
-
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.base import is_classifier, is_regressor
 from sklearn.preprocessing import StandardScaler
@@ -71,6 +61,20 @@ __all__ = [
 
 class NNRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, input_dropout = 0.0, hidden_layers = 3, hidden_units = 96, hidden_activation = 'relu', hidden_dropout = 0.2, batch_norm = 'before_act', optimizer_type = 'adam', lr = 0.001, batch_size = 64, l = 0.01, random_state = None, epochs = 200, patience = 20, progress_bar = True, scale = True):
+        try:
+            import keras
+        except ModuleNotFoundError as e:
+            sys.stdout(e)
+        else:
+            from keras.callbacks import EarlyStopping
+            from keras.layers.advanced_activations import ReLU, PReLU
+            from keras.layers import Dense, Dropout
+            from keras.layers.normalization import BatchNormalization
+            from keras.models import Sequential
+            from keras.optimizers import SGD, Adam
+            from keras.regularizers import l2
+            from keras.backend import clear_session
+
         self.input_dropout = input_dropout
         self.hidden_layers = hidden_layers
         self.hidden_units = hidden_units
@@ -749,36 +753,4 @@ class Objective:
 
 
 if __name__ == '__main__':
-    from sklearn.utils.estimator_checks import check_estimator
-    from sklearn.model_selection import train_test_split
-    from sklearn.datasets import load_boston
-
-    # 0.24からclassを入れる機能は削除された．
-    # check_estimator(GBDTRegressor())
-    # check_estimator(NNRegressor())
-    check_estimator(EnsembleRegressor())
-    print(EnsembleRegressor)
-    check_estimator(SupportVectorRegressor())
-    print(SupportVectorRegressor)
-    check_estimator(LinearModelRegressor())
-    print(LinearModelRegressor)
-
-    boston = load_boston()
-    X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
-    y = pd.Series(boston['target'], name = 'PRICE')
-
-    # objective = Objective(RandomForestRegressor(), X, y, scoring = 'neg_mean_squared_error')
-    # trial = optuna.trial.FixedTrial({
-    #     'min_samples_split': 2,
-    #     'max_depth': 10,
-    #     'n_estimators': 100,
-    # })
-    # print(objective(trial))
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y)
-
-    # estimator = EnsembleRegressor(scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, verbose = 1, boruta = True, opt = False, method = 'stacking')
-    # estimator = EnsembleRegressor(estimators = [RandomForestRegressor(), LinearRegression()], scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, boruta = False, opt = False, verbose = 1, method = 'stacking')
-    # estimator = EnsembleRegressor(estimators = [RandomForestRegressor(), LGBMRegressor()], scoring = None, random_state = 334, boruta = False, opt = False)
-    # estimator.fit(X_train, y_train)
-    # print(mean_squared_error(estimator.predict(X_test), y_test, squared = False))
+    pass
