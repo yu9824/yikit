@@ -65,15 +65,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
             import keras
         except ModuleNotFoundError as e:
             sys.stdout(e)
-        else:
-            from keras.callbacks import EarlyStopping
-            from keras.layers.advanced_activations import ReLU, PReLU
-            from keras.layers import Dense, Dropout
-            from keras.layers.normalization import BatchNormalization
-            from keras.models import Sequential
-            from keras.optimizers import SGD, Adam
-            from keras.regularizers import l2
-            from keras.backend import clear_session
+            raise ModuleNotFoundError('If you want to use this module, please install keras.')
 
         self.input_dropout = input_dropout
         self.hidden_layers = hidden_layers
@@ -92,6 +84,15 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         self.scale = scale
 
     def fit(self, X, y):
+        from keras.callbacks import EarlyStopping
+        from keras.layers.advanced_activations import ReLU, PReLU
+        from keras.layers import Dense, Dropout
+        from keras.layers.normalization import BatchNormalization
+        from keras.models import Sequential
+        from keras.optimizers import SGD, Adam
+        from keras.regularizers import l2
+        from keras.backend import clear_session
+        
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
