@@ -6,3 +6,6 @@ lightgbm
 joblib
 Boruta
 scipy
+optuna
+matplotlib
+seaborn

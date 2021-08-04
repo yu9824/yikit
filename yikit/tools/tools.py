@@ -20,6 +20,18 @@ import pandas as pd
 import numpy as np
 import optuna
 import seaborn as sns
+import sys
+
+
+def is_notebook():
+    return 'ipykernel' in sys.modules
+'''
+例
+if 'ipykernel' in sys.modules:
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
+'''
 
 def get_learning_curve(study, loc = 'best'):
     # 2: maximize, 1: minimize

@@ -27,6 +27,7 @@ from sklearn.model_selection._validation import _fit_and_score, _aggregate_score
 from sklearn.metrics import check_scoring
 from sklearn.metrics._scorer import _check_multimetric_scoring
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.linear_model import Ridge, Lasso, LinearRegression
 from sklearn.base import clone
@@ -735,6 +736,17 @@ class Objective:
             self.fixed_params_ = {
                 'random_state' : self.rng,
             }
+        elif isinstance(self.estimator, MLPRegressor):
+            # 最適化するべきパラメータ
+            params_ = {
+                'hidden_layer_sizes': trial.suggest_int('hidden_layer_sizes', 50, 300),
+                'alpha': trial.suggest_loguniform('alpha', 1e-5, 1e-3),
+                'learning_rate_init': trial.suggest_loguniform('learning_rate_init', 1e-5, 1e-3),
+            }
+            # 固定するパラメータ (外でも取り出せるようにインスタンス変数としてる．)
+            self.fixed_params_ = {
+                'random_state' : self.rng,
+            }
         else:
             raise NotImplementedError('{0}'.format(self.estimator))
 
@@ -742,12 +754,17 @@ class Objective:
         self.fixed_params_.update(self.fixed_params)
 
         self.model = type(self.estimator)
-        self.estimator_ = self.model(**params_, **self.fixed_params_)
+        # self.estimator_ = self.model(**params_, **self.fixed_params_)
+        self.estimator_ = clone(self.estimator)
+        self.estimator_.set_params(
+            **params_,
+            **self.fixed_params_,
+        )
 
         parallel = Parallel(n_jobs = self.n_jobs)
         results = parallel(
             delayed(_fit_and_score)(
-                clone(self.estimator), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
+                clone(self.estimator_), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
             )
         for train, test in self.cv.split(self.X, self.y))
         return np.average([d['test_scores'] for d in results])
