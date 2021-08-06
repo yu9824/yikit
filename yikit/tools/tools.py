@@ -33,7 +33,7 @@ else:
     from tqdm import tqdm
 '''
 
-def get_learning_curve(study, loc = 'best'):
+def get_learning_curve(study, loc = 'best', fontfamily='Helvetica'):
     # 2: maximize, 1: minimize
     if study.direction == optuna.study.StudyDirection(1):
         min_or_max = min
@@ -50,7 +50,7 @@ def get_learning_curve(study, loc = 'best'):
     df_values['best_value'] = best_values
 
     plt.rcParams['font.size'] = 13
-    plt.rcParams['font.family'] = 'Helvetica'
+    plt.rcParams['font.family'] = fontfamily
 
     fig = plt.figure(facecolor = 'white')
     ax = fig.add_subplot(111)
@@ -76,7 +76,7 @@ class SummarizePI:
         '''
         self.importances = importances
 
-    def get_figure(self):
+    def get_figure(self, fontfamily='Helvetica'):
         # 平均をとる．
         imp = self.importances.mean(axis = 1)
 
