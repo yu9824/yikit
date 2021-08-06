@@ -281,6 +281,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = self.rng_, test_size = 0.2)
 
         self.estimator_.fit(X, y, eval_set = [(X_test, y_test)], eval_metric = ['mse', 'mae'], early_stopping_rounds = 20, verbose = False)
+        self.feature_importances_ = self.estimator_.feature_importances_
 
         # 慣例と聞いたはずなのにこれをreturnしないと怒られる．審査が厳しい．
         return self
