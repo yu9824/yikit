@@ -27,7 +27,11 @@ from sklearn.utils.validation import check_is_fitted
 from sklearn.utils import shuffle
 import pandas as pd
 from scipy.stats import pearsonr
-from tqdm import tqdm
+from yikit.tools import is_notebook
+if is_notebook():
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
 
 class WrapperSelector(BaseEstimator, SelectorMixin):

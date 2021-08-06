@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
+from yikit.tools.tools import is_notebook
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.base import is_classifier, is_regressor
 from sklearn.preprocessing import StandardScaler
@@ -35,9 +36,10 @@ from sklearn.svm import SVR
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.inspection import permutation_importance
 from lightgbm import LGBMRegressor
-
 import sys
-if 'ipykernel' in sys.modules:
+
+from yikit.tools import is_notebook
+if is_notebook():
     from tqdm.notebook import tqdm
 else:
     from tqdm import tqdm
@@ -65,7 +67,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         try:
             import keras
         except ModuleNotFoundError as e:
-            sys.stdout(e)
+            sys.stdout.write(e)
             raise ModuleNotFoundError('If you want to use this module, please install keras.')
 
         self.input_dropout = input_dropout
