@@ -659,9 +659,33 @@ class LinearModelRegressor(BaseEstimator, RegressorMixin):
         return self.estimator_.predict(X)
 
 class Objective:
-    def __init__(self, estimator, X, y, fixed_params = {}, cv = 5, random_state = None, scoring = None, n_jobs = None):
+    def __init__(self, estimator, X, y, custom_params = lambda trial: {}, fixed_params = {}, cv = 5, random_state = None, scoring = None, n_jobs = None):
+        """objective function of optuna.
+
+        Parameters
+        ----------
+        estimator : sklearn-based estimator instance
+            e.g. sklearn.ensemble.RandomForestRegressor()
+        X : 2-d array
+            features
+        y : 1-d array
+            target
+        custom_params : func, optional
+            If you want to do your own custom range of optimization, you can define it here with a function that returns a dictionary., by default lambda trial:{}
+        fixed_params : dict, optional
+            If you have a fixed variable, you can specify it in the dictionary., by default {}
+        cv : int, KFold object, optional
+            How to cross-validate, by default 5
+        random_state : int or RandomState object, optional
+            seed, by default None
+        scoring : scorer object, str, etc., optional
+            If you don't specify it, it will use the default evaluation function of sklearn., by default None
+        n_jobs : int, optional
+            parallel processing, by default None
+        """
         self.estimator = estimator
         self.X, self.y = check_X_y(X, y)
+        self.custom_params = custom_params
         self.fixed_params = fixed_params
         self.cv = check_cv(cv)
         self.rng = check_random_state(random_state)
@@ -672,7 +696,10 @@ class Objective:
         self.sampler = optuna.samplers.TPESampler(seed = self.rng.randint(2 ** 32))
 
     def __call__(self, trial):
-        if isinstance(self.estimator, NNRegressor):
+        if self.custom_params(trial):
+            params_ = self.params(trial)
+            self.fixed_params_ = {} # あとで加えるので空でOK．
+        elif isinstance(self.estimator, NNRegressor):
             params_ = {
                 'input_dropout': trial.suggest_uniform('input_dropout', 0.0, 0.3),
                 'hidden_layers': trial.suggest_int('hidden_layers', 2, 4),
@@ -770,7 +797,7 @@ class Objective:
                 clone(self.estimator_), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
             )
         for train, test in self.cv.split(self.X, self.y))
-        return np.average([d['test_scores'] for d in results])
+        return np.mean([d['test_scores'] for d in results])
 
 
 if __name__ == '__main__':
