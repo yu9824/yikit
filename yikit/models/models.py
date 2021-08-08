@@ -686,7 +686,7 @@ class Objective:
         self.estimator = estimator
         self.X, self.y = check_X_y(X, y)
         self.custom_params = custom_params
-        self.fixed_params = fixed_params
+        self._fixed_params = fixed_params
         self.cv = check_cv(cv)
         self.rng = check_random_state(random_state)
         self.scoring = check_scoring(estimator, scoring)
@@ -697,7 +697,7 @@ class Objective:
 
     def __call__(self, trial):
         if self.custom_params(trial):
-            params_ = self.params(trial)
+            params_ = self.custom_params(trial)
             self.fixed_params_ = {} # あとで加えるので空でOK．
         elif isinstance(self.estimator, NNRegressor):
             params_ = {
@@ -781,7 +781,7 @@ class Objective:
             raise NotImplementedError('{0}'.format(self.estimator))
 
         # もしfixed_paramsを追加で指定されたらそれを取り入れる
-        self.fixed_params_.update(self.fixed_params)
+        self.fixed_params_.update(self._fixed_params)
 
         self.model = type(self.estimator)
         # self.estimator_ = self.model(**params_, **self.fixed_params_)
