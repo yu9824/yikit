@@ -31,10 +31,12 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.linear_model import Ridge, Lasso, LinearRegression
+from sklearn.tree import DecisionTreeRegressor
 from sklearn.base import clone
 from sklearn.svm import SVR
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.inspection import permutation_importance
+from ngboost import NGBRegressor
 from lightgbm import LGBMRegressor
 import sys
 
@@ -693,7 +695,7 @@ class Objective:
         self.n_jobs = n_jobs
 
         # sampler
-        self.sampler = optuna.samplers.TPESampler(seed = self.rng.randint(2 ** 32))
+        self.sampler = optuna.samplers.TPESampler(seed = self.rng.randint(2 ** 32 - 1))
 
     def __call__(self, trial):
         if self.custom_params(trial):
@@ -718,7 +720,7 @@ class Objective:
             }
         elif isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
             params_ = {
-                'n_estimators' : trial.suggest_int('n_estimators', 10, 500),
+                'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
                 # 'max_depth' : trial.suggest_int('n_estimators', 3, 9),    # num_leaves変えた方が良さそう．制約条件的に．
                 'min_child_weight' : trial.suggest_loguniform('min_child_weight', 0.001, 10),
                 'colsample_bytree' : trial.suggest_uniform('colsample_bytree', 0.6, 0.95),
@@ -735,7 +737,7 @@ class Objective:
             params_ = {
                 'min_samples_split' : trial.suggest_int('min_samples_split', 2, 16),
                 'max_depth' : trial.suggest_int('max_depth', 10, 100),
-                'n_estimators' : trial.suggest_int('n_estimators', 10, 500)
+                'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
             }
             # 固定するパラメータ (外でも取り出せるようにインスタンス変数としてる．)
             self.fixed_params_ = {
@@ -777,6 +779,21 @@ class Objective:
             self.fixed_params_ = {
                 'random_state' : self.rng,
             }
+        elif isinstance(self.estimator, NGBRegressor):
+            # 最適化するべきパラメータ
+            params_ = {
+                'Base': DecisionTreeRegressor(
+                    max_depth =  trial.suggest_int('_max_depth', 2, 100),
+                    criterion = trial.suggest_categorical('_criterion', ['mse', 'friedman_mse']),
+                    random_state = self.rng,
+                ),
+                'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
+                'minibatch_frac': trial.suggest_uniform('minibatch_frac', 0.5, 1.0),
+            }
+            # 固定するパラメータ (外でも取り出せるようにインスタンス変数としてる．)
+            self.fixed_params_ = {
+                'random_state' : self.rng,
+            }
         else:
             raise NotImplementedError('{0}'.format(self.estimator))
 
@@ -798,6 +815,29 @@ class Objective:
             )
         for train, test in self.cv.split(self.X, self.y))
         return np.mean([d['test_scores'] for d in results])
+
+    def get_best_estimator(self, study):
+        best_params_ = self.get_best_params(study)
+        return self.model(**best_params_)
+
+    def get_best_params(self, study):
+        if isinstance(self.estimator_, NGBRegressor):
+            dt_best_params_ = {}
+            best_params_ = {}
+            for k, v in study.best_params.items():
+                if k[0] == '_':
+                    dt_best_params_[k[1:]] = v
+                else:
+                    best_params_[k] = v
+            else:
+                if 'random_state' in self.fixed_params_:
+                    dt_best_params_['random_state'] = self.fixed_params_['random_state']
+                best_params_['Base'] = DecisionTreeRegressor(**dt_best_params_)
+        else:
+            best_params_ = study.best_params
+        best_params_.update(**self.fixed_params_)
+        return best_params_
+
 
 
 if __name__ == '__main__':
