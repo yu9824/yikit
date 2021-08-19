@@ -698,10 +698,7 @@ class Objective:
         self.sampler = optuna.samplers.TPESampler(seed = self.rng.randint(2 ** 32 - 1))
 
     def __call__(self, trial):
-        if self.custom_params(trial):
-            params_ = self.custom_params(trial)
-            self.fixed_params_ = {} # あとで加えるので空でOK．
-        elif isinstance(self.estimator, NNRegressor):
+        if isinstance(self.estimator, NNRegressor):
             params_ = {
                 'input_dropout': trial.suggest_uniform('input_dropout', 0.0, 0.3),
                 'hidden_layers': trial.suggest_int('hidden_layers', 2, 4),
@@ -785,7 +782,7 @@ class Objective:
                 'Base': DecisionTreeRegressor(
                     max_depth =  trial.suggest_int('_max_depth', 2, 100),
                     criterion = trial.suggest_categorical('_criterion', ['mse', 'friedman_mse']),
-                    random_state = self.rng,
+                    # random_state = self.rng,
                 ),
                 'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
                 'minibatch_frac': trial.suggest_uniform('minibatch_frac', 0.5, 1.0),
@@ -794,6 +791,9 @@ class Objective:
             self.fixed_params_ = {
                 'random_state' : self.rng,
             }
+        elif self.custom_params(trial):
+            params_ = self.custom_params(trial)
+            self.fixed_params_ = {} # あとで加えるので空でOK．
         else:
             raise NotImplementedError('{0}'.format(self.estimator))
 
@@ -830,8 +830,8 @@ class Objective:
                 else:
                     best_params_[k] = v
             else:
-                if 'random_state' in self.fixed_params_:
-                    dt_best_params_['random_state'] = self.fixed_params_['random_state']
+                # if 'random_state' in self.fixed_params_:
+                #     dt_best_params_['random_state'] = self.fixed_params_['random_state']
                 best_params_['Base'] = DecisionTreeRegressor(**dt_best_params_)
         else:
             best_params_ = study.best_params
