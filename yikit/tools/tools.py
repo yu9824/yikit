@@ -18,6 +18,13 @@ limitations under the License.
 import sys
 
 def is_notebook():
+    """the environment is notebook or not.
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
     if 'get_ipython' not in globals():
         # Python shell
         return False
@@ -26,7 +33,6 @@ def is_notebook():
         # IPython shell
         return False
     return True
-    # return 'ipykernel' in sys.modules
 
 '''
 例
