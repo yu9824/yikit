@@ -5,6 +5,7 @@ if __name__ == '__main__':
     import pandas as pd
     import matplotlib.pyplot as plt
     from pdb import set_trace
+    import os
 
     # データセットの準備等
     boston = load_boston()
@@ -34,6 +35,6 @@ if __name__ == '__main__':
     from yikit.tools.visualization import get_dist_figure
     from ngboost import NGBRegressor
     ngb = NGBRegressor(random_state=SEED, verbose=False).fit(X_train, y_train)
-    get_dist_figure(y_test, ngb.predict(X_test), ngb.pred_dist(X_test)).savefig('sample_dist_figure.png')
+    get_dist_figure(y_test, ngb.predict(X_test), ngb.pred_dist(X_test)).savefig(os.path.join(os.path.dirname(__file__), 'sample_dist_figure.png'))
     
     
