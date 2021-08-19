@@ -18,7 +18,16 @@ limitations under the License.
 import sys
 
 def is_notebook():
-    return 'ipykernel' in sys.modules
+    if 'get_ipython' not in globals():
+        # Python shell
+        return False
+    env_name = get_ipython().__class__.__name__
+    if env_name == 'TerminalInteractiveShell':
+        # IPython shell
+        return False
+    return True
+    # return 'ipykernel' in sys.modules
+
 '''
 例
 if 'ipykernel' in sys.modules:
