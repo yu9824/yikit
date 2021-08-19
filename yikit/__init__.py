@@ -5,7 +5,7 @@ from .models import *
 from .tools import *
 from .feature_selection import FilterSelector, WrapperSelector
 
-__version__      = '0.1.9'
+__version__      = '0.2.0'
 __license__      = 'Apache License 2.0'
 __author__       = 'yu9824'
 __copyright__    = 'Copyright © 2021 yu9824'
