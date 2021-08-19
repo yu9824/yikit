@@ -19,11 +19,12 @@ import sys
 
 def is_notebook():
     """the environment is notebook or not.
+    reference: https://blog.amedama.jp/entry/detect-jupyter-env
 
     Returns
     -------
-    [type]
-        [description]
+    bool
+        is_notebook or not.
     """
     if 'get_ipython' not in globals():
         # Python shell
