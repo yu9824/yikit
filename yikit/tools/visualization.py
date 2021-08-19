@@ -109,15 +109,15 @@ class SummarizePI:
     def get_data(self):
         pass
 
-def get_dist(y_true, y_pred, y_dist, keep_y_range = True, return_axis = False, verbose = True, titles = []):
+def get_dist_figure(y_true, y_pred, y_dist, keep_y_range = True, return_axis = False, verbose = True, titles = []):
     offset = np.ptp(y_pred) * 0.05
     y_range = np.linspace(min(y_pred)-offset, max(y_pred)+offset, 200).reshape((-1, 1))
     dist_values = y_dist.pdf(y_range).transpose()
 
-    y_true = check_array(y_true)
-    y_pred = check_array(y_pred)
+    y_true = check_array(y_true, ensure_2d=False)
+    y_pred = check_array(y_pred, ensure_2d=False)
 
-    if not np.isallclose(y_dist.mean(), y_pred):
+    if not np.allclose(y_dist.mean(), y_pred):
         warnings.warn('`y_dist.mean()` and `y_pred` is not close.')
         
 
