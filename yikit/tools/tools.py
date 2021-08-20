@@ -27,8 +27,9 @@ def is_notebook():
         is_notebook or not.
     """
     if 'get_ipython' not in globals():
+        return 'ipykernel' in sys.modules
         # Python shell
-        return False
+        # return False
     env_name = get_ipython().__class__.__name__
     if env_name == 'TerminalInteractiveShell':
         # IPython shell
