@@ -15,7 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-from yikit.tools.tools import is_notebook
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.base import is_classifier, is_regressor
 from sklearn.preprocessing import StandardScaler

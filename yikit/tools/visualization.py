@@ -127,8 +127,8 @@ class SummarizePI:
     def get_data(self):
         pass
 
-def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = False, verbose = True, titles = []):
-    """[summary]
+def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = False, verbose = True, titles = [], fontfamily='Helvetica'):
+    """get distribution figure.
 
     Parameters
     ----------
@@ -141,9 +141,11 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
     return_axis : bool, optional
         return axis or not, by default False
     verbose : bool, optional
-        verbose, by default True
+        drwaing progress bar or not, by default True
     titles : 1d list, optional
         titles whose lengh == n_samples, by default []
+    fontfamily : str, optional
+        fontfamily, by default 'Helvetica'
 
     Returns
     -------
@@ -164,10 +166,10 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
 
     n_rows = ceil(Decimal(n_samples).sqrt())
     n_cols = n_samples // n_rows + int(n_samples % n_rows > 0)
-    fig, axes = plt.subplots(n_rows, n_cols, facecolor='white', dpi=144, figsize=(6.4*n_rows, 4.8*n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, facecolor='white', dpi=72, figsize=(6.4*n_rows, 4.8*n_cols))
     
     if verbose:
-        pbar = tqdm(total=n_cols * n_rows + 1)
+        pbar = tqdm(total=n_cols * n_rows + 1, desc='Drawing distribution figure')
     # 一つずつ分布を書いていく．
     for idx in range(n_samples):
         ax = axes[idx//n_cols][idx%n_cols]
@@ -202,6 +204,7 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
 
     if verbose:
         pbar.update(1)
+        pbar.set_description(desc = 'Completed')
         pbar.close()
     if return_axis:
         return fig, axes
