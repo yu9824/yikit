@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-from sklearn.feature_selection import SelectorMixin
+from sklearn.feature_selection import SelectorMixin # >= 0.23.2
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_is_fitted
