@@ -16,10 +16,12 @@ limitations under the License.
 '''
 
 from boruta import BorutaPy
+from pandas.core.base import SelectionMixin
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.utils import check_X_y
 from sklearn.utils import check_random_state
 from sklearn.utils import shuffle
+from sklearn.utils.validation import check_is_fitted
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
@@ -214,6 +216,18 @@ class BorutaPy(BorutaPy):
         return self._fit(X, y)
 
     def get_support(self, weak=False):
+        """get support
+
+        Parameters
+        ----------
+        weak : bool, optional
+            If set to true, the tentative features are also used to reduce X., by default False
+
+        Returns
+        -------
+        support : array
+        """
+        check_is_fitted(self, 'support_')
         if weak:
             return self.support_weak_
         else:
