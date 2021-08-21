@@ -4,7 +4,7 @@ pandas
 tqdm
 lightgbm
 joblib
-Boruta==0.0.3
+Boruta==0.3
 scipy
 optuna
 matplotlib
