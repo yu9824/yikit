@@ -1,10 +1,6 @@
 
 # 正規表現でtextファイルと同じやり方で読み込むのですべて手打ちする．
 
-from .models import *
-from .tools import *
-from .feature_selection import FilterSelector, WrapperSelector
-
 __version__      = '0.2.3'
 __license__      = 'Apache License 2.0'
 __author__       = 'yu9824'

@@ -1,6 +1,5 @@
 if __name__ == '__main__':
     from yikit.tools import is_notebook
-    print(is_notebook())
     from sklearn.ensemble import RandomForestRegressor
     from sklearn.datasets import load_boston
     from sklearn.model_selection import train_test_split

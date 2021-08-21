@@ -39,13 +39,12 @@ from ngboost import NGBRegressor
 from lightgbm import LGBMRegressor
 import sys
 
+from yikit.feature_selection import BorutaPy
 from yikit.tools import is_notebook
 if is_notebook():
     from tqdm.notebook import tqdm
 else:
     from tqdm import tqdm
-
-from ..feature_selection.wrapper_method import WrapperSelector
 
 import optuna
 from joblib import Parallel, delayed
@@ -384,7 +383,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
 
             if self.boruta:
                 # 特徴量削減
-                feature_selector_ = WrapperSelector(estimator = RandomForestRegressor(n_jobs = -1), random_state = rng_, max_iter = 300, verbose = self.verbose)
+                feature_selector_ = BorutaPy(estimator = RandomForestRegressor(n_jobs = -1, random_state = rng_), random_state = rng_, max_iter = 300, verbose = self.verbose)
                 feature_selector_.fit(X_train, y_train)
                 
                 # 抽出
