@@ -212,6 +212,12 @@ class BorutaPy(BorutaPy):
         if self.perc == 'auto':
             self.perc = self._calc_auto_perc(X, y)
         return self._fit(X, y)
+
+    def get_support(self, weak=False):
+        if weak:
+            return self.support_weak_
+        else:
+            return self.support_
         
     
     def _calc_auto_perc(self, X, y):
