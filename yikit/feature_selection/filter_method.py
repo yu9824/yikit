@@ -24,22 +24,43 @@ from scipy.stats import pearsonr
 import pandas as pd
 import numpy as np
 
+from yikit.tools import is_notebook
+if is_notebook():
+    from tqdm.notebook import trange
+else:
+    from tqdm import trange
+
+# from joblib import Parallel, delayed
+
 
 
 class FilterSelector(SelectorMixin, BaseEstimator):
-    def __init__(self, r = 0.9, alpha = 0.05):
-        '''
-        r: 相関係数を高いとする閾値．これより高いと相関が高いとして，削除対象とする．
-        alpha: 有意水準．これよりp値が低い時，相関係数の値が信頼に足ると判断．特別な理由がない限りはこれを変えないのがベター．
-        '''
+    def __init__(self, r = 0.9, alpha = 0.05, verbose = True):
+        """Filter method (feature selection)
+
+        Parameters
+        ----------
+        r : float, optional
+            相関係数を高いとする閾値．これより高いと相関が高いとして，削除対象とする．, by default 0.9
+        alpha : float, optional
+            有意水準．これよりp値が低い時，相関係数の値が信頼に足ると判断．特別な理由がない限りはこれを変えないのがベター．, by default 0.05
+        verbose : bool, optional
+            verbose, by default True
+        """
         self.r = r
         self.alpha = alpha
+        self.verbose = verbose
 
     def fit(self, X, y = None):
-        '''
-        X: pd.DataFrame or 2次元のnp.ndarray or 2次元のlist．すでに作成された特徴量空間．
-        y: 不要．
-        '''
+        """fit
+
+        Parameters
+        ----------
+        X : pd.DataFrame or 2次元のnp.ndarray or 2次元のlist．
+            すでに作成された特徴量空間．
+        y : None, optional
+            不要．, by default None
+        """
         # checkかつnp.ndarrayに変換される．
         X = check_array(X)
 
@@ -53,7 +74,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         # i番目の要素は，i番目と相関係数がcorr以上かつp値が有意水準alpha未満のものの集合．これの鋳型を作成
         pair = [set() for _ in range(n_features)]
 
-        for i in range(n_features):
+        for i in trange(n_features) if self.verbose else range(n_features):
             for j in range(i, n_features):
                 if i == j:  # 一緒の時はそもそも相関係数1, p値0は自明なので例外処理
                     self.corr_[i, i] = [1.0, 0.0]
