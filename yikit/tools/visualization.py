@@ -254,6 +254,8 @@ def get_learning_curve_gb(estimator, fontfamily = 'Helvetica', return_axis = Fal
 
     # plot
     for data_name, result in evals_result.items():
+        if data_name not in COLORS:
+            raise ValueError('{} is not in `COLOR`.'.format(data_name))
         score_name = list(result.keys())[0]
         score = result[score_name]
         ax.plot(range(len(score)), score, label = data_name, c = COLORS[data_name])
