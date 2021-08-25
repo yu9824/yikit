@@ -812,7 +812,7 @@ class Objective:
                 clone(self.estimator_), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
             )
         for train, test in self.cv.split(self.X, self.y))
-        return np.mean([d['test_scores'] for d in results])
+        return np.mean([d['test_scores'] for d in results]) # scikit-learn>=0.24.1
 
     def get_best_estimator(self, study):
         best_params_ = self.get_best_params(study)

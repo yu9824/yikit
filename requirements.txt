@@ -1,4 +1,4 @@
-scikit-learn>=0.23.2
+scikit-learn>=0.24.1
 numpy
 pandas
 tqdm
@@ -9,4 +9,4 @@ scipy
 optuna
 matplotlib
 seaborn
-ngboost
+ngboost==0.3.6
