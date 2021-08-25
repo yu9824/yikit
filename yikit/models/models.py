@@ -780,7 +780,7 @@ class Objective:
                 'Base': DecisionTreeRegressor(
                     max_depth =  trial.suggest_int('_max_depth', 2, 100),
                     criterion = trial.suggest_categorical('_criterion', ['mse', 'friedman_mse']),
-                    # random_state = self.rng,
+                    random_state = self.rng,
                 ),
                 'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
                 'minibatch_frac': trial.suggest_uniform('minibatch_frac', 0.5, 1.0),
@@ -828,8 +828,8 @@ class Objective:
                 else:
                     best_params_[k] = v
             else:
-                # if 'random_state' in self.fixed_params_:
-                #     dt_best_params_['random_state'] = self.fixed_params_['random_state']
+                if 'random_state' in self.fixed_params_:
+                    dt_best_params_['random_state'] = self.fixed_params_['random_state']
                 best_params_['Base'] = DecisionTreeRegressor(**dt_best_params_)
         else:
             best_params_ = study.best_params
