@@ -15,7 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -26,6 +25,9 @@ from decimal import Decimal
 from math import ceil
 import warnings
 from ngboost.distns import Distn
+from ngboost import NGBClassifier, NGBRegressor
+import platform
+from sklearn.utils import Bunch
 
 from sklearn.utils.validation import check_array
 from yikit.tools import is_notebook
@@ -35,7 +37,13 @@ if is_notebook():
 else:
     from tqdm import tqdm
 
-def get_learning_curve(study, loc = 'best', fontfamily='Helvetica', return_axis = False):
+COLORS = Bunch(
+    train = '#283655',
+    test = '#cf3721',
+    val = '#cf3721',
+)
+
+def get_learning_curve_optuna(study, loc = 'best', fontfamily='Helvetica', return_axis = False):
     """get_leraning_curve
 
     Parameters
@@ -71,8 +79,7 @@ def get_learning_curve(study, loc = 'best', fontfamily='Helvetica', return_axis 
         best_values.append(temp)
     df_values['best_value'] = best_values
 
-    plt.rcParams['font.size'] = 13
-    plt.rcParams['font.family'] = fontfamily
+    _font_settings(fontfamily=fontfamily)
 
     fig = plt.figure(facecolor = 'white')
     ax = fig.add_subplot(111)
@@ -111,8 +118,7 @@ class SummarizePI:
         df_imp = pd.DataFrame(imp / np.sum(imp), columns = ['importances']).sort_values('importances', ascending=False).transpose()
 
         # レイアウトについて
-        plt.rcParams['font.size'] = 13
-        plt.rcParams['font.family'] = 'Helvetica'
+        _font_settings(fontfamily=fontfamily)
 
         # 重要度の棒グラフを描画
         self.fig = plt.figure(facecolor = 'white')
@@ -166,6 +172,8 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
 
     n_rows = ceil(Decimal(n_samples).sqrt())
     n_cols = n_samples // n_rows + int(n_samples % n_rows > 0)
+
+    _font_settings(fontfamily=fontfamily)
     fig, axes = plt.subplots(n_rows, n_cols, facecolor='white', dpi=72, figsize=(6.4*n_rows, 4.8*n_cols))
     
     if verbose:
@@ -216,3 +224,44 @@ def is_correct_dist(y_pred, y_dist):
     if not b:
         warnings.warn('`y_dist.mean()` and `y_pred` is not close.')
     return b
+
+def select_fontfamily():
+    if platform.system() == 'Darwin':
+        return 'Helvetica'
+    else:   # Window or Linux
+        return 'DejaVu Sans'
+
+def _font_settings(fontfamily='Helvetica', fontsize=13):
+    plt.rcParams['font.size'] = fontsize
+    plt.rcParams['font.family'] = fontfamily
+
+
+def get_learning_curve_ngboost(estimator, fontfamily = 'Helvetica', return_axis = False):
+    # check_estimator
+    if not isinstance(estimator, (NGBClassifier, NGBRegressor)):
+        raise TypeError('`estimator` is neither NGBClassifier nor NGBRegressor.')
+
+    # font
+    _font_settings(fontfamily=fontfamily)
+
+    # generate figure
+    fig, ax = plt.subplots(1, 1, facecolor='white', dpi=72)
+    LOGSCORE = 'LOGSCORE'
+
+    # plot
+    for name, evals_result in estimator.evals_result.items():
+        score = evals_result[LOGSCORE]
+        ax.plot(range(len(score)), score, label = name, c = COLORS[name])
+    
+    # label
+    ax.set_xlabel('n_iter')
+    ax.set_ylabel(LOGSCORE)
+
+    # legend
+    ax.legend(facecolor='#f0f0f0', edgecolor='None')
+    # tight_layout
+    fig.tight_layout()
+    if return_axis:
+        return fig, ax
+    else:
+        return fig
