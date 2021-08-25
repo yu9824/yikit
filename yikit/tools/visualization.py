@@ -258,7 +258,7 @@ def get_learning_curve_ngboost(estimator, fontfamily = 'Helvetica', return_axis 
     ax.set_ylabel(LOGSCORE)
 
     # legend
-    ax.legend(facecolor='#f0f0f0', edgecolor='None')
+    ax.legend(facecolor='#f0f0f0', edgecolor='None', fontsize=10)
     # tight_layout
     fig.tight_layout()
     if return_axis:
