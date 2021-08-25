@@ -39,22 +39,28 @@ if __name__ == '__main__':
     # get_dist_figure(ngb.pred_dist(X_test), y_test, titles = ['a'] * len(y_test)).savefig(os.path.join(os.path.dirname(__file__), 'sample_dist_figure.png'))
 
     # get_learning_curve_optuna
-    from yikit.tools.visualization import get_learning_curve_optuna
-    import optuna
-    from yikit.models import Objective
-    rf = RandomForestRegressor(random_state=SEED, n_jobs = -1)
-    objective = Objective(rf, X_train, y_train, random_state=SEED, n_jobs=-1)
-    study = optuna.create_study(sampler = objective.sampler, direction='maximize')
-    study.optimize(objective, n_trials=10)
-    get_learning_curve_optuna(study).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_optuna.png'))
+    # from yikit.tools.visualization import get_learning_curve_optuna
+    # import optuna
+    # from yikit.models import Objective
+    # rf = RandomForestRegressor(random_state=SEED, n_jobs = -1)
+    # objective = Objective(rf, X_train, y_train, random_state=SEED, n_jobs=-1)
+    # study = optuna.create_study(sampler = objective.sampler, direction='maximize')
+    # study.optimize(objective, n_trials=10)
+    # get_learning_curve_optuna(study).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_optuna.png'))
 
 
-    # get_learning_curve_ngboost
-    from yikit.tools.visualization import get_learning_curve_ngboost
+    # get_learning_curve_gb
+    from yikit.tools.visualization import get_learning_curve_gb
     from ngboost import NGBRegressor
     from sklearn.tree import DecisionTreeRegressor
     ngb = NGBRegressor(random_state=SEED, Base=DecisionTreeRegressor(random_state=SEED))
     ngb.fit(X_train, y_train, X_val=X_test, Y_val=y_test)
-    get_learning_curve_ngboost(ngb).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_ngboost.png'))
+    get_learning_curve_gb(ngb).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_ngboost.png'))
+
+    from yikit.tools.visualization import get_learning_curve_gb
+    from lightgbm import LGBMRegressor
+    lgbm = LGBMRegressor(random_state=SEED, n_jobs=-1)
+    lgbm.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test, y_test)], eval_names=['train', 'test'])
+    get_learning_curve_gb(lgbm).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_lightgbm.png'))
     
     

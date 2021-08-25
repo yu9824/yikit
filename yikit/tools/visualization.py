@@ -26,6 +26,7 @@ from math import ceil
 import warnings
 from ngboost.distns import Distn
 from ngboost import NGBClassifier, NGBRegressor
+from lightgbm import LGBMClassifier, LGBMRegressor
 import platform
 from sklearn.utils import Bunch
 
@@ -236,26 +237,30 @@ def _font_settings(fontfamily='Helvetica', fontsize=13):
     plt.rcParams['font.family'] = fontfamily
 
 
-def get_learning_curve_ngboost(estimator, fontfamily = 'Helvetica', return_axis = False):
+def get_learning_curve_gb(estimator, fontfamily = 'Helvetica', return_axis = False):
     # check_estimator
-    if not isinstance(estimator, (NGBClassifier, NGBRegressor)):
-        raise TypeError('`estimator` is neither NGBClassifier nor NGBRegressor.')
+    if isinstance(estimator, (NGBClassifier, NGBRegressor)):
+        evals_result = estimator.evals_result
+    elif isinstance(estimator, (LGBMClassifier, LGBMRegressor)):
+        evals_result = estimator.evals_result_
+    else:
+        raise TypeError(estimator.__class__.__name__)
 
     # font
     _font_settings(fontfamily=fontfamily)
 
     # generate figure
     fig, ax = plt.subplots(1, 1, facecolor='white', dpi=72)
-    LOGSCORE = 'LOGSCORE'
 
     # plot
-    for name, evals_result in estimator.evals_result.items():
-        score = evals_result[LOGSCORE]
-        ax.plot(range(len(score)), score, label = name, c = COLORS[name])
+    for data_name, result in evals_result.items():
+        score_name = list(result.keys())[0]
+        score = result[score_name]
+        ax.plot(range(len(score)), score, label = data_name, c = COLORS[data_name])
     
     # label
     ax.set_xlabel('n_iter')
-    ax.set_ylabel(LOGSCORE)
+    ax.set_ylabel(score_name)
 
     # legend
     ax.legend(facecolor='#f0f0f0', edgecolor='None', fontsize=10)
