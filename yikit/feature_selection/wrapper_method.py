@@ -16,8 +16,6 @@ limitations under the License.
 '''
 
 from boruta import BorutaPy
-from pandas.core.base import SelectionMixin
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.utils import check_X_y
 from sklearn.utils import check_random_state
 from sklearn.utils import shuffle
@@ -186,14 +184,7 @@ class BorutaPy(BorutaPy):
                 warnings.warn(mess)
                 self._flag_tqdm = False
             else:
-                if is_notebook():
-                    from tqdm.notebook import tqdm
-                else:
-                    from tqdm import tqdm
-                
                 self._flag_tqdm = True
-                if verbose == 1:
-                    self.pbar = tqdm(total=max_iter, desc='BorutaPy')
         else:
             self._flag_tqdm = False
     
@@ -213,6 +204,12 @@ class BorutaPy(BorutaPy):
         X, y = check_X_y(X, y)
         if self.perc == 'auto':
             self.perc = self._calc_auto_perc(X, y)
+        if self._flag_tqdm and self.verbose == 1:
+            if is_notebook():
+                from tqdm.notebook import tqdm
+            else:
+                from tqdm import tqdm
+            self.pbar = tqdm(total=self.max_iter, desc='BorutaPy')
         return self._fit(X, y)
 
     def get_support(self, weak=False):
@@ -306,11 +303,4 @@ class BorutaPy(BorutaPy):
 
 if __name__ == '__main__':
     from pdb import set_trace
-    from sklearn.datasets import load_boston
-
-    boston = load_boston()
-    X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
-    y = pd.Series(boston['target'], name = 'PRICE')
-    print(BorutaPy(RandomForestRegressor(n_jobs=-1, random_state=334), random_state=334).fit(X, y).support_)
-    # selector = WrapperSelector(estimator = RandomForestRegressor(n_jobs = -1))
-    # print(selector.fit_transform(X, y))
+    
