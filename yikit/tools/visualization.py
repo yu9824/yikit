@@ -175,7 +175,7 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
     n_cols = n_samples // n_rows + int(n_samples % n_rows > 0)
 
     _font_settings(fontfamily=fontfamily)
-    fig, axes = plt.subplots(n_rows, n_cols, facecolor='white', dpi=72, figsize=(6.4*n_rows, 4.8*n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, facecolor='white', dpi=72, figsize=(6.4*n_cols, 4.8*n_rows))
     
     if verbose:
         pbar = tqdm(total=n_cols * n_rows + 1, desc='Drawing distribution figure')
@@ -189,6 +189,7 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
             y_true = check_array(y_true, ensure_2d=False)
             ax.vlines(y_true[idx], 0, prob_max_temp, "#ab4e15", label="ground truth")
         ax.vlines(y_pred[idx], 0, prob_max_temp, "#dc143c", label="pred")
+        ax.set_ylabel('Probability density')
         ax.legend(loc="best", facecolor='#f0f0f0', edgecolor='None')
         if titles:
             ax.set_title("{0}".format(titles[idx]))
