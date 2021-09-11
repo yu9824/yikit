@@ -778,7 +778,7 @@ class Objective:
             # 最適化するべきパラメータ
             params_ = {
                 'Base': DecisionTreeRegressor(
-                    max_depth =  trial.suggest_int('_max_depth', 2, 5),
+                    max_depth =  trial.suggest_int('_max_depth', 2, 100),
                     criterion = trial.suggest_categorical('_criterion', ['mse', 'friedman_mse']),
                     random_state = self.rng,
                 ),
