@@ -1,6 +1,9 @@
 if __name__ == '__main__':
     from models import NNRegressor
+    from ngboost import NGBRegressor
+    from models import Objective
     import pandas as pd
+    import optuna
     
     from sklearn.utils.estimator_checks import check_estimator
     from sklearn.model_selection import train_test_split
@@ -8,7 +11,7 @@ if __name__ == '__main__':
 
     # 0.24からclassを入れる機能は削除された．
     # check_estimator(GBDTRegressor())
-    check_estimator(NNRegressor())
+    # check_estimator(NNRegressor())
     # check_estimator(EnsembleRegressor())
     # print(EnsembleRegressor)
     # check_estimator(SupportVectorRegressor())
@@ -29,6 +32,18 @@ if __name__ == '__main__':
     # print(objective(trial))
 
     X_train, X_test, y_train, y_test = train_test_split(X, y)
+
+    objective = Objective(NGBRegressor(random_state=334, verbose=False), X, y, scoring = 'neg_mean_squared_error')
+    study = optuna.create_study(sampler=objective.sampler)
+    # trial = optuna.trial.FixedTrial({
+    #     'Base__max_depth': 3,
+    #     'Base__criterion': 'mse',
+    #     'n_estimators': 100,
+    #     'minibatch_frac': 1.0,
+    # })
+    study.optimize(objective, n_trials=1)
+    print(objective.get_best_estimator(study))
+    
 
     # estimator = EnsembleRegressor(scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, verbose = 1, boruta = True, opt = False, method = 'stacking')
     # estimator = EnsembleRegressor(estimators = [RandomForestRegressor(), LinearRegression()], scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, boruta = False, opt = False, verbose = 1, method = 'stacking')
