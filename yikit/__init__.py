@@ -1,7 +1,11 @@
 
 # 正規表現でtextファイルと同じやり方で読み込むのですべて手打ちする．
 
+<<<<<<< HEAD
 __version__      = '0.3.10'
+=======
+__version__      = '0.3.11dev'
+>>>>>>> v0.3.11dev
 __license__      = 'Apache License 2.0'
 __author__       = 'yu9824'
 __copyright__    = 'Copyright © 2021 yu9824'

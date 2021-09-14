@@ -17,6 +17,9 @@ limitations under the License.
 
 import sys
 
+DATETIME_KEY = '%Y%m%d-%H%M-%S'
+DATE_KEY = '%Y%m%d'
+
 def is_notebook():
     """the environment is notebook or not.
     reference: https://blog.amedama.jp/entry/detect-jupyter-env
