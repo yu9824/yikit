@@ -778,11 +778,11 @@ class Objective:
             # 最適化するべきパラメータ
             params_ = {
                 'Base': DecisionTreeRegressor(
-                    max_depth =  trial.suggest_int('_max_depth', 2, 10),
-                    criterion = trial.suggest_categorical('_criterion', ['mse', 'friedman_mse']),
+                    max_depth =  trial.suggest_int('Base__max_depth', 2, 100),
+                    criterion = trial.suggest_categorical('Base__criterion', ['mse', 'friedman_mse']),
                     random_state = self.rng,
                 ),
-                'n_estimators' : trial.suggest_int('n_estimators', 500, 10000, log = True),
+                'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
                 'minibatch_frac': trial.suggest_uniform('minibatch_frac', 0.5, 1.0),
             }
             # 固定するパラメータ (外でも取り出せるようにインスタンス変数としてる．)
@@ -822,9 +822,10 @@ class Objective:
         if isinstance(self.estimator_, NGBRegressor):
             dt_best_params_ = {}
             best_params_ = {}
+            key_base = 'Base__'
             for k, v in study.best_params.items():
-                if k[0] == '_':
-                    dt_best_params_[k[1:]] = v
+                if key_base in k:
+                    dt_best_params_[k[len(key_base):]] = v
                 else:
                     best_params_[k] = v
             else:
