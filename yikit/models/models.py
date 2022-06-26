@@ -404,7 +404,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                 if self.opt:
                     # ハイパーパラメータ（scoringで最初にしていしたやつで最適化）
                     objective = Objective(estimator, X_train_selected, y_train, cv = cv_, random_state = rng_, scoring = scorers.values()[0] if isinstance(scorers, dict) else scorers)
-                    sampler = optuna.samplers.TPESampler(seed = rng_.randint(2 ** 32))
+                    sampler = optuna.samplers.TPESampler(seed = rng_.randint(2 ** 31 - 1))
 
                     study = optuna.create_study(sampler = sampler, direction = 'maximize')
                     study.optimize(objective, n_trials = 100, n_jobs = 1)
@@ -516,7 +516,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                 optuna.logging.disable_default_handler()
 
             # 重みの最適化
-            sampler_ = optuna.samplers.TPESampler(seed = rng_.randint(2 ** 32))
+            sampler_ = optuna.samplers.TPESampler(seed = rng_.randint(2 ** 31 - 1))
             study = optuna.create_study(sampler = sampler_, direction = 'minimize') # 普通のRMSEなので．
             study.optimize(objective, n_trials = 100, n_jobs = 1)   # -1にするとなぜかバグるので．（そもそもそんなに重くないので1で．）
 
