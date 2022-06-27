@@ -7,7 +7,7 @@ if __name__ == '__main__':
     
     from sklearn.utils.estimator_checks import check_estimator
     from sklearn.model_selection import train_test_split
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
 
     # 0.24からclassを入れる機能は削除された．
     # check_estimator(GBDTRegressor())
@@ -19,9 +19,9 @@ if __name__ == '__main__':
     # check_estimator(LinearModelRegressor())
     # print(LinearModelRegressor)
 
-    boston = load_boston()
-    X = pd.DataFrame(boston['data'], columns = boston['feature_names'])
-    y = pd.Series(boston['target'], name = 'PRICE')
+    diabetes = load_diabetes()
+    X = pd.DataFrame(diabetes['data'], columns = diabetes['feature_names'])
+    y = pd.Series(diabetes['target'])
 
     # objective = Objective(RandomForestRegressor(), X, y, scoring = 'neg_mean_squared_error')
     # trial = optuna.trial.FixedTrial({
