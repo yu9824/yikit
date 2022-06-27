@@ -1,7 +1,7 @@
 # yikit
-![python_badge](https://img.shields.io/pypi/pyversions/yikit)
-![license_badge](https://img.shields.io/pypi/l/yikit)
-![Downloads](https://pepy.tech/badge/yikit)
+[![python_badge](https://img.shields.io/pypi/pyversions/yikit)](https://pypi.org/project/yikit/)
+[![license_badge](https://img.shields.io/pypi/l/yikit)](https://pypi.org/project/yikit/)
+[![Downloads](https://pepy.tech/badge/yikit)](https://pepy.tech/project/yikit)
 
 This is my own tool kit.
 
