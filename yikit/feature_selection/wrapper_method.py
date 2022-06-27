@@ -21,10 +21,11 @@ from sklearn.utils import check_random_state
 from sklearn.utils import shuffle
 from sklearn.utils.validation import check_is_fitted
 import numpy as np
-import pandas as pd
 from scipy.stats import pearsonr
 import sys
 import warnings
+from joblib import Parallel, delayed
+from typing import Any
 
 from yikit.tools import is_notebook
 
@@ -32,7 +33,7 @@ from yikit.tools import is_notebook
 class BorutaPy(BorutaPy):
     def __init__(self, estimator, n_estimators='auto', perc='auto', alpha=0.05,
                  two_step=True, max_iter=100, random_state=None, verbose=1,
-                 max_shuf=10000):
+                 max_shuf=10000, n_jobs=None):
         """
         This docstring is modified from and uses parts of scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
@@ -119,6 +120,10 @@ class BorutaPy(BorutaPy):
             - 2: which features have been selected already
         max_shuf : int, default=10000
             How many times to calculate the Pearson coefficient when `perc` is 'auto'.
+        n_jobs : int, default=None
+            The number of jobs to run in parallel for both `fit` and `predict`.
+            If -1, then the number of jobs is set to the number of cores.
+
 
         Attributes
         ----------
@@ -173,6 +178,7 @@ class BorutaPy(BorutaPy):
             Journal of Statistical Software, Vol. 36, Issue 11, Sep 2010
         """
         self.max_shuf = max_shuf
+        self.n_jobs = n_jobs
         super().__init__(estimator=estimator, n_estimators=n_estimators, perc=perc, alpha=alpha,
                  two_step=two_step, max_iter=max_iter, random_state=random_state, verbose=verbose)
         self.random_state = check_random_state(self.random_state)
@@ -212,7 +218,7 @@ class BorutaPy(BorutaPy):
             self.pbar = tqdm(total=self.max_iter, desc='BorutaPy')
         return self._fit(X, y)
 
-    def get_support(self, weak=False):
+    def get_support(self, weak=False)->np.ndarray[Any,bool]:
         """get support
 
         Parameters
@@ -231,7 +237,7 @@ class BorutaPy(BorutaPy):
             return self.support_
         
     
-    def _calc_auto_perc(self, X, y):
+    def _calc_auto_perc(self, X, y, n_jobs=None)->float:
         """
         This docstring is based on scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
@@ -260,13 +266,18 @@ class BorutaPy(BorutaPy):
             _range = range(self.max_shuf)
         
         # ランダムに並べ替えてどれくらい相関がでてしまうのかを調べ，自動で決める．
-        self.pears_ = []    # 相関係数を足していくリスト
-        for _ in _range:
+        parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
+        def _get_pearsonrs()->list:
             X_shuffled = shuffle(X, random_state = self.random_state)
-            temp = [pearsonr(X_shuffled[:, i], y)[0] for i in range(X_shuffled.shape[1])]
-            self.pears_.extend(temp)
-        r_ccmax = max(self.pears_)
-        return 100 * (1 - r_ccmax)
+            return [pearsonr(X_shuffled[:, i], y)[0] for i in range(X_shuffled.shape[1])]
+        self.pears_ = parallel(delayed(_get_pearsonrs)() for _ in _range)
+        
+        # self.pears_ = []    # 相関係数を足していくリスト
+        # for _ in _range:
+        #     self.pears_.extend(_get_pearsonrs())
+
+        self.r_ccmax_ = np.max(self.pears_)
+        return 100 * (1 - self.r_ccmax_)
     
     def _print_results(self, dec_reg, _iter, flag):
         n_iter = str(_iter) + ' / ' + str(self.max_iter)
