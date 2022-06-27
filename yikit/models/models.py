@@ -133,7 +133,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         self.estimator_ = Sequential()
 
         # 入力層
-        self.estimator_.add(Dropout(self.input_dropout, input_shape = (self.n_features_in_,), seed = self.rng_.randint(2 ** 32), name = 'Dropout_' + str(j)))
+        self.estimator_.add(Dropout(self.input_dropout, input_shape = (self.n_features_in_,), seed = self.rng_.randint(2 ** 31 -1), name = 'Dropout_' + str(j)))
         if self.progress_bar:
             pbar.update(1)
 
@@ -506,7 +506,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
         elif self.method == 'blending':
             # rmseで最適化（今後指定できるようにしてもいいかも．）
             def objective(trial):
-                params = {'weight{0}'.format(i): trial.suggest_uniform('weight{0}'.format(i), 0, 1) for i in range(self.n_estimators_)}
+                params = {'weight{0}'.format(i): trial.suggest_float('weight{0}'.format(i), 0, 1) for i in range(self.n_estimators_)}
                 weights = np.array(list(params.values()))
                 y_oof_ave = np.average(y_oof_, weights = weights, axis = 1)
                 return mean_squared_error(y_oof_ave, y, squared = False)
@@ -693,16 +693,16 @@ class Objective:
         self.n_jobs = n_jobs
 
         # sampler
-        self.sampler = optuna.samplers.TPESampler(seed = self.rng.randint(2 ** 32 - 1))
+        self.sampler = optuna.samplers.TPESampler(seed = self.rng.randint(2 ** 31 - 1))
 
-    def __call__(self, trial):
+    def __call__(self, trial:optuna.trial.Trial):
         if isinstance(self.estimator, NNRegressor):
             params_ = {
-                'input_dropout': trial.suggest_uniform('input_dropout', 0.0, 0.3),
+                'input_dropout': trial.suggest_float('input_dropout', 0.0, 0.3),
                 'hidden_layers': trial.suggest_int('hidden_layers', 2, 4),
                 'hidden_units' : trial.suggest_int('hidden_units', 32, 1024, 32),
                 'hidden_activation' : trial.suggest_categorical('hidden_activation', ['prelu', 'relu']),
-                'hidden_dropout' : trial.suggest_uniform('hidden_dropout', 0.2, 0.5),
+                'hidden_dropout' : trial.suggest_float('hidden_dropout', 0.2, 0.5),
                 'batch_norm' : trial.suggest_categorical('batch_norm', ['before_act', 'no']),
                 'optimizer_type' : trial.suggest_categorical('optimizer_type', ['adam', 'sgd']),
                 'lr' : trial.suggest_loguniform('lr', 0.00001, 0.01),
@@ -718,8 +718,8 @@ class Objective:
                 'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
                 # 'max_depth' : trial.suggest_int('n_estimators', 3, 9),    # num_leaves変えた方が良さそう．制約条件的に．
                 'min_child_weight' : trial.suggest_loguniform('min_child_weight', 0.001, 10),
-                'colsample_bytree' : trial.suggest_uniform('colsample_bytree', 0.6, 0.95),
-                'subsample': trial.suggest_uniform('subsample', 0.6, 0.95),
+                'colsample_bytree' : trial.suggest_float('colsample_bytree', 0.6, 0.95),
+                'subsample': trial.suggest_float('subsample', 0.6, 0.95),
                 'num_leaves' : trial.suggest_int('num_leaves', 2 ** 3, 2 ** 9, log = True)
             }
             self.fixed_params_ = {
@@ -779,11 +779,11 @@ class Objective:
             params_ = {
                 'Base': DecisionTreeRegressor(
                     max_depth =  trial.suggest_int('Base__max_depth', 2, 100),
-                    criterion = trial.suggest_categorical('Base__criterion', ['mse', 'friedman_mse']),
+                    criterion = trial.suggest_categorical('Base__criterion', ['squared_error', 'friedman_mse']),    # FutureWarning: Criterion 'mse' was deprecated in v1.0 and will be removed in version 1.2. Use `criterion='squared_error'` which is equivalent.
                     random_state = self.rng,
                 ),
                 'n_estimators' : trial.suggest_int('n_estimators', 10, 1000, log=True),
-                'minibatch_frac': trial.suggest_uniform('minibatch_frac', 0.5, 1.0),
+                'minibatch_frac': trial.suggest_float('minibatch_frac', 0.5, 1.0),
             }
             # 固定するパラメータ (外でも取り出せるようにインスタンス変数としてる．)
             self.fixed_params_ = {
