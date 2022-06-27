@@ -1,7 +1,7 @@
 if __name__ == '__main__':
     from yikit.tools import is_notebook
     from sklearn.ensemble import RandomForestRegressor
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
     from sklearn.model_selection import train_test_split
     import pandas as pd
     import matplotlib.pyplot as plt
@@ -9,9 +9,9 @@ if __name__ == '__main__':
     import os
 
     # データセットの準備等
-    boston = load_boston()
-    X = pd.DataFrame(boston.data, columns = boston.feature_names)
-    y = pd.Series(boston.target, name = 'PRICE')
+    diabetes = load_diabetes()
+    X = pd.DataFrame(diabetes.data, columns = diabetes.feature_names)
+    y = pd.Series(diabetes.target)
 
     SEED = 334
 
