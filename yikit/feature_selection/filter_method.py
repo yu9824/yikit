@@ -78,7 +78,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
             不要．, by default None
         """
         # checkかつnp.ndarrayに変換される．
-        X = check_array(X)
+        X:np.ndarray = check_array(X)
 
         # よくつかうので列数を変数で保存
         n_features = X.shape[1]
@@ -112,7 +112,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
                         pair[j].add(i)
 
         # 何個相関係数が高い係数が存在するのかの値を求める．
-        def _delete_recursive(pair, boolean = np.ones(n_features, dtype = bool))->np.ndarray[Any,bool]:
+        def _delete_recursive(pair, boolean = np.ones(n_features, dtype = bool))->np.ndarray:
             # 相関係数が高いものがいくつあるのかのnp.ndarrayを作成
             order_pair = np.array([len(s) for s in pair])
 
@@ -135,7 +135,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
 
         return self
 
-    def _get_support_mask(self)->np.ndarray[Any,bool]:
+    def _get_support_mask(self)->np.ndarray:
         check_is_fitted(self, 'support_')
         return self.support_
 

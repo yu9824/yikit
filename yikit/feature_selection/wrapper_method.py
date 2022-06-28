@@ -218,7 +218,7 @@ class BorutaPy(BorutaPy):
             self.pbar = tqdm(total=self.max_iter, desc='BorutaPy')
         return self._fit(X, y)
 
-    def get_support(self, weak=False)->np.ndarray[Any,bool]:
+    def get_support(self, weak=False)->np.ndarray:
         """get support
 
         Parameters
