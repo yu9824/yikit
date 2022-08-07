@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-from typing import Any, Union, List, Tuple
+from typing import Set, Union, List
 import sys
 import warnings
 
@@ -81,7 +81,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         self.corr_ = np.empty((n_features, n_features, 2), dtype = float)
 
         # i番目の要素は，i番目と相関係数がcorr以上かつp値が有意水準alpha未満のものの集合．これの鋳型を作成
-        pair = [set() for _ in range(n_features)]
+        pair:List[Set] = [set() for _ in range(n_features)]
 
         if self._flag_tqdm:
             if is_notebook():
@@ -113,9 +113,9 @@ class FilterSelector(SelectorMixin, BaseEstimator):
                 sys.stdout.flush()
 
         # 何個相関係数が高い係数が存在するのかの値を求める．
-        def _delete_recursive(pair, boolean = np.ones(n_features, dtype = bool))->np.ndarray:
+        def _delete_recursive(pair:List[Set], boolean:np.ndarray = np.ones(n_features, dtype = bool))->np.ndarray:
             # 相関係数が高いものがいくつあるのかのnp.ndarrayを作成
-            order_pair = np.array([len(s) for s in pair])
+            order_pair = np.array([len(s) for s in pair], dtype=int)
 
             # これがすべて0のとき，もう削除は終わってるので終了処理
             if np.sum(order_pair) == 0:
