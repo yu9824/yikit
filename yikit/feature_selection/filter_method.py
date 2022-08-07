@@ -15,30 +15,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
+from typing import Any, Union, List, Tuple
+import sys
+import warnings
+
+import numpy as np
+import pandas as pd
+from scipy.stats import pearsonr
 from sklearn.feature_selection import SelectorMixin # >= 0.23.2
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_is_fitted
 
-from scipy.stats import pearsonr
-import pandas as pd
-import numpy as np
-import warnings
-
-from typing import Any
-
 from yikit.tools import is_notebook
-if is_notebook():
-    from tqdm.notebook import trange
-else:
-    from tqdm import trange
-
-# from joblib import Parallel, delayed
-
 
 
 class FilterSelector(SelectorMixin, BaseEstimator):
-    def __init__(self, r = 0.9, alpha = 0.05, verbose = True):
+    def __init__(self, r:float = 0.9, alpha:float = 0.05, verbose:Union[int,bool] = True):
         """Filter method (feature selection)
 
         Parameters
@@ -90,7 +83,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         # i番目の要素は，i番目と相関係数がcorr以上かつp値が有意水準alpha未満のものの集合．これの鋳型を作成
         pair = [set() for _ in range(n_features)]
 
-        if self.verbose > 0 and self._flag_tqdm:
+        if self._flag_tqdm:
             if is_notebook():
                 from tqdm.notebook import trange
             else:
@@ -100,6 +93,10 @@ class FilterSelector(SelectorMixin, BaseEstimator):
             _range = range(n_features)
         
         for i in _range:
+            if self.verbose > 0 and not self._flag_tqdm:
+                sys.stdout.write('\n')
+                sys.stdout.write(f'\rProgress: {i} / {n_features}')
+                sys.stdout.flush()
             for j in range(i, n_features):
                 if i == j:  # 一緒の時はそもそも相関係数1, p値0は自明なので例外処理
                     self.corr_[i, i] = [1.0, 0.0]
@@ -110,6 +107,10 @@ class FilterSelector(SelectorMixin, BaseEstimator):
                         # i, j番目の要素の集合にそれぞれj, iを追加
                         pair[i].add(j)
                         pair[j].add(i)
+        else:
+            if self.verbose > 0 and not self._flag_tqdm:
+                sys.stdout.write(f'\rFinished!')
+                sys.stdout.flush()
 
         # 何個相関係数が高い係数が存在するのかの値を求める．
         def _delete_recursive(pair, boolean = np.ones(n_features, dtype = bool))->np.ndarray:
@@ -150,4 +151,4 @@ if __name__ == '__main__':
     selector = FilterSelector()
     selector.fit(X)
 
-    set_trace()
+    # set_trace()
