@@ -316,6 +316,32 @@ class BorutaPy(boruta.BorutaPy):
         if not(flag == 0 and self.verbose == 1 and self._flag_tqdm):
             sys.stdout.write(output + '\n')
 
+def calc_vip(estimator:PLSRegression)->np.ndarray:
+    """Calculate VIP (The Variable Importance in Projection)
+
+    References
+    - Mukherjee, R., Sengupta, D., & Sikdar, S. K. (2015). Selection of Sustainable Processes Using Sustainability Footprint Method: A Case Study of Methanol Production from Carbon Dioxide. In Computer Aided Chemical Engineering (Vol. 36, pp. 311-329). Elsevier. DOI: [10.1016/B978-0-444-63472-6.00012-4](https://doi.org/10.1016/B978-0-444-63472-6.00012-4)
+    - [Variable Importance in Projection](https://www.sciencedirect.com/topics/engineering/variable-importance-in-projection)
+
+    Parameters
+    ----------
+    estimator : PLSRegression
+        fitted pls regression model
+
+    Returns
+    -------
+    np.ndarray
+        VIP of each variable (n_features,)
+    """
+    # score: 潜在変数、主成分
+    t = estimator.x_scores_     # (n_samples, n_components)
+    w = estimator.x_weights_    # (n_features, n_components)
+    # loading: 因子負荷量
+    q = estimator.y_loadings_   # (n_targets, n_components)
+    p, h = w.shape
+    s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
+    return np.sqrt(p * (np.square(w / np.linalg.norm(w, axis=0)) @ s).ravel() / np.sum(s))
+
 
 if __name__ == '__main__':
     import os
