@@ -15,11 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-from boruta import BorutaPy
+import boruta
 from sklearn.utils import check_X_y
 from sklearn.utils import check_random_state
 from sklearn.utils import shuffle
 from sklearn.utils.validation import check_is_fitted
+from sklearn.linear_model import Lasso, ElasticNet
+from sklearn.cross_decomposition import PLSRegression
 import numpy as np
 from scipy.stats import pearsonr
 import sys
@@ -30,7 +32,7 @@ from typing import Any
 from yikit.tools import is_notebook
 
 
-class BorutaPy(BorutaPy):
+class BorutaPy(boruta.BorutaPy):
     def __init__(self, estimator, n_estimators='auto', perc='auto', alpha=0.05,
                  two_step=True, max_iter=100, random_state=None, verbose=1,
                  max_shuf=10000, n_jobs=None):
@@ -140,36 +142,35 @@ class BorutaPy(BorutaPy):
             best) features are assigned rank 1 and tentative features are assigned
             rank 2.
         importance_history_ : array-like, shape [n_features, n_iters]
-            The calculated importance values for each feature across all iterations.  
+            The calculated importance values for each feature across all iterations.
         Examples
         --------
-        
+
         import pandas as pd
         from sklearn.ensemble import RandomForestClassifier
         from boruta import BorutaPy
-        
+
         # load X and y
-        # NOTE BorutaPy accepts numpy arrays only, hence the .values attribute
         X = pd.read_csv('examples/test_X.csv', index_col=0).values
         y = pd.read_csv('examples/test_y.csv', header=None, index_col=0).values
         y = y.ravel()
-        
+
         # define random forest classifier, with utilising all cores and
         # sampling in proportion to y labels
         rf = RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=5)
-        
+
         # define Boruta feature selection method
         feat_selector = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=1)
-        
+
         # find all relevant features - 5 features should be selected
         feat_selector.fit(X, y)
-        
+
         # check selected features - first 5 features are selected
         feat_selector.support_
-        
+
         # check ranking of features
         feat_selector.ranking_
-        
+
         # call transform() on X to filter it down to selected features
         X_filtered = feat_selector.transform(X)
         References
@@ -193,7 +194,7 @@ class BorutaPy(BorutaPy):
                 self._flag_tqdm = True
         else:
             self._flag_tqdm = False
-    
+
     def fit(self, X, y):
         """
         This docstring uses the same one as scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
@@ -235,9 +236,9 @@ class BorutaPy(BorutaPy):
             return self.support_weak_
         else:
             return self.support_
-        
-    
-    def _calc_auto_perc(self, X, y, n_jobs=None)->float:
+
+
+    def _calc_auto_perc(self, X, y)->float:
         """
         This docstring is based on scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
@@ -264,21 +265,24 @@ class BorutaPy(BorutaPy):
             _range = trange(self.max_shuf, desc = 'Calc r_ccmax')
         else:
             _range = range(self.max_shuf)
-        
+
         # ランダムに並べ替えてどれくらい相関がでてしまうのかを調べ，自動で決める．
         parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
         def _get_pearsonrs()->list:
             X_shuffled = shuffle(X, random_state = self.random_state)
             return [pearsonr(X_shuffled[:, i], y)[0] for i in range(X_shuffled.shape[1])]
         self.pears_ = parallel(delayed(_get_pearsonrs)() for _ in _range)
-        
+
         # self.pears_ = []    # 相関係数を足していくリスト
         # for _ in _range:
         #     self.pears_.extend(_get_pearsonrs())
 
-        self.r_ccmax_ = np.max(self.pears_)
-        return 100 * (1 - self.r_ccmax_)
-    
+        self.r_ccmax_ = np.nanmax(self.pears_)
+        perc = 100 * (1 - self.r_ccmax_)
+        if self.verbose > 0:
+            sys.stdout.write("Assgigned perc = {:.1f}\n".format(perc))
+        return perc
+
     def _print_results(self, dec_reg, _iter, flag):
         n_iter = str(_iter) + ' / ' + str(self.max_iter)
         n_confirmed = np.where(dec_reg == 1)[0].shape[0]
@@ -308,10 +312,31 @@ class BorutaPy(BorutaPy):
             if self.verbose == 1 and self._flag_tqdm:
                 self.pbar.update(self.max_iter - _iter + 1)
                 self.pbar.close()
-        
+
         if not(flag == 0 and self.verbose == 1 and self._flag_tqdm):
             sys.stdout.write(output + '\n')
 
+
 if __name__ == '__main__':
+    import os
+    from urllib import request
     from pdb import set_trace
-    
+    import pandas as pd
+    from sklearn.feature_selection import VarianceThreshold
+
+    # 配布ページ: https://datachemeng.com/pythonassignment/
+    url = 'https://datachemeng.com/wp-content/uploads/2017/07/logSdataset1290.csv'
+
+    dirpath_cache = os.path.abspath('./_cache')
+    if not os.path.isdir(dirpath_cache):
+        os.mkdir(dirpath_cache)
+
+    fpath_csv_cache = os.path.join(dirpath_cache, os.path.basename(url))
+    if not os.path.isfile(fpath_csv_cache):
+        with request.urlopen(url) as response:
+            content = response.read().decode('utf-8-sig')
+        with open(fpath_csv_cache, 'w', encoding='utf-8-sig') as f:
+            f.write(content)
+
+    df_data = pd.read_csv(fpath_csv_cache, index_col=0)
+    df_data.head()
