@@ -95,13 +95,13 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         from keras.optimizers import SGD, Adam
         from keras.regularizers import l2
         from keras.backend import clear_session
-        
+
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
 
         '''
         sklearn/utils/estimator_checks.py:3063:
-        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute,
         unless the 'no_validation' tag is True.
         This attribute should be equal to the number of features passed to the fit method.
         An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
@@ -122,7 +122,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         else:
             X_ = X
             y_ = y
-        
+
 
         # なぜか本当によくわかんないけど名前が一緒だと怒られるのでそれをずらすためのやつをつくる
         j = int(10E5)
@@ -143,7 +143,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
             self.estimator_.add(Dense(units = self.hidden_units, kernel_regularizer = l2(l = self.l), name = 'Dense_' + str(j+i+1)))  # kernel_regularizer: 過学習対策
             if self.batch_norm == 'before_act':
                 self.estimator_.add(BatchNormalization(name = 'BatchNormalization' + str(j+i+1)))
-            
+
             # 活性化関数
             if self.hidden_activation == 'relu':
                 self.estimator_.add(ReLU(name = 'Re_Lu_' + str(j+i+1)))
@@ -157,7 +157,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
             # プログレスバー
             if self.progress_bar:
                 pbar.update(1)
-        
+
         # 出力層
         self.estimator_.add(Dense(1, activation = 'linear', name = 'Dense_' + str(j+self.hidden_layers+1)))
 
@@ -168,7 +168,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
             optimizer_ = SGD(lr = self.lr, decay = 1E-6, momentum = 0.9, nesterov = True)
         else:
             raise NotImplementedError
-        
+
         # 目的関数，評価指標などの設定
         self.estimator_.compile(loss = 'mean_squared_error', optimizer = optimizer_, metrics=['mse', 'mae'])
 
@@ -205,7 +205,7 @@ class NNRegressor(BaseEstimator, RegressorMixin):
             X_ = X
             y_pred_ = self.estimator_.predict(X_).flatten()
         return y_pred_
-    
+
 
 
 class GBDTRegressor(RegressorMixin, BaseEstimator):
@@ -272,7 +272,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
 
         '''
         sklearn/utils/estimator_checks.py:3063:
-        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute,
         unless the 'no_validation' tag is True.
         This attribute should be equal to the number of features passed to the fit method.
         An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
@@ -347,17 +347,17 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
 
         '''
         sklearn/utils/estimator_checks.py:3063:
-        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute,
         unless the 'no_validation' tag is True.
         This attribute should be equal to the number of features passed to the fit method.
         An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
         See SLEP010: https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html
         '''
         self.n_features_in_ = X.shape[1]    # check_X_yのあとでないとエラーになりうる．
-        
+
         # check_random_state
         rng_ = check_random_state(self.random_state)
-        
+
         # isRegressor
         if sum([is_regressor(estimator) for estimator in self.estimators]) != self.n_estimators_:
             raise ValueError
@@ -385,7 +385,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                 # 特徴量削減
                 feature_selector_ = BorutaPy(estimator = RandomForestRegressor(n_jobs = -1, random_state = rng_), random_state = rng_, max_iter = 300, verbose = self.verbose)
                 feature_selector_.fit(X_train, y_train)
-                
+
                 # 抽出
                 support_ = feature_selector_.get_support()
                 X_train_selected = feature_selector_.transform(X_train)
@@ -471,12 +471,12 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
             # scoreをためてるやつをBunch型に変換
             for k in temp:
                 temp[k] = Bunch(**temp[k])
-            
+
             # 返すように最終整形
             ret['support_'] = support_
             ret.update(temp)
             return ret
-        
+
         # 上記で定義した_f関数どうしは互いに独立なので並列で処理する．
         parallel = Parallel(n_jobs = self.n_jobs, verbose = self.verbose)
         results = parallel(delayed(_f)(i_train, i_test) for i_train, i_test in cv_.split(X, y))
@@ -549,7 +549,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
 
         # 各予測モデルの予測結果をまとめる．(内包リストで得られる配列は3-Dベクトル (n_estimators_, cv, n_samples))
         y_preds_ = np.average(np.array([[estimators[n].predict(X[:, self.results_.support_[m]]) for m, estimators in enumerate(self.results_.estimators)] for n in range(self.n_estimators_)]), axis = 1).transpose()   # 同じ種類のやつは単純に平均を取る．
-        
+
         if self.method in ('blending', 'average') or self.n_estimators_ == 1:
             y_pred_ = np.average(y_preds_, weights = self.weights_, axis = 1)
         elif self.method == 'stacking':
@@ -572,7 +572,7 @@ class SupportVectorRegressor(BaseEstimator, RegressorMixin):
 
         '''
         sklearn/utils/estimator_checks.py:3063:
-        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute,
         unless the 'no_validation' tag is True.
         This attribute should be equal to the number of features passed to the fit method.
         An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
@@ -610,7 +610,7 @@ class SupportVectorRegressor(BaseEstimator, RegressorMixin):
         y_pred_ = self.estimator_.predict(X_)
         if self.scale:
             y_pred_ = self.scaler_y_.inverse_transform(np.array(y_pred_).reshape(-1, 1)).flatten()
-        
+
         return y_pred_
 
 class LinearModelRegressor(BaseEstimator, RegressorMixin):
@@ -627,7 +627,7 @@ class LinearModelRegressor(BaseEstimator, RegressorMixin):
 
         '''
         sklearn/utils/estimator_checks.py:3063:
-        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute, 
+        FutureWarning: As of scikit-learn 0.23, estimators should expose a n_features_in_ attribute,
         unless the 'no_validation' tag is True.
         This attribute should be equal to the number of features passed to the fit method.
         An error will be raised from version 1.0 (renaming of 0.25) when calling check_estimator().
@@ -650,7 +650,7 @@ class LinearModelRegressor(BaseEstimator, RegressorMixin):
         self.estimator_ = model_(alpha = self.alpha, fit_intercept = self.fit_intercept, max_iter = self.max_iter, tol = self.tol, random_state = self.rng_)
         self.estimator_.fit(X, y)
         return self
-    
+
     def predict(self, X):
         check_is_fitted(self, 'estimator_')
 

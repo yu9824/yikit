@@ -91,7 +91,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
             _range = trange(n_features, desc = 'correlation')
         else:
             _range = range(n_features)
-        
+
         for i in _range:
             if self.verbose > 0 and not self._flag_tqdm:
                 sys.stdout.write('\n')

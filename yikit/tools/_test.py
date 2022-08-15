@@ -21,7 +21,7 @@ if __name__ == '__main__':
     # SummarizePI test
     # from yikit.tools.visualization import SummarizePI
     # from sklearn.inspection import permutation_importance
-    
+
     # rf = RandomForestRegressor(random_state = SEED, n_jobs = -1)
 
     # rf.fit(X_train, y_train)
@@ -62,5 +62,5 @@ if __name__ == '__main__':
     # lgbm = LGBMRegressor(random_state=SEED, n_jobs=-1)
     # lgbm.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test, y_test)], eval_names=['train', 'test'])
     # get_learning_curve_gb(lgbm).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_lightgbm.png'))
-    
-    
+
+

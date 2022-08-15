@@ -50,7 +50,7 @@ def get_learning_curve_optuna(study, loc = 'best', fontfamily='Helvetica', retur
     Parameters
     ----------
     study : optuna.study.Study
-        
+
     loc : str, optional
         legend's location, by default 'best'
     fontfamily : str, optional
@@ -73,7 +73,7 @@ def get_learning_curve_optuna(study, loc = 'best', fontfamily='Helvetica', retur
         min_or_max = max
         temp = - float('inf')
     df_values = pd.DataFrame([trial.value for trial in study.trials], columns = ['value'])
-    
+
     best_values = []
     for v in df_values.loc[:, 'value']:
         temp = min_or_max(temp, v)
@@ -176,14 +176,14 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
 
     _font_settings(fontfamily=fontfamily)
     fig, axes = plt.subplots(n_rows, n_cols, facecolor='white', dpi=72, figsize=(6.4*n_cols, 4.8*n_rows))
-    
+
     if verbose:
         pbar = tqdm(total=n_cols * n_rows + 1, desc='Drawing distribution figure')
     # 一つずつ分布を書いていく．
     for idx in range(n_samples):
         ax = axes[idx//n_cols][idx%n_cols]
         ax.plot(y_range, dist_values[idx], c = '#022C5E')
-        
+
         prob_max_temp = max(dist_values[idx])   # このidxにおける確率密度の最大値
         if y_true is not None:
             y_true = check_array(y_true, ensure_2d=False)
@@ -195,8 +195,8 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
             ax.set_title("{0}".format(titles[idx]))
         else:
             ax.set_title("idx: {0}".format(idx))
-            
-        
+
+
         ax.set_xlim(y_range[0], y_range[-1])
         if keep_y_range:
             ax.set_ylim(None, np.max(dist_values) * 1.05)
@@ -260,7 +260,7 @@ def get_learning_curve_gb(estimator, fontfamily = 'Helvetica', return_axis = Fal
         score_name = list(result.keys())[0]
         score = result[score_name]
         ax.plot(range(len(score)), score, label = data_name, c = COLORS[data_name])
-    
+
     # label
     ax.set_xlabel('n_iter')
     ax.set_ylabel(score_name)

@@ -119,7 +119,7 @@ else:
     """
     with open('requirements.txt') as requirements_file:
         install_requirements = requirements_file.read().splitlines()
-    
+
     try:
         with open('README.md') as f:
             long_description = f.read()

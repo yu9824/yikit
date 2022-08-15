@@ -4,7 +4,7 @@ if __name__ == '__main__':
     from models import Objective
     import pandas as pd
     import optuna
-    
+
     from sklearn.utils.estimator_checks import check_estimator
     from sklearn.model_selection import train_test_split
     from sklearn.datasets import load_diabetes
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     # })
     study.optimize(objective, n_trials=1)
     print(objective.get_best_estimator(study))
-    
+
 
     # estimator = EnsembleRegressor(scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, verbose = 1, boruta = True, opt = False, method = 'stacking')
     # estimator = EnsembleRegressor(estimators = [RandomForestRegressor(), LinearRegression()], scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, boruta = False, opt = False, verbose = 1, method = 'stacking')
