@@ -2,7 +2,7 @@ scikit-learn>=0.24.1
 numpy
 pandas
 joblib
-Boruta==0.3
+Boruta>=0.3
 scipy
 optuna
 matplotlib
