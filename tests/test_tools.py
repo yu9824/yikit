@@ -1,22 +1,24 @@
-if __name__ == '__main__':
-    from yikit.tools import is_notebook
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.datasets import load_diabetes
-    from sklearn.model_selection import train_test_split
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    from pdb import set_trace
-    import os
+import os
+from pdb import set_trace
 
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.datasets import load_diabetes
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+
+
+def test_tools():
     # データセットの準備等
     diabetes = load_diabetes()
-    X = pd.DataFrame(diabetes.data, columns = diabetes.feature_names)
+    X = pd.DataFrame(diabetes.data, columns=diabetes.feature_names)
     y = pd.Series(diabetes.target)
 
     SEED = 334
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = SEED)
-
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=SEED
+    )
 
     # SummarizePI test
     # from yikit.tools.visualization import SummarizePI
@@ -33,10 +35,19 @@ if __name__ == '__main__':
     # plt.close()
 
     # get_dist_figure test
-    from yikit.tools.visualization import get_dist_figure
     from ngboost import NGBRegressor
+
+    from yikit.tools.visualization import get_dist_figure
+
     ngb = NGBRegressor(random_state=SEED, verbose=False).fit(X_train, y_train)
-    get_dist_figure(ngb.pred_dist(X_test), y_test, titles = ['a'] * len(y_test), verbose=False).savefig(os.path.join(os.path.dirname(__file__), 'sample_dist_figure.png'))
+    get_dist_figure(
+        ngb.pred_dist(X_test),
+        y_test,
+        titles=["a"] * len(y_test),
+        verbose=False,
+    ).savefig(
+        os.path.join(os.path.dirname(__file__), "sample_dist_figure.png")
+    )
 
     # get_learning_curve_optuna
     # from yikit.tools.visualization import get_learning_curve_optuna
@@ -47,7 +58,6 @@ if __name__ == '__main__':
     # study = optuna.create_study(sampler = objective.sampler, direction='maximize')
     # study.optimize(objective, n_trials=10)
     # get_learning_curve_optuna(study).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_optuna.png'))
-
 
     # get_learning_curve_gb
     # from yikit.tools.visualization import get_learning_curve_gb
@@ -62,5 +72,3 @@ if __name__ == '__main__':
     # lgbm = LGBMRegressor(random_state=SEED, n_jobs=-1)
     # lgbm.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test, y_test)], eval_names=['train', 'test'])
     # get_learning_curve_gb(lgbm).savefig(os.path.join(os.path.dirname(__file__), 'sample_learning_curve_lightgbm.png'))
-
-
