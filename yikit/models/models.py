@@ -36,7 +36,7 @@ from sklearn.svm import SVR
 from sklearn.inspection import permutation_importance
 
 from yikit.feature_selection import BorutaPy
-from yikit.helpers import is_installed, is_argument
+from yikit.helpers import is_installed
 from tqdm.auto import tqdm
 
 import optuna
@@ -48,12 +48,12 @@ import pandas as pd
 if is_installed("lightgbm"):
     from lightgbm import LGBMRegressor
 else:
-    LGBMRegressor = None
+    LGBMRegressor = None    # type: ignore[assignment]
 
 if is_installed("ngboost"):
     from ngboost import NGBRegressor
 else:
-    NGBRegressor = None
+    NGBRegressor = None    # type: ignore[assignment]
 
 __all__ = [
     'NNRegressor',
@@ -806,18 +806,12 @@ class Objective:
         )
 
         parallel = Parallel(n_jobs = self.n_jobs)
-        if is_argument(_fit_and_score, "score_params"):
-            results = parallel(
-                delayed(_fit_and_score)(
-                    clone(self.estimator_), self.X, self.y, scorer=self.scoring, train=train, test=test, verbose=0, parameters=dict(**self.fixed_params_, **params_), fit_params=None, score_params=None
-                ) for train, test in self.cv.split(self.X, self.y)
-            )
-        else:   # support old version of scikit-learn (<1.3?)
-            results = parallel(
-                delayed(_fit_and_score)(
-                    clone(self.estimator_), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
-                ) for train, test in self.cv.split(self.X, self.y)
-            )
+        # support old version of scikit-learn (<1.4)
+        results = parallel(
+            delayed(_fit_and_score)(
+                clone(self.estimator_), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
+            ) for train, test in self.cv.split(self.X, self.y)
+        )
         return np.mean([d['test_scores'] for d in results]) # scikit-learn>=0.24.1
 
     def get_best_estimator(self, study):
