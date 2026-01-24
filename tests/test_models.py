@@ -7,6 +7,8 @@ from sklearn.utils.estimator_checks import check_estimator
 
 from yikit.models import NNRegressor, Objective
 
+SEED = 334
+
 
 def test_models():
     diabetes = load_diabetes()
@@ -21,10 +23,12 @@ def test_models():
     # })
     # print(objective(trial))
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=SEED
+    )
 
     objective = Objective(
-        NGBRegressor(random_state=334, verbose=False),
+        NGBRegressor(random_state=SEED, verbose=False),
         X,
         y,
         scoring="neg_mean_squared_error",
