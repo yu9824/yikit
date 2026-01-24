@@ -1,5 +1,4 @@
-
-'''
+"""
 Copyright © 2021 yu9824
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
 import boruta
 from sklearn.utils import check_X_y
@@ -33,9 +32,19 @@ from yikit.tools import is_notebook
 
 
 class BorutaPy(boruta.BorutaPy):
-    def __init__(self, estimator, n_estimators='auto', perc='auto', alpha=0.05,
-                 two_step=True, max_iter=100, random_state=None, verbose=1,
-                 max_shuf=10000, n_jobs=None):
+    def __init__(
+        self,
+        estimator,
+        n_estimators="auto",
+        perc="auto",
+        alpha=0.05,
+        two_step=True,
+        max_iter=100,
+        random_state=None,
+        verbose=1,
+        max_shuf=10000,
+        n_jobs=None,
+    ):
         """
         This docstring is modified from and uses parts of scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
@@ -180,14 +189,24 @@ class BorutaPy(boruta.BorutaPy):
         """
         self.max_shuf = max_shuf
         self.n_jobs = n_jobs
-        super().__init__(estimator=estimator, n_estimators=n_estimators, perc=perc, alpha=alpha,
-                 two_step=two_step, max_iter=max_iter, random_state=random_state, verbose=verbose)
+        super().__init__(
+            estimator=estimator,
+            n_estimators=n_estimators,
+            perc=perc,
+            alpha=alpha,
+            two_step=two_step,
+            max_iter=max_iter,
+            random_state=random_state,
+            verbose=verbose,
+        )
         self.random_state = check_random_state(self.random_state)
         if verbose > 0:
             try:
                 import tqdm
             except ImportError as e:
-                mess = '{}\nIf exists, a progress bar can be displayed.'.format(e)
+                mess = (
+                    "{}\nIf exists, a progress bar can be displayed.".format(e)
+                )
                 warnings.warn(mess)
                 self._flag_tqdm = False
             else:
@@ -209,17 +228,17 @@ class BorutaPy(boruta.BorutaPy):
             The target values.
         """
         X, y = check_X_y(X, y)
-        if self.perc == 'auto':
+        if self.perc == "auto":
             self.perc = self._calc_auto_perc(X, y)
         if self._flag_tqdm and self.verbose == 1:
             if is_notebook():
                 from tqdm.notebook import tqdm
             else:
                 from tqdm import tqdm
-            self.pbar = tqdm(total=self.max_iter, desc='BorutaPy')
+            self.pbar = tqdm(total=self.max_iter, desc="BorutaPy")
         return self._fit(X, y)
 
-    def get_support(self, weak=False)->np.ndarray:
+    def get_support(self, weak=False) -> np.ndarray:
         """get support
 
         Parameters
@@ -231,14 +250,13 @@ class BorutaPy(boruta.BorutaPy):
         -------
         support : array
         """
-        check_is_fitted(self, 'support_')
+        check_is_fitted(self, "support_")
         if weak:
             return self.support_weak_
         else:
             return self.support_
 
-
-    def _calc_auto_perc(self, X, y)->float:
+    def _calc_auto_perc(self, X, y) -> float:
         """
         This docstring is based on scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
@@ -262,15 +280,20 @@ class BorutaPy(boruta.BorutaPy):
                 from tqdm.notebook import trange
             else:
                 from tqdm import trange
-            _range = trange(self.max_shuf, desc = 'Calc r_ccmax')
+            _range = trange(self.max_shuf, desc="Calc r_ccmax")
         else:
             _range = range(self.max_shuf)
 
         # ランダムに並べ替えてどれくらい相関がでてしまうのかを調べ，自動で決める．
         parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
-        def _get_pearsonrs()->list:
-            X_shuffled = shuffle(X, random_state = self.random_state)
-            return [pearsonr(X_shuffled[:, i], y)[0] for i in range(X_shuffled.shape[1])]
+
+        def _get_pearsonrs() -> list:
+            X_shuffled = shuffle(X, random_state=self.random_state)
+            return [
+                pearsonr(X_shuffled[:, i], y)[0]
+                for i in range(X_shuffled.shape[1])
+            ]
+
         self.pears_ = parallel(delayed(_get_pearsonrs)() for _ in _range)
 
         # self.pears_ = []    # 相関係数を足していくリスト
@@ -284,10 +307,10 @@ class BorutaPy(boruta.BorutaPy):
         return perc
 
     def _print_results(self, dec_reg, _iter, flag):
-        n_iter = str(_iter) + ' / ' + str(self.max_iter)
+        n_iter = str(_iter) + " / " + str(self.max_iter)
         n_confirmed = np.where(dec_reg == 1)[0].shape[0]
         n_rejected = np.where(dec_reg == -1)[0].shape[0]
-        cols = ['Iteration: ', 'Confirmed: ', 'Tentative: ', 'Rejected: ']
+        cols = ["Iteration: ", "Confirmed: ", "Tentative: ", "Rejected: "]
 
         # still in feature selection
         if flag == 0:
@@ -300,23 +323,28 @@ class BorutaPy(boruta.BorutaPy):
                 else:
                     output = cols[0] + n_iter
             elif self.verbose > 1:
-                output = '\n'.join([x[0] + '\t' + x[1] for x in zip(cols, content)])
+                output = "\n".join(
+                    [x[0] + "\t" + x[1] for x in zip(cols, content)]
+                )
 
         # Boruta finished running and tentatives have been filtered
         else:
             n_tentative = np.sum(self.support_weak_)
-            n_rejected = np.sum(~(self.support_|self.support_weak_))
+            n_rejected = np.sum(~(self.support_ | self.support_weak_))
             content = map(str, [n_iter, n_confirmed, n_tentative, n_rejected])
-            result = '\n'.join([x[0] + '\t' + x[1] for x in zip(cols, content)])
+            result = "\n".join(
+                [x[0] + "\t" + x[1] for x in zip(cols, content)]
+            )
             output = "\n\nBorutaPy finished running.\n\n" + result
             if self.verbose == 1 and self._flag_tqdm:
                 self.pbar.update(self.max_iter - _iter + 1)
                 self.pbar.close()
 
-        if not(flag == 0 and self.verbose == 1 and self._flag_tqdm):
-            sys.stdout.write(output + '\n')
+        if not (flag == 0 and self.verbose == 1 and self._flag_tqdm):
+            sys.stdout.write(output + "\n")
 
-def calc_vip(estimator:PLSRegression)->np.ndarray:
+
+def calc_vip(estimator: PLSRegression) -> np.ndarray:
     """Calculate VIP (The Variable Importance in Projection)
 
     References
@@ -334,16 +362,18 @@ def calc_vip(estimator:PLSRegression)->np.ndarray:
         VIP of each variable (n_features,)
     """
     # score: 潜在変数、主成分
-    t = estimator.x_scores_     # (n_samples, n_components)
-    w = estimator.x_weights_    # (n_features, n_components)
+    t = estimator.x_scores_  # (n_samples, n_components)
+    w = estimator.x_weights_  # (n_features, n_components)
     # loading: 因子負荷量
-    q = estimator.y_loadings_   # (n_targets, n_components)
+    q = estimator.y_loadings_  # (n_targets, n_components)
     p, h = w.shape
     s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
-    return np.sqrt(p * (np.square(w / np.linalg.norm(w, axis=0)) @ s).ravel() / np.sum(s))
+    return np.sqrt(
+        p * (np.square(w / np.linalg.norm(w, axis=0)) @ s).ravel() / np.sum(s)
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import os
     from urllib import request
     from pdb import set_trace
@@ -351,17 +381,17 @@ if __name__ == '__main__':
     from sklearn.feature_selection import VarianceThreshold
 
     # 配布ページ: https://datachemeng.com/pythonassignment/
-    url = 'https://datachemeng.com/wp-content/uploads/2017/07/logSdataset1290.csv'
+    url = "https://datachemeng.com/wp-content/uploads/2017/07/logSdataset1290.csv"
 
-    dirpath_cache = os.path.abspath('./_cache')
+    dirpath_cache = os.path.abspath("./_cache")
     if not os.path.isdir(dirpath_cache):
         os.mkdir(dirpath_cache)
 
     fpath_csv_cache = os.path.join(dirpath_cache, os.path.basename(url))
     if not os.path.isfile(fpath_csv_cache):
         with request.urlopen(url) as response:
-            content = response.read().decode('utf-8-sig')
-        with open(fpath_csv_cache, 'w', encoding='utf-8-sig') as f:
+            content = response.read().decode("utf-8-sig")
+        with open(fpath_csv_cache, "w", encoding="utf-8-sig") as f:
             f.write(content)
 
     df_data = pd.read_csv(fpath_csv_cache, index_col=0)

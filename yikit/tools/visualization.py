@@ -1,5 +1,4 @@
-
-'''
+"""
 Copyright (c) 2021 yu9824
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -39,12 +38,15 @@ else:
     from tqdm import tqdm
 
 COLORS = Bunch(
-    train = '#283655',
-    test = '#cf3721',
-    val = '#cf3721',
+    train="#283655",
+    test="#cf3721",
+    val="#cf3721",
 )
 
-def get_learning_curve_optuna(study, loc = 'best', fontfamily='Helvetica', return_axis = False):
+
+def get_learning_curve_optuna(
+    study, loc="best", fontfamily="Helvetica", return_axis=False
+):
     """get_leraning_curve
 
     Parameters
@@ -68,36 +70,51 @@ def get_learning_curve_optuna(study, loc = 'best', fontfamily='Helvetica', retur
     # 2: maximize, 1: minimize
     if study.direction == optuna.study.StudyDirection(1):
         min_or_max = min
-        temp = float('inf')
+        temp = float("inf")
     elif study.direction == optuna.study.StudyDirection(2):
         min_or_max = max
-        temp = - float('inf')
-    df_values = pd.DataFrame([trial.value for trial in study.trials], columns = ['value'])
+        temp = -float("inf")
+    df_values = pd.DataFrame(
+        [trial.value for trial in study.trials], columns=["value"]
+    )
 
     best_values = []
-    for v in df_values.loc[:, 'value']:
+    for v in df_values.loc[:, "value"]:
         temp = min_or_max(temp, v)
         best_values.append(temp)
-    df_values['best_value'] = best_values
+    df_values["best_value"] = best_values
 
     _font_settings(fontfamily=fontfamily)
 
-    fig = plt.figure(facecolor = 'white')
+    fig = plt.figure(facecolor="white")
     ax = fig.add_subplot(111)
 
-    ax.scatter(df_values.index, df_values['value'], s = 10, c = '#00293c', label = 'Objective Value')
-    ax.plot(df_values.index, df_values['best_value'], c = '#f62a00', zorder = 0, label = 'Best Value')
+    ax.scatter(
+        df_values.index,
+        df_values["value"],
+        s=10,
+        c="#00293c",
+        label="Objective Value",
+    )
+    ax.plot(
+        df_values.index,
+        df_values["best_value"],
+        c="#f62a00",
+        zorder=0,
+        label="Best Value",
+    )
 
-    ax.set_xlabel('Trials')
-    ax.set_ylabel('Objective Values')
+    ax.set_xlabel("Trials")
+    ax.set_ylabel("Objective Values")
 
-    ax.legend(facecolor = '#f0f0f0', edgecolor = 'None', fontsize = 10, loc = loc)
+    ax.legend(facecolor="#f0f0f0", edgecolor="None", fontsize=10, loc=loc)
 
     fig.tight_layout()
     if return_axis:
         return fig, ax
     else:
         return fig
+
 
 class SummarizePI:
     def __init__(self, importances):
@@ -111,21 +128,25 @@ class SummarizePI:
         """
         self.importances = importances
 
-    def get_figure(self, fontfamily='Helvetica'):
+    def get_figure(self, fontfamily="Helvetica"):
         # 平均をとる．
-        imp = self.importances.mean(axis = 1)
+        imp = self.importances.mean(axis=1)
 
         # 「規格化」したのち，大きい順に並べ替えて，sns.bairplotのためにtranspose()
-        df_imp = pd.DataFrame(imp / np.sum(imp), columns = ['importances']).sort_values('importances', ascending=False).transpose()
+        df_imp = (
+            pd.DataFrame(imp / np.sum(imp), columns=["importances"])
+            .sort_values("importances", ascending=False)
+            .transpose()
+        )
 
         # レイアウトについて
         _font_settings(fontfamily=fontfamily)
 
         # 重要度の棒グラフを描画
-        self.fig = plt.figure(facecolor = 'white')
+        self.fig = plt.figure(facecolor="white")
         self.ax = self.fig.add_subplot(111)
 
-        sns.barplot(data = df_imp, ax = self.ax, orient = 'h')
+        sns.barplot(data=df_imp, ax=self.ax, orient="h")
 
         self.fig.tight_layout()
 
@@ -134,7 +155,16 @@ class SummarizePI:
     def get_data(self):
         pass
 
-def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = False, verbose = True, titles = [], fontfamily='Helvetica'):
+
+def get_dist_figure(
+    y_dist,
+    y_true=None,
+    keep_y_range=True,
+    return_axis=False,
+    verbose=True,
+    titles=[],
+    fontfamily="Helvetica",
+):
     """get distribution figure.
 
     Parameters
@@ -160,42 +190,57 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
     """
     # check
     if not isinstance(y_dist, Distn):
-        raise TypeError('`y_dist` is not {0} object'.format(Distn.__name__))
+        raise TypeError("`y_dist` is not {0} object".format(Distn.__name__))
     y_pred = y_dist.mean()
     y_pred = check_array(y_pred, ensure_2d=False)
     n_samples = len(y_pred)
     if len(titles) not in (0, n_samples):
-        raise ValueError("`titles`'s lengh must be 0 or n_samples({}).".format(n_samples))
+        raise ValueError(
+            "`titles`'s lengh must be 0 or n_samples({}).".format(n_samples)
+        )
 
     offset = np.ptp(y_pred) * 0.05
-    y_range = np.linspace(min(y_pred)-offset, max(y_pred)+offset, 200).reshape((-1, 1))
+    y_range = np.linspace(
+        min(y_pred) - offset, max(y_pred) + offset, 200
+    ).reshape((-1, 1))
     dist_values = y_dist.pdf(y_range).transpose()
 
     n_rows = ceil(Decimal(n_samples).sqrt())
     n_cols = n_samples // n_rows + int(n_samples % n_rows > 0)
 
     _font_settings(fontfamily=fontfamily)
-    fig, axes = plt.subplots(n_rows, n_cols, facecolor='white', dpi=72, figsize=(6.4*n_cols, 4.8*n_rows))
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        facecolor="white",
+        dpi=72,
+        figsize=(6.4 * n_cols, 4.8 * n_rows),
+    )
 
     if verbose:
-        pbar = tqdm(total=n_cols * n_rows + 1, desc='Drawing distribution figure')
+        pbar = tqdm(
+            total=n_cols * n_rows + 1, desc="Drawing distribution figure"
+        )
     # 一つずつ分布を書いていく．
     for idx in range(n_samples):
-        ax = axes[idx//n_cols][idx%n_cols]
-        ax.plot(y_range, dist_values[idx], c = '#022C5E')
+        ax = axes[idx // n_cols][idx % n_cols]
+        ax.plot(y_range, dist_values[idx], c="#022C5E")
 
-        prob_max_temp = max(dist_values[idx])   # このidxにおける確率密度の最大値
+        prob_max_temp = max(
+            dist_values[idx]
+        )  # このidxにおける確率密度の最大値
         if y_true is not None:
             y_true = check_array(y_true, ensure_2d=False)
-            ax.vlines(y_true[idx], 0, prob_max_temp, "#ab4e15", label="ground truth")
+            ax.vlines(
+                y_true[idx], 0, prob_max_temp, "#ab4e15", label="ground truth"
+            )
         ax.vlines(y_pred[idx], 0, prob_max_temp, "#dc143c", label="pred")
-        ax.set_ylabel('Probability density')
-        ax.legend(loc="best", facecolor='#f0f0f0', edgecolor='None')
+        ax.set_ylabel("Probability density")
+        ax.legend(loc="best", facecolor="#f0f0f0", edgecolor="None")
         if titles:
             ax.set_title("{0}".format(titles[idx]))
         else:
             ax.set_title("idx: {0}".format(idx))
-
 
         ax.set_xlim(y_range[0], y_range[-1])
         if keep_y_range:
@@ -205,7 +250,7 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
             pbar.update(1)
     # 余ったところを消す．
     for idx in range(n_samples, n_rows * n_cols):
-        ax = axes[idx//n_cols][idx%n_cols]
+        ax = axes[idx // n_cols][idx % n_cols]
         ax.axis("off")
         if verbose:
             pbar.update(1)
@@ -214,31 +259,36 @@ def get_dist_figure(y_dist, y_true = None, keep_y_range = True, return_axis = Fa
 
     if verbose:
         pbar.update(1)
-        pbar.set_description(desc = 'Completed')
+        pbar.set_description(desc="Completed")
         pbar.close()
     if return_axis:
         return fig, axes
     else:
         return fig
 
+
 def is_correct_dist(y_pred, y_dist):
     b = np.allclose(y_dist.mean(), y_pred)
     if not b:
-        warnings.warn('`y_dist.mean()` and `y_pred` is not close.')
+        warnings.warn("`y_dist.mean()` and `y_pred` is not close.")
     return b
 
+
 def select_fontfamily():
-    if platform.system() == 'Darwin':
-        return 'Helvetica'
-    else:   # Window or Linux
-        return 'DejaVu Sans'
-
-def _font_settings(fontfamily='Helvetica', fontsize=13):
-    plt.rcParams['font.size'] = fontsize
-    plt.rcParams['font.family'] = fontfamily
+    if platform.system() == "Darwin":
+        return "Helvetica"
+    else:  # Window or Linux
+        return "DejaVu Sans"
 
 
-def get_learning_curve_gb(estimator, fontfamily = 'Helvetica', return_axis = False):
+def _font_settings(fontfamily="Helvetica", fontsize=13):
+    plt.rcParams["font.size"] = fontsize
+    plt.rcParams["font.family"] = fontfamily
+
+
+def get_learning_curve_gb(
+    estimator, fontfamily="Helvetica", return_axis=False
+):
     # check_estimator
     if isinstance(estimator, (NGBClassifier, NGBRegressor)):
         evals_result = estimator.evals_result
@@ -251,22 +301,22 @@ def get_learning_curve_gb(estimator, fontfamily = 'Helvetica', return_axis = Fal
     _font_settings(fontfamily=fontfamily)
 
     # generate figure
-    fig, ax = plt.subplots(1, 1, facecolor='white', dpi=72)
+    fig, ax = plt.subplots(1, 1, facecolor="white", dpi=72)
 
     # plot
     for data_name, result in evals_result.items():
         if data_name not in COLORS:
-            raise ValueError('{} is not in `COLOR`.'.format(data_name))
+            raise ValueError("{} is not in `COLOR`.".format(data_name))
         score_name = list(result.keys())[0]
         score = result[score_name]
-        ax.plot(range(len(score)), score, label = data_name, c = COLORS[data_name])
+        ax.plot(range(len(score)), score, label=data_name, c=COLORS[data_name])
 
     # label
-    ax.set_xlabel('n_iter')
+    ax.set_xlabel("n_iter")
     ax.set_ylabel(score_name)
 
     # legend
-    ax.legend(facecolor='#f0f0f0', edgecolor='None', fontsize=10)
+    ax.legend(facecolor="#f0f0f0", edgecolor="None", fontsize=10)
     # tight_layout
     fig.tight_layout()
     if return_axis:
