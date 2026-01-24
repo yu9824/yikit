@@ -40,7 +40,7 @@ def test_models():
     #     'n_estimators': 100,
     #     'minibatch_frac': 1.0,
     # })
-    study.optimize(objective, n_trials=5)
+    study.optimize(objective, n_trials=1)
     print(objective.get_best_estimator(study))
 
     # estimator = EnsembleRegressor(scoring = ['r2', 'neg_mean_squared_error'], random_state = 334, verbose = 1, boruta = True, opt = False, method = 'stacking')
