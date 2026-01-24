@@ -142,15 +142,17 @@ else:
         license = LICENSE,
         packages = find_packages(exclude=['example']),
         classifiers = [
-            'License :: OSI Approved :: Apache Software License',
             'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.6',
             'Programming Language :: Python :: 3.7',
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3.9',
+            'Programming Language :: Python :: 3.10',
+            'Programming Language :: Python :: 3.11',
+            'Programming Language :: Python :: 3.12',
         ],  # パッケージ(プロジェクト)の分類．https://pypi.org/classifiers/ に掲載されているものを指定可能．
         extras_require={
             "optional": ["colorlog", "tqdm", "ngboost==0.3.6", "lightgbm", "keras"],
-            "test": ["pytest"]
+            "test": ["pytest"],
+            "dev": ["build"]
         },
     )
