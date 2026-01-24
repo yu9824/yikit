@@ -149,4 +149,8 @@ else:
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3.9',
         ],  # パッケージ(プロジェクト)の分類．https://pypi.org/classifiers/ に掲載されているものを指定可能．
+        extras_require={
+            "optional": ["colorlog", "tqdm", "ngboost==0.3.6", "lightgbm", "keras"],
+            "test": ["pytest"]
+        },
     )

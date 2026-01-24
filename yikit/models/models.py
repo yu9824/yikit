@@ -16,41 +16,44 @@ limitations under the License.
 '''
 
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.base import is_classifier, is_regressor
+from sklearn.base import is_regressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_array, check_X_y, check_random_state
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils import Bunch
-from sklearn.model_selection import train_test_split, cross_val_predict, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import check_cv
-from sklearn.model_selection._validation import _fit_and_score, _aggregate_score_dicts, _score
+from sklearn.model_selection._validation import _fit_and_score, _score
 from sklearn.metrics import check_scoring
 from sklearn.metrics._scorer import _check_multimetric_scoring
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Ridge, Lasso, LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.base import clone
 from sklearn.svm import SVR
-from sklearn.cross_decomposition import PLSRegression
 from sklearn.inspection import permutation_importance
-from ngboost import NGBRegressor
-from lightgbm import LGBMRegressor
-import sys
 
 from yikit.feature_selection import BorutaPy
-from yikit.tools import is_notebook
-if is_notebook():
-    from tqdm.notebook import tqdm
-else:
-    from tqdm import tqdm
+from yikit.helpers import is_installed
+from tqdm.auto import tqdm
 
 import optuna
 from joblib import Parallel, delayed
 
 import numpy as np
 import pandas as pd
+
+if is_installed("lightgbm"):
+    from lightgbm import LGBMRegressor
+else:
+    LGBMRegressor = None    # type: ignore[assignment]
+
+if is_installed("ngboost"):
+    from ngboost import NGBRegressor
+else:
+    NGBRegressor = None    # type: ignore[assignment]
 
 __all__ = [
     'NNRegressor',
@@ -64,10 +67,7 @@ __all__ = [
 
 class NNRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, input_dropout = 0.0, hidden_layers = 3, hidden_units = 96, hidden_activation = 'relu', hidden_dropout = 0.2, batch_norm = 'before_act', optimizer_type = 'adam', lr = 0.001, batch_size = 64, l = 0.01, random_state = None, epochs = 200, patience = 20, progress_bar = True, scale = True):
-        try:
-            import keras
-        except ModuleNotFoundError as e:
-            sys.stdout.write(e)
+        if not is_installed("keras"):
             raise ModuleNotFoundError('If you want to use this module, please install keras.')
 
         self.input_dropout = input_dropout
@@ -94,7 +94,6 @@ class NNRegressor(BaseEstimator, RegressorMixin):
         from keras.models import Sequential
         from keras.optimizers import SGD, Adam
         from keras.regularizers import l2
-        from keras.backend import clear_session
 
         # 入力されたXとyが良い感じか判定（サイズが適切かetc)
         X, y = check_X_y(X, y)
@@ -237,7 +236,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
     def fit(self, X, y):
         try:
             kwargs = self.kwargs
-        except:
+        except Exception:
             kwargs = {}
 
         # check_random_state
@@ -774,7 +773,7 @@ class Objective:
             self.fixed_params_ = {
                 'random_state' : self.rng,
             }
-        elif isinstance(self.estimator, NGBRegressor):
+        elif is_installed("ngboost") and isinstance(self.estimator, NGBRegressor):
             # 最適化するべきパラメータ
             params_ = {
                 'Base': DecisionTreeRegressor(
@@ -807,11 +806,12 @@ class Objective:
         )
 
         parallel = Parallel(n_jobs = self.n_jobs)
+        # support old version of scikit-learn (<1.4)
         results = parallel(
             delayed(_fit_and_score)(
                 clone(self.estimator_), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
-            )
-        for train, test in self.cv.split(self.X, self.y))
+            ) for train, test in self.cv.split(self.X, self.y)
+        )
         return np.mean([d['test_scores'] for d in results]) # scikit-learn>=0.24.1
 
     def get_best_estimator(self, study):
