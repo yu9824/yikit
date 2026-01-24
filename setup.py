@@ -172,7 +172,7 @@ else:
             "optional": [
                 "colorlog",
                 "tqdm",
-                "ngboost==0.3.6",
+                "ngboost==0.5.8",
                 "lightgbm",
                 "keras",
             ],
