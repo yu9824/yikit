@@ -1,8 +1,12 @@
 import importlib.util
 import inspect
-from collections.abc import Callable, Iterable, Iterator
+import sys
 from typing import Any, Generic, Optional, TypeVar
 
+if sys.version_info >= (3, 9):
+    from collections.abc import Callable, Iterable, Iterator
+else:
+    from typing import Callable, Iterable, Iterator
 T = TypeVar("T")
 
 
