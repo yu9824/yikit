@@ -808,7 +808,7 @@ class Objective:
         parallel = Parallel(n_jobs = self.n_jobs)
         results = parallel(
             delayed(_fit_and_score)(
-                clone(self.estimator_), self.X, self.y, self.scoring, train, test, 0, dict(**self.fixed_params_, **params_), None
+                clone(self.estimator_), self.X, self.y, scorer=self.scoring, train=train, test=test, verbose=0, parameters=dict(**self.fixed_params_, **params_), fit_params=None
             )
         for train, test in self.cv.split(self.X, self.y))
         return np.mean([d['test_scores'] for d in results]) # scikit-learn>=0.24.1
