@@ -1,12 +1,9 @@
 scikit-learn>=0.24.1
 numpy
 pandas
-tqdm
-lightgbm
 joblib
 Boruta==0.3
 scipy
 optuna
 matplotlib
 seaborn
-ngboost==0.3.6
