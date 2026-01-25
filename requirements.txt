@@ -6,3 +6,4 @@ scipy
 optuna<3.5.0    # suggest_int
 matplotlib
 seaborn
+typing-extensions; python_version < "3.8"
