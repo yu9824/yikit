@@ -1,14 +1,12 @@
 import pandas as pd
-from sklearn.datasets import load_diabetes
 from sklearn.ensemble import RandomForestRegressor
 
 from yikit.feature_selection import BorutaPy
 
 
-def test_boruta():
-    diabetes = load_diabetes()
-    X = pd.DataFrame(diabetes["data"], columns=diabetes["feature_names"])
-    y = pd.Series(diabetes["target"])
+def test_boruta(X_regression, y_regression):
+    X = X_regression
+    y = y_regression
 
     (
         BorutaPy(

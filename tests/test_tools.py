@@ -3,16 +3,14 @@ from pdb import set_trace
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.datasets import load_diabetes
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
 
-def test_tools():
+def test_tools(X_regression, y_regression):
     # データセットの準備等
-    diabetes = load_diabetes()
-    X = pd.DataFrame(diabetes.data, columns=diabetes.feature_names)
-    y = pd.Series(diabetes.target)
+    X = X_regression
+    y = y_regression
 
     SEED = 334
 

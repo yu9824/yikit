@@ -1,7 +1,6 @@
 import optuna
 import pandas as pd
 from ngboost import NGBRegressor
-from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
 from sklearn.utils.estimator_checks import check_estimator
 
@@ -10,10 +9,9 @@ from yikit.models import NNRegressor, Objective
 SEED = 334
 
 
-def test_models():
-    diabetes = load_diabetes()
-    X = pd.DataFrame(diabetes["data"], columns=diabetes["feature_names"])
-    y = pd.Series(diabetes["target"])
+def test_models(X_regression, y_regression):
+    X = X_regression
+    y = y_regression
 
     # objective = Objective(RandomForestRegressor(), X, y, scoring = 'neg_mean_squared_error')
     # trial = optuna.trial.FixedTrial({
