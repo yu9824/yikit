@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 from sklearn.datasets import make_regression
@@ -58,3 +59,8 @@ def X_regression(regression_data):
 def y_regression(regression_data):
     """回帰データのターゲット（Series）"""
     return regression_data["y"]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def matplotlib_settings():
+    plt.rcParams["backend"] = "Agg"
