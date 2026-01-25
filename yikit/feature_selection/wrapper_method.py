@@ -234,16 +234,20 @@ class BorutaPy(boruta.BorutaPy):
         return self._fit(X, y)
 
     def get_support(self, weak: bool = False) -> np.ndarray:
-        """get support
+        """Get a mask, or integer index, of the features selected.
 
         Parameters
         ----------
         weak : bool, optional
-            If set to true, the tentative features are also used to reduce X., by default False
+            If set to True, the tentative features are also included in the support mask.
+            If False, only confirmed features are included. By default False.
 
         Returns
         -------
-        support : array
+        support : array of shape [n_features]
+            A boolean mask of the features selected. If `weak=True`, includes both
+            confirmed and tentative features. If `weak=False`, includes only confirmed
+            features.
         """
         check_is_fitted(self, "support_")
         if weak:
@@ -256,7 +260,14 @@ class BorutaPy(boruta.BorutaPy):
         This docstring is based on scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
 
-        calculate `perc` if 'auto'
+        Calculate the `perc` parameter automatically when set to 'auto'.
+
+        This method determines the percentile threshold by examining the maximum
+        Pearson correlation coefficient that can occur by chance when features are
+        randomly shuffled. By shuffling features multiple times and calculating
+        correlations with the target, we estimate the spurious correlation that
+        would occur randomly, and use this to automatically set an appropriate
+        percentile threshold.
 
         Parameters
         ----------
@@ -268,7 +279,8 @@ class BorutaPy(boruta.BorutaPy):
         Returns
         -------
         float
-            calculated `perc`
+            The calculated `perc` value, representing the percentile threshold
+            for comparison between shadow and real features.
         """
 
         def _get_pearsonrs(X: np.ndarray) -> "array[float]":
@@ -282,7 +294,8 @@ class BorutaPy(boruta.BorutaPy):
                 ],
             )
 
-        # ランダムに並べ替えてどれくらい相関がでてしまうのかを調べ，自動で決める．
+        # Calculate correlations with randomly shuffled features to determine
+        # the maximum spurious correlation that can occur by chance.
         with tqdm_joblib(
             total=self.max_shuf, desc="Calc r_ccmax", silent=not self._use_tqdm
         ):
@@ -298,6 +311,26 @@ class BorutaPy(boruta.BorutaPy):
         return perc
 
     def _print_results(self, dec_reg, _iter, flag):
+        """Print the results of the Boruta feature selection process.
+
+        This method displays the current status of feature selection, including
+        the number of confirmed, tentative, and rejected features at each iteration.
+        The output format depends on the verbosity level and whether tqdm is available.
+
+        Parameters
+        ----------
+        dec_reg : array-like
+            Decision registry array indicating the status of each feature:
+            - 1: confirmed features
+            - 0: tentative features (still under consideration)
+            - -1: rejected features
+        _iter : int
+            Current iteration number.
+        flag : int
+            Status flag:
+            - 0: feature selection is still in progress
+            - non-zero: Boruta has finished running and tentative features have been filtered
+        """
         n_iter = str(_iter) + " / " + str(self.max_iter)
         n_confirmed = np.where(dec_reg == 1)[0].shape[0]
         n_rejected = np.where(dec_reg == -1)[0].shape[0]
@@ -354,10 +387,10 @@ def calc_vip(estimator: PLSRegression) -> np.ndarray:
     np.ndarray
         VIP of each variable (n_features,)
     """
-    # score: 潜在変数、主成分
+    # scores: latent variables, principal components
     t = estimator.x_scores_  # (n_samples, n_components)
     w = estimator.x_weights_  # (n_features, n_components)
-    # loading: 因子負荷量
+    # loadings: factor loadings
     q = estimator.y_loadings_  # (n_targets, n_components)
     p, h = w.shape
     s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
