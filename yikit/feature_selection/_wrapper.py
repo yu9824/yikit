@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import sys
 from array import array
-from typing import Literal, Optional, Union
+from typing import Optional, Union
 
 import boruta
 import numpy as np
@@ -27,6 +28,11 @@ from sklearn.utils.validation import check_is_fitted
 
 from yikit.helpers import is_installed, tqdm_joblib
 from yikit.logging import get_child_logger
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 if is_installed("tqdm"):
     from tqdm.auto import tqdm
