@@ -2,8 +2,8 @@ scikit-learn>=0.24.1,<1.4.0 # _fit_and_score (1.4.0)
 numpy
 pandas
 joblib
-Boruta>=0.3
 scipy
 optuna<3.5.0    # suggest_int
 matplotlib
 seaborn
+typing-extensions; python_version < "3.8"

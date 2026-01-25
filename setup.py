@@ -6,11 +6,12 @@ Usage:
     python setup.py py2app
 """
 
-from setuptools import setup, find_packages
-from shutil import copyfile
 import os
-import sys
 import re
+import sys
+from shutil import copyfile
+
+from setuptools import find_packages, setup
 
 # 再帰回数に引っかかるのでとりあえず大きい数に．
 sys.setrecursionlimit(10**9)
@@ -175,6 +176,7 @@ else:
                 "ngboost==0.3.6",
                 "lightgbm",
                 "keras",
+                "Boruta>=0.3",
             ],
             "test": ["pytest"],
             "dev": ["build"],

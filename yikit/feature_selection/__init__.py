@@ -1,4 +1,10 @@
-from ._filter import FilterSelector
-from .wrapper_method import BorutaPy
+from yikit.helpers import is_installed
 
-__all__ = ("FilterSelector", "BorutaPy")
+from ._filter import FilterSelector
+
+__all__ = ["FilterSelector"]
+
+if is_installed("boruta"):
+    from ._wrapper import BorutaPy  # noqa: F401
+
+    __all__.append("BorutaPy")

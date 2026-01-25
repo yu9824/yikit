@@ -14,36 +14,48 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import boruta
-from sklearn.utils import check_X_y
-from sklearn.utils import check_random_state
-from sklearn.utils import shuffle
-from sklearn.utils.validation import check_is_fitted
-from sklearn.linear_model import Lasso, ElasticNet
-from sklearn.cross_decomposition import PLSRegression
-import numpy as np
-from scipy.stats import pearsonr
 import sys
-import warnings
-from joblib import Parallel, delayed
-from typing import Any
+from array import array
+from typing import Optional, Union
 
-from yikit.tools import is_notebook
+import boruta
+import numpy as np
+from joblib import Parallel, delayed
+from scipy.stats import pearsonr
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.utils import check_random_state, check_X_y, shuffle
+from sklearn.utils.validation import check_is_fitted
+
+from yikit.helpers import is_installed, tqdm_joblib
+from yikit.logging import get_child_logger
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+if is_installed("tqdm"):
+    from tqdm.auto import tqdm
+else:
+    from yikit.helpers import dummy_tqdm as tqdm
+
+
+logger = get_child_logger(__name__)
 
 
 class BorutaPy(boruta.BorutaPy):
     def __init__(
         self,
         estimator,
-        n_estimators="auto",
-        perc="auto",
-        alpha=0.05,
-        two_step=True,
-        max_iter=100,
-        random_state=None,
-        verbose=1,
-        max_shuf=10000,
-        n_jobs=None,
+        n_estimators: Union[int, Literal["auto"]] = "auto",
+        perc: Union[float, Literal["auto"]] = "auto",
+        alpha: float = 0.05,
+        two_step: bool = True,
+        max_iter: int = 100,
+        random_state: Optional[Union[np.random.RandomState, int]] = None,
+        verbose: int = 1,
+        max_shuf: int = 10000,
+        n_jobs: Optional[int] = None,
     ):
         """
         This docstring is modified from and uses parts of scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
@@ -99,7 +111,7 @@ class BorutaPy(boruta.BorutaPy):
             A supervised learning estimator, with a 'fit' method that returns the
             feature_importances_ attribute. Important features must correspond to
             high absolute values in the feature_importances_.
-        n_estimators : int or string, default = 1000
+        n_estimators : int or string, default = "auto"
             If int sets the number of estimators in the chosen ensemble method.
             If 'auto' this is determined automatically based on the size of the
             dataset. The other parameters of the used estimators need to be set
@@ -199,20 +211,11 @@ class BorutaPy(boruta.BorutaPy):
             random_state=random_state,
             verbose=verbose,
         )
-        self.random_state = check_random_state(self.random_state)
-        if verbose > 0:
-            try:
-                import tqdm
-            except ImportError as e:
-                mess = (
-                    "{}\nIf exists, a progress bar can be displayed.".format(e)
-                )
-                warnings.warn(mess)
-                self._flag_tqdm = False
-            else:
-                self._flag_tqdm = True
-        else:
-            self._flag_tqdm = False
+        self.random_state = check_random_state(random_state)  # type: ignore[has-type]
+
+        # Decide on progress display based on availability of tqdm and verbosity
+        self._use_tqdm = is_installed("tqdm") and self.verbose > 0
+        self._use_logging = (not self._use_tqdm) or self.verbose > 1
 
     def fit(self, X, y):
         """
@@ -230,25 +233,27 @@ class BorutaPy(boruta.BorutaPy):
         X, y = check_X_y(X, y)
         if self.perc == "auto":
             self.perc = self._calc_auto_perc(X, y)
-        if self._flag_tqdm and self.verbose == 1:
-            if is_notebook():
-                from tqdm.notebook import tqdm
-            else:
-                from tqdm import tqdm
-            self.pbar = tqdm(total=self.max_iter, desc="BorutaPy")
+
+        if self._use_tqdm:
+            self._pbar = tqdm(total=self.max_iter, desc="BorutaPy")
+
         return self._fit(X, y)
 
-    def get_support(self, weak=False) -> np.ndarray:
-        """get support
+    def get_support(self, weak: bool = False) -> np.ndarray:
+        """Get a mask, or integer index, of the features selected.
 
         Parameters
         ----------
         weak : bool, optional
-            If set to true, the tentative features are also used to reduce X., by default False
+            If set to True, the tentative features are also included in the support mask.
+            If False, only confirmed features are included. By default False.
 
         Returns
         -------
-        support : array
+        support : array of shape [n_features]
+            A boolean mask of the features selected. If `weak=True`, includes both
+            confirmed and tentative features. If `weak=False`, includes only confirmed
+            features.
         """
         check_is_fitted(self, "support_")
         if weak:
@@ -261,7 +266,14 @@ class BorutaPy(boruta.BorutaPy):
         This docstring is based on scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
 
-        calculate `perc` if 'auto'
+        Calculate the `perc` parameter automatically when set to 'auto'.
+
+        This method determines the percentile threshold by examining the maximum
+        Pearson correlation coefficient that can occur by chance when features are
+        randomly shuffled. By shuffling features multiple times and calculating
+        correlations with the target, we estimate the spurious correlation that
+        would occur randomly, and use this to automatically set an appropriate
+        percentile threshold.
 
         Parameters
         ----------
@@ -273,40 +285,58 @@ class BorutaPy(boruta.BorutaPy):
         Returns
         -------
         float
-            calculated `perc`
+            The calculated `perc` value, representing the percentile threshold
+            for comparison between shadow and real features.
         """
-        if self.verbose > 0 and self._flag_tqdm:
-            if is_notebook():
-                from tqdm.notebook import trange
-            else:
-                from tqdm import trange
-            _range = trange(self.max_shuf, desc="Calc r_ccmax")
-        else:
-            _range = range(self.max_shuf)
 
-        # ランダムに並べ替えてどれくらい相関がでてしまうのかを調べ，自動で決める．
-        parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
-
-        def _get_pearsonrs() -> list:
+        def _get_pearsonrs(X: np.ndarray) -> "array[float]":
             X_shuffled = shuffle(X, random_state=self.random_state)
-            return [
-                pearsonr(X_shuffled[:, i], y)[0]
-                for i in range(X_shuffled.shape[1])
-            ]
+            assert isinstance(X_shuffled, np.ndarray)
+            return array(
+                "f",
+                [
+                    pearsonr(X_shuffled[:, i], y)[0]
+                    for i in range(X_shuffled.shape[1])
+                ],
+            )
 
-        self.pears_ = parallel(delayed(_get_pearsonrs)() for _ in _range)
+        # Calculate correlations with randomly shuffled features to determine
+        # the maximum spurious correlation that can occur by chance.
+        with tqdm_joblib(
+            total=self.max_shuf, desc="Calc r_ccmax", silent=not self._use_tqdm
+        ):
+            parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
+            self.pears_ = parallel(
+                delayed(_get_pearsonrs)(X) for _ in range(self.max_shuf)
+            )
 
-        # self.pears_ = []    # 相関係数を足していくリスト
-        # for _ in _range:
-        #     self.pears_.extend(_get_pearsonrs())
-
-        self.r_ccmax_ = np.nanmax(self.pears_)
+        self.r_ccmax_ = np.nanmax(self.pears_, axis=None).item()
         perc = 100 * (1 - self.r_ccmax_)
         if self.verbose > 0:
-            sys.stdout.write("Assgigned perc = {:.1f}\n".format(perc))
+            logger.info("Assgigned perc = {:.1f}\n".format(perc))
         return perc
 
     def _print_results(self, dec_reg, _iter, flag):
+        """Print the results of the Boruta feature selection process.
+
+        This method displays the current status of feature selection, including
+        the number of confirmed, tentative, and rejected features at each iteration.
+        The output format depends on the verbosity level and whether tqdm is available.
+
+        Parameters
+        ----------
+        dec_reg : array-like
+            Decision registry array indicating the status of each feature:
+            - 1: confirmed features
+            - 0: tentative features (still under consideration)
+            - -1: rejected features
+        _iter : int
+            Current iteration number.
+        flag : int
+            Status flag:
+            - 0: feature selection is still in progress
+            - non-zero: Boruta has finished running and tentative features have been filtered
+        """
         n_iter = str(_iter) + " / " + str(self.max_iter)
         n_confirmed = np.where(dec_reg == 1)[0].shape[0]
         n_rejected = np.where(dec_reg == -1)[0].shape[0]
@@ -316,14 +346,14 @@ class BorutaPy(boruta.BorutaPy):
         if flag == 0:
             n_tentative = np.where(dec_reg == 0)[0].shape[0]
             content = map(str, [n_iter, n_confirmed, n_tentative, n_rejected])
+            if self._use_tqdm:
+                self._pbar.update()
+                output = None
+
             if self.verbose == 1:
-                if self._flag_tqdm:
-                    self.pbar.update()
-                    output = None
-                else:
-                    output = cols[0] + n_iter
+                output = cols[0] + n_iter
             elif self.verbose > 1:
-                output = "\n".join(
+                output = "\n" + "\n".join(
                     [x[0] + "\t" + x[1] for x in zip(cols, content)]
                 )
 
@@ -336,12 +366,14 @@ class BorutaPy(boruta.BorutaPy):
                 [x[0] + "\t" + x[1] for x in zip(cols, content)]
             )
             output = "\n\nBorutaPy finished running.\n\n" + result
-            if self.verbose == 1 and self._flag_tqdm:
-                self.pbar.update(self.max_iter - _iter + 1)
-                self.pbar.close()
+            if self._use_tqdm:
+                self._pbar.update(self.max_iter - _iter + 1)
+                self._pbar.close()
 
-        if not (flag == 0 and self.verbose == 1 and self._flag_tqdm):
-            sys.stdout.write(output + "\n")
+        if (
+            flag != 0  # finished
+        ) or self._use_logging:
+            logger.info(output + "\n")
 
 
 def calc_vip(estimator: PLSRegression) -> np.ndarray:
@@ -361,38 +393,13 @@ def calc_vip(estimator: PLSRegression) -> np.ndarray:
     np.ndarray
         VIP of each variable (n_features,)
     """
-    # score: 潜在変数、主成分
+    # scores: latent variables, principal components
     t = estimator.x_scores_  # (n_samples, n_components)
     w = estimator.x_weights_  # (n_features, n_components)
-    # loading: 因子負荷量
+    # loadings: factor loadings
     q = estimator.y_loadings_  # (n_targets, n_components)
     p, h = w.shape
     s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
     return np.sqrt(
         p * (np.square(w / np.linalg.norm(w, axis=0)) @ s).ravel() / np.sum(s)
     )
-
-
-if __name__ == "__main__":
-    import os
-    from urllib import request
-    from pdb import set_trace
-    import pandas as pd
-    from sklearn.feature_selection import VarianceThreshold
-
-    # 配布ページ: https://datachemeng.com/pythonassignment/
-    url = "https://datachemeng.com/wp-content/uploads/2017/07/logSdataset1290.csv"
-
-    dirpath_cache = os.path.abspath("./_cache")
-    if not os.path.isdir(dirpath_cache):
-        os.mkdir(dirpath_cache)
-
-    fpath_csv_cache = os.path.join(dirpath_cache, os.path.basename(url))
-    if not os.path.isfile(fpath_csv_cache):
-        with request.urlopen(url) as response:
-            content = response.read().decode("utf-8-sig")
-        with open(fpath_csv_cache, "w", encoding="utf-8-sig") as f:
-            f.write(content)
-
-    df_data = pd.read_csv(fpath_csv_cache, index_col=0)
-    df_data.head()
