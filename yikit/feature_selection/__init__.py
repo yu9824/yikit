@@ -1,4 +1,4 @@
 from ._filter import FilterSelector
-from .wrapper_method import BorutaPy
+from ._wrapper import BorutaPy
 
 __all__ = ("FilterSelector", "BorutaPy")
