@@ -1,161 +1,41 @@
-"""
-Copyright (c) 2021 yu9824
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import optuna
-import seaborn as sns
-import sys
+import warnings
 from decimal import Decimal
 from math import ceil
-import warnings
+
+import matplotlib.pyplot as plt
+import numpy as np
 from ngboost.distns import Distn
-from ngboost import NGBClassifier, NGBRegressor
-from lightgbm import LGBMClassifier, LGBMRegressor
-import platform
-from sklearn.utils import Bunch
+from sklearn.utils import check_array
 
-from sklearn.utils.validation import check_array
-from yikit.tools import is_notebook
-
-if is_notebook():
-    from tqdm.notebook import tqdm
-else:
-    from tqdm import tqdm
-
-COLORS = Bunch(
-    train="#283655",
-    test="#cf3721",
-    val="#cf3721",
+from yikit.helpers import is_installed
+from yikit.visualize._utils import (
+    COLORS,
+    set_font,
+    with_custom_matplotlib_settings,
 )
 
+if is_installed("tqdm"):
+    from tqdm.auto import tqdm
+else:
+    from yikit.helpers import dummy_tqdm as tqdm
 
-def get_learning_curve_optuna(
-    study, loc="best", fontfamily="Helvetica", return_axis=False
-):
-    """get_leraning_curve
-
-    Parameters
-    ----------
-    study : optuna.study.Study
-
-    loc : str, optional
-        legend's location, by default 'best'
-    fontfamily : str, optional
-        fontfamily, by default 'Helvetica'
-    return_axis : bool, optional
-        return axis or not, by default False
-
-    Returns
-    -------
-    if return_axis is True:
-        tuple (matplotlib.pyplot.figure, matplotlib.pyplot.axis)
-    else:
-        matplotlib.pyplot.figure
-    """
-    # 2: maximize, 1: minimize
-    if study.direction == optuna.study.StudyDirection(1):
-        min_or_max = min
-        temp = float("inf")
-    elif study.direction == optuna.study.StudyDirection(2):
-        min_or_max = max
-        temp = -float("inf")
-    df_values = pd.DataFrame(
-        [trial.value for trial in study.trials], columns=["value"]
-    )
-
-    best_values = []
-    for v in df_values.loc[:, "value"]:
-        temp = min_or_max(temp, v)
-        best_values.append(temp)
-    df_values["best_value"] = best_values
-
-    _font_settings(fontfamily=fontfamily)
-
-    fig = plt.figure(facecolor="white")
-    ax = fig.add_subplot(111)
-
-    ax.scatter(
-        df_values.index,
-        df_values["value"],
-        s=10,
-        c="#00293c",
-        label="Objective Value",
-    )
-    ax.plot(
-        df_values.index,
-        df_values["best_value"],
-        c="#f62a00",
-        zorder=0,
-        label="Best Value",
-    )
-
-    ax.set_xlabel("Trials")
-    ax.set_ylabel("Objective Values")
-
-    ax.legend(facecolor="#f0f0f0", edgecolor="None", fontsize=10, loc=loc)
-
-    fig.tight_layout()
-    if return_axis:
-        return fig, ax
-    else:
-        return fig
+if is_installed("lightgbm"):
+    from lightgbm import LGBMClassifier, LGBMRegressor
+else:
+    LGBMClassifier = None  # type: ignore[misc,assignment]
+    LGBMRegressor = None  # type: ignore[misc,assignment]
 
 
-class SummarizePI:
-    def __init__(self, importances):
-        """Summarize permutation importances
-
-        Parameters
-        ----------
-        importances : pandas.DataFrame
-            index: features
-            columns: n_repeats
-        """
-        self.importances = importances
-
-    def get_figure(self, fontfamily="Helvetica"):
-        # 平均をとる．
-        imp = self.importances.mean(axis=1)
-
-        # 「規格化」したのち，大きい順に並べ替えて，sns.bairplotのためにtranspose()
-        df_imp = (
-            pd.DataFrame(imp / np.sum(imp), columns=["importances"])
-            .sort_values("importances", ascending=False)
-            .transpose()
-        )
-
-        # レイアウトについて
-        _font_settings(fontfamily=fontfamily)
-
-        # 重要度の棒グラフを描画
-        self.fig = plt.figure(facecolor="white")
-        self.ax = self.fig.add_subplot(111)
-
-        sns.barplot(data=df_imp, ax=self.ax, orient="h")
-
-        self.fig.tight_layout()
-
-        return self.fig, self.ax
-
-    def get_data(self):
-        pass
+if is_installed("ngboost"):
+    from ngboost import NGBClassifier, NGBRegressor
+    from ngboost.distns import Distn
+else:
+    NGBClassifier = None  # type: ignore[misc,assignment]
+    NGBRegressor = None  # type: ignore[misc,assignment]
+    Distn = None  # type: ignore[misc,assignment]
 
 
+@with_custom_matplotlib_settings()
 def get_dist_figure(
     y_dist,
     y_true=None,
@@ -208,7 +88,7 @@ def get_dist_figure(
     n_rows = ceil(Decimal(n_samples).sqrt())
     n_cols = n_samples // n_rows + int(n_samples % n_rows > 0)
 
-    _font_settings(fontfamily=fontfamily)
+    set_font(fontfamily=fontfamily)
     fig, axes = plt.subplots(
         n_rows,
         n_cols,
@@ -274,18 +154,6 @@ def is_correct_dist(y_pred, y_dist):
     return b
 
 
-def select_fontfamily():
-    if platform.system() == "Darwin":
-        return "Helvetica"
-    else:  # Window or Linux
-        return "DejaVu Sans"
-
-
-def _font_settings(fontfamily="Helvetica", fontsize=13):
-    plt.rcParams["font.size"] = fontsize
-    plt.rcParams["font.family"] = fontfamily
-
-
 def get_learning_curve_gb(
     estimator, fontfamily="Helvetica", return_axis=False
 ):
@@ -298,7 +166,7 @@ def get_learning_curve_gb(
         raise TypeError(estimator.__class__.__name__)
 
     # font
-    _font_settings(fontfamily=fontfamily)
+    set_font(fontfamily=fontfamily)
 
     # generate figure
     fig, ax = plt.subplots(1, 1, facecolor="white", dpi=72)
