@@ -1,20 +1,19 @@
 import numpy as np
-import optuna
 import pandas as pd
 from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator, RegressorMixin, clone, is_regressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import check_scoring, mean_squared_error
+from sklearn.metrics import check_scoring
 from sklearn.metrics._scorer import _check_multimetric_scoring
 from sklearn.model_selection import check_cv
 from sklearn.model_selection._validation import _score
 from sklearn.utils import Bunch, check_array, check_random_state, check_X_y
 from sklearn.utils.validation import check_is_fitted
 
-from yikit.feature_selection import BorutaPy
-from yikit.models._optuna import Objective
+from yikit.helpers import is_installed
+from yikit.metrics import root_mean_squared_error
 
 
 # スケールの概念が入っていないので，それらを内包したscikit-learn準拠モデルを自分で定義する必要がある．
@@ -121,6 +120,13 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
             )
 
             if self.boruta:
+                if is_installed("boruta"):
+                    from yikit.feature_selection import BorutaPy
+                else:
+                    raise ModuleNotFoundError(
+                        "If you want to use boruta, please install boruta."
+                    )
+
                 # 特徴量削減
                 feature_selector_ = BorutaPy(
                     estimator=RandomForestRegressor(
@@ -141,13 +147,22 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                 X_train_selected = X_train
                 X_test_selected = X_test
 
-            # verbose
-            if self.verbose == 0:
-                optuna.logging.disable_default_handler()
-
             results_estimators = []
             for estimator in self.estimators:
                 if self.opt:
+                    if is_installed("optuna"):
+                        import optuna
+
+                        from yikit.models._optuna import Objective
+                    else:
+                        raise ModuleNotFoundError(
+                            "If you want to use optuna optimization, please install optuna."
+                        )
+
+                    # verbose
+                    if self.verbose == 0:
+                        optuna.logging.disable_default_handler()
+
                     # ハイパーパラメータ（scoringで最初にしていしたやつで最適化）
                     objective = Objective(
                         estimator,
@@ -155,9 +170,11 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                         y_train,
                         cv=cv_,
                         random_state=rng_,
-                        scoring=scorers.values()[0]
-                        if isinstance(scorers, dict)
-                        else scorers,
+                        scoring=(
+                            scorers.values()[0]
+                            if isinstance(scorers, dict)
+                            else scorers
+                        ),
                     )
                     sampler = optuna.samplers.TPESampler(
                         seed=rng_.randint(2**31 - 1)
@@ -312,8 +329,16 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
         if self.method == "average" or self.n_estimators_ == 1:
             self.weights_ = None
         elif self.method == "blending":
+            # blendingのweightをoptunaで最適化
+            if is_installed("optuna"):
+                import optuna
+            else:
+                raise ModuleNotFoundError(
+                    "When 'method=blending', please install optuna."
+                )
+
             # rmseで最適化（今後指定できるようにしてもいいかも．）
-            def objective(trial):
+            def objective(trial: optuna.trial.Trial) -> float:
                 params = {
                     "weight{0}".format(i): trial.suggest_float(
                         "weight{0}".format(i), 0, 1
@@ -322,7 +347,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                 }
                 weights = np.array(list(params.values()))
                 y_oof_ave = np.average(y_oof_, weights=weights, axis=1)
-                return mean_squared_error(y_oof_ave, y, squared=False)
+                return root_mean_squared_error(y, y_oof_ave)
 
             # optunaのログを非表示
             if self.verbose == 0:
@@ -352,7 +377,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
             # resultsに保存するために定義だけする．
             self.weights_ = None
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Method not implemented")
 
         # 重みを結果に保存
         self.results_["weights"] = self.weights_

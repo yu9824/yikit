@@ -2,15 +2,18 @@ from yikit.helpers import is_installed
 
 from ._ensemble import EnsembleRegressor
 from ._linear import LinearModelRegressor
-from ._optuna import Objective
 from ._svm import SupportVectorRegressor
 
 __all__ = [
     "EnsembleRegressor",
     "LinearModelRegressor",
-    "Objective",
     "SupportVectorRegressor",
 ]
+
+if is_installed("optuna"):
+    from ._optuna import Objective
+
+    __all__ += ["Objective"]
 
 if is_installed("lightgbm"):
     from ._gbdt import GBDTRegressor  # noqa: F401
