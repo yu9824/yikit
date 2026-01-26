@@ -32,11 +32,6 @@ else:
     GBDTRegressor = None  # type: ignore[assignment,misc]
 
 
-if is_installed("keras"):
-    from yikit.models._mlp import NNRegressor
-else:
-    NNRegressor = None  # type: ignore[assignment,misc]
-
 if is_installed("ngboost"):
     from ngboost import NGBRegressor
 else:
@@ -94,36 +89,7 @@ class Objective:
         )
 
     def __call__(self, trial: optuna.trial.Trial):
-        if isinstance(self.estimator, NNRegressor):
-            params_ = {
-                "input_dropout": trial.suggest_float(
-                    "input_dropout", 0.0, 0.3
-                ),
-                "hidden_layers": trial.suggest_int("hidden_layers", 2, 4),
-                "hidden_units": trial.suggest_int(
-                    "hidden_units", 32, 1024, 32
-                ),
-                "hidden_activation": trial.suggest_categorical(
-                    "hidden_activation", ["prelu", "relu"]
-                ),
-                "hidden_dropout": trial.suggest_float(
-                    "hidden_dropout", 0.2, 0.5
-                ),
-                "batch_norm": trial.suggest_categorical(
-                    "batch_norm", ["before_act", "no"]
-                ),
-                "optimizer_type": trial.suggest_categorical(
-                    "optimizer_type", ["adam", "sgd"]
-                ),
-                "lr": trial.suggest_loguniform("lr", 0.00001, 0.01),
-                "batch_size": trial.suggest_int("hidden_units", 32, 1024, 32),
-                "l": trial.suggest_loguniform("l", 1e-7, 0.1),
-            }
-            self.fixed_params_ = {
-                "progress_bar": False,
-                "random_state": self.rng,
-            }
-        elif isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
+        if isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
             params_ = {
                 "n_estimators": trial.suggest_int(
                     "n_estimators", 10, 1000, log=True

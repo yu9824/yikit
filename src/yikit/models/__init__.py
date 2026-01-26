@@ -26,8 +26,3 @@ if is_installed("lightgbm"):
     from ._gbdt import GBDTRegressor  # noqa: F401
 
     __all__ += ["GBDTRegressor"]
-
-if is_installed("keras"):
-    from ._mlp import NNRegressor  # noqa: F401
-
-    __all__ += ["NNRegressor"]

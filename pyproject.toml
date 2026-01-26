@@ -46,7 +46,6 @@ optional = [
     "tqdm",
     "ngboost==0.3.6",
     "lightgbm",
-    "keras",
     "Boruta>=0.3",
     "optuna<3.5.0",   # suggest_int
 ]

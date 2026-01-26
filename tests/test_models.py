@@ -1,10 +1,8 @@
 import optuna
-import pandas as pd
 from ngboost import NGBRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.utils.estimator_checks import check_estimator
 
-from yikit.models import NNRegressor, Objective
+from yikit.models import Objective
 
 SEED = 334
 
