@@ -48,7 +48,7 @@ optional = [
     "lightgbm",
     "keras",
     "Boruta>=0.3",
-    "optuna<3.5.0",   # suggest_int
+    "optuna<4.8.0",   # suggest_int
 ]
 docs = [
     "sphinx",
