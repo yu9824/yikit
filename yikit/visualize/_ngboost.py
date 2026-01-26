@@ -1,6 +1,7 @@
 import warnings
 from decimal import Decimal
 from math import ceil
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,7 +44,7 @@ def get_dist_figure(
     return_axis=False,
     verbose=True,
     titles=[],
-    fontfamily="Helvetica",
+    fontfamily: Optional[str] = None,
 ):
     """get distribution figure.
 
@@ -62,7 +63,7 @@ def get_dist_figure(
     titles : 1d list, optional
         titles whose lengh == n_samples, by default []
     fontfamily : str, optional
-        fontfamily, by default 'Helvetica'
+        fontfamily, by default None
 
     Returns
     -------
@@ -89,6 +90,7 @@ def get_dist_figure(
     n_cols = n_samples // n_rows + int(n_samples % n_rows > 0)
 
     set_font(fontfamily=fontfamily)
+
     fig, axes = plt.subplots(
         n_rows,
         n_cols,
@@ -155,7 +157,7 @@ def is_correct_dist(y_pred, y_dist):
 
 
 def get_learning_curve_gb(
-    estimator, fontfamily="Helvetica", return_axis=False
+    estimator, fontfamily: Optional[str] = None, return_axis: bool = False
 ):
     # check_estimator
     if isinstance(estimator, (NGBClassifier, NGBRegressor)):

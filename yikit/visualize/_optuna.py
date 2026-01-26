@@ -1,3 +1,5 @@
+from typing import Optional
+
 import matplotlib.pyplot as plt
 import optuna
 import pandas as pd
@@ -9,8 +11,8 @@ from yikit.visualize._utils import set_font, with_custom_matplotlib_settings
 def get_learning_curve_optuna(
     study: optuna.study.Study,
     loc="best",
-    fontfamily="Helvetica",
-    return_axis=False,
+    fontfamily: Optional[str] = None,
+    return_axis: bool = False,
 ):
     """get_leraning_curve
 

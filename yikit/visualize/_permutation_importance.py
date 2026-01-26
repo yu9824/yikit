@@ -1,3 +1,5 @@
+from typing import Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -18,7 +20,7 @@ class SummarizePI:
         """
         self.importances = importances
 
-    def get_figure(self, fontfamily="Helvetica"):
+    def get_figure(self, fontfamily: Optional[str] = None):
         # 平均をとる．
         imp = self.importances.mean(axis=1)
 
