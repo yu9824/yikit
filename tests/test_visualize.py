@@ -2,12 +2,11 @@ import tempfile
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 import optuna
 import pandas as pd
 from lightgbm import LGBMRegressor
+from matplotlib.testing.compare import compare_images
 from ngboost import NGBRegressor
-from PIL import Image
 from sklearn.datasets import make_regression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
@@ -33,55 +32,8 @@ _FIGURE_MODE = "compare"  # "compare" | "save"
 # 参照画像の出力を安定させるため dpi を固定
 _SAVEFIG_DPI = 72
 
-
-def compare_images(img_path1: Path, img_path2: Path) -> bool:
-    """2つの画像ファイルが同じ（近い）かどうかを判定
-
-    Parameters
-    ----------
-    img_path1 : Path
-        比較する画像ファイル1のパス
-    img_path2 : Path
-        比較する画像ファイル2のパス
-
-    Returns
-    -------
-    bool
-        画像が同じ（近い）場合True、異なる場合False
-    """
-    # まず matplotlib の比較ユーティリティで判定（RMS ベースで環境差に強い）
-    try:
-        from matplotlib.testing.compare import compare_images as mpl_compare
-
-        # tol は RMS 許容値。小さすぎるとフォントやAA差で落ちるため少し緩めに設定。
-        result = mpl_compare(
-            str(img_path2),  # expected
-            str(img_path1),  # actual
-            tol=20,
-        )
-        return result is None
-    except Exception:
-        # フォールバック: PIL + numpy の簡易比較
-        pass
-
-    img1 = Image.open(img_path1).convert("RGB")
-    img2 = Image.open(img_path2).convert("RGB")
-
-    # サイズが異なる場合はFalse
-    if img1.size != img2.size:
-        return False
-
-    # 画像をnumpy配列に変換して比較
-    arr1 = np.array(img1, dtype=np.int16)
-    arr2 = np.array(img2, dtype=np.int16)
-
-    # matplotlib の微小差（アンチエイリアス/フォント差）を許容するため、閾値付きで比較
-    diff = np.abs(arr1 - arr2)
-    max_diff = int(diff.max())
-    mean_diff = float(diff.mean())
-
-    # 経験的な許容範囲（完全一致に近いが、環境差で数値がわずかに揺れても落ちない）
-    return (max_diff <= 8) and (mean_diff <= 0.5)
+# 画像比較の許容値
+_TOL_RMS = 20
 
 
 def _reference_path(filename: str) -> Path:
@@ -110,8 +62,10 @@ def assert_figure_matches_reference(fig, filename: str) -> None:
         tmp_path = Path(tmpdir) / filename
         fig.savefig(tmp_path, dpi=_SAVEFIG_DPI)
         plt.close(fig)
-        assert compare_images(tmp_path, reference_path), (
-            "生成された画像が参照画像と異なります"
+        assert compare_images(
+            str(tmp_path), str(reference_path), tol=_TOL_RMS
+        ), (
+            f"生成された画像が参照画像と異なります: {tmp_path} vs {reference_path}"
         )
 
 
@@ -214,8 +168,6 @@ def test_learning_curve_lightgbm():
 
 if __name__ == "__main__":
     _FIGURE_MODE = "save"
-    # pytest（conftest）と同じ backend に揃える（直実行で参照画像を作っても一致するように）
-    plt.switch_backend("Agg")
 
     # `python3 tests/test_visualize.py` 直実行時は、pytest と同じ test 関数を呼ぶ
     test_summarize_pi()
