@@ -1,6 +1,9 @@
 # https://packaging.python.org/ja/latest/guides/writing-pyproject-toml/
 [build-system]
-requires = ["setuptools>=77.0.0"]
+requires = [
+    # "setuptools>=77.0.0"
+    "setuptools",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -23,7 +26,7 @@ maintainers = [{ name = "yu9824" }]
 description = ""
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+# license-files = ["LICENSE"]   # setuptools>=77.0.0
 keywords = []
 # https://pypi.org/classifiers/
 classifiers = [
