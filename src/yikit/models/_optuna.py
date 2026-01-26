@@ -12,20 +12,23 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils import check_random_state, check_X_y
 
 from yikit.helpers import is_installed
+from yikit.models._linear import LinearModelRegressor
+from yikit.models._svm import SupportVectorRegressor
 
 if is_installed("lightgbm"):
     from lightgbm import LGBMRegressor
 
     from yikit.models._gbdt import GBDTRegressor
-    from yikit.models._linear import LinearModelRegressor
-    from yikit.models._mlp import NNRegressor
-    from yikit.models._svm import SupportVectorRegressor
+
 else:
     LGBMRegressor = None  # type: ignore[assignment,misc]
     GBDTRegressor = None  # type: ignore[assignment,misc]
+
+
+if is_installed("keras"):
+    from yikit.models._mlp import NNRegressor
+else:
     NNRegressor = None  # type: ignore[assignment,misc]
-    SupportVectorRegressor = None  # type: ignore[assignment,misc]
-    LinearModelRegressor = None  # type: ignore[assignment,misc]
 
 if is_installed("ngboost"):
     from ngboost import NGBRegressor
