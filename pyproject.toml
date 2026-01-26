@@ -11,7 +11,7 @@ name = "yikit"
 dynamic = ["version"]
 dependencies = [
     "typing-extensions >= 4.0.0; python_version < '3.8'",
-    "scikit-learn>=0.24.1,<1.4.0",                        # _fit_and_score (1.4.0)
+    "scikit-learn>=0.24.1,<1.7.0",                        # _fit_and_score (1.4.0)
     "numpy",
     "pandas",
     "joblib",
