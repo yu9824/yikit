@@ -30,7 +30,7 @@ REFERENCE_IMGS_DIR = Path(__file__).parent / "imgs"
 _FIGURE_MODE = "compare"  # "compare" | "save"
 
 # 参照画像の出力を安定させるため dpi を固定
-_SAVEFIG_DPI = 72
+_SAVEFIG_DPI = 36
 
 # 画像比較の許容値
 _TOL_RMS = 20
@@ -62,10 +62,12 @@ def assert_figure_matches_reference(fig, filename: str) -> None:
         tmp_path = Path(tmpdir) / filename
         fig.savefig(tmp_path, dpi=_SAVEFIG_DPI)
         plt.close(fig)
-        assert compare_images(
+        results = compare_images(
             str(tmp_path), str(reference_path), tol=_TOL_RMS
-        ), (
+        )
+        assert results is None, (
             f"生成された画像が参照画像と異なります: {tmp_path} vs {reference_path}"
+            f"差分: {results}"
         )
 
 
