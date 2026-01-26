@@ -1,3 +1,10 @@
+"""Visualization tools for machine learning models.
+
+This module provides utilities for visualizing model results, including
+permutation importance, learning curves, distribution plots, and matplotlib
+configuration helpers.
+"""
+
 from yikit.helpers import is_installed
 
 from ._ngboost import get_dist_figure, get_learning_curve_gb

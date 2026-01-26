@@ -1,3 +1,9 @@
+"""Linear model regressors for regression tasks.
+
+This module provides a scikit-learn compatible wrapper for linear models
+including Ridge and Lasso regression.
+"""
+
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import Lasso, Ridge
 from sklearn.utils import check_array, check_random_state, check_X_y
@@ -5,6 +11,47 @@ from sklearn.utils.validation import check_is_fitted
 
 
 class LinearModelRegressor(BaseEstimator, RegressorMixin):
+    """Linear model regressor supporting Ridge and Lasso regression.
+
+    This class provides a scikit-learn compatible wrapper for linear models
+    with regularization. It supports both Ridge (L2) and Lasso (L1) regression.
+
+    Parameters
+    ----------
+    linear_model : {'ridge', 'lasso'}, default='ridge'
+        Type of linear model to use.
+    alpha : float, default=1.0
+        Regularization strength. Higher values mean more regularization.
+    fit_intercept : bool, default=True
+        Whether to fit the intercept term.
+    max_iter : int, default=1000
+        Maximum number of iterations for the solver.
+    tol : float, default=0.001
+        Tolerance for stopping criterion.
+    random_state : int, RandomState instance or None, default=None
+        Random state for reproducibility.
+
+    Attributes
+    ----------
+    estimator_ : Ridge or Lasso
+        The fitted linear model estimator.
+    n_features_in_ : int
+        Number of features seen during fit.
+    n_iter_ : int
+        Number of iterations taken by the solver.
+    rng_ : RandomState
+        Random state instance used for reproducibility.
+
+    Examples
+    --------
+    >>> from yikit.models import LinearModelRegressor
+    >>> import numpy as np
+    >>> X = np.random.randn(100, 10)
+    >>> y = np.random.randn(100)
+    >>> model = LinearModelRegressor(linear_model='ridge', alpha=1.0)
+    >>> model.fit(X, y)
+    >>> predictions = model.predict(X)
+    """
     def __init__(
         self,
         linear_model="ridge",

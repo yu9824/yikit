@@ -1,3 +1,9 @@
+"""Visualization utilities for NGBoost and gradient boosting models.
+
+This module provides visualization functions for NGBoost models including
+distribution plots and learning curves for gradient boosting models.
+"""
+
 import warnings
 from decimal import Decimal
 from math import ceil
@@ -159,6 +165,46 @@ def is_correct_dist(y_pred, y_dist):
 def get_learning_curve_gb(
     estimator, fontfamily: Optional[str] = None, return_axis: bool = False
 ):
+    """Plot learning curve for gradient boosting models.
+
+    This function visualizes the learning curve (evaluation scores over iterations)
+    for NGBoost or LightGBM models. It plots the evaluation scores from the
+    evals_result attribute of the estimator.
+
+    Parameters
+    ----------
+    estimator : NGBRegressor, NGBClassifier, LGBMRegressor, or LGBMClassifier
+        A fitted gradient boosting model with an evals_result or evals_result_
+        attribute containing evaluation history.
+    fontfamily : str or None, optional
+        Font family to use for the plot. If None, uses default font.
+        Default is None.
+    return_axis : bool, optional
+        Whether to return the matplotlib axis object along with the figure.
+        Default is False.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure or tuple
+        If return_axis=False, returns only the figure.
+        If return_axis=True, returns (figure, axis) tuple.
+
+    Raises
+    ------
+    TypeError
+        If the estimator is not an NGBoost or LightGBM model.
+
+    Examples
+    --------
+    >>> from yikit.visualize import get_learning_curve_gb
+    >>> from ngboost import NGBRegressor
+    >>> import numpy as np
+    >>> X = np.random.randn(100, 10)
+    >>> y = np.random.randn(100)
+    >>> model = NGBRegressor()
+    >>> model.fit(X, y)
+    >>> fig = get_learning_curve_gb(model)
+    """
     # check_estimator
     if isinstance(estimator, (NGBClassifier, NGBRegressor)):
         evals_result = estimator.evals_result

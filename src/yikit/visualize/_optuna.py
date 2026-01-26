@@ -1,3 +1,9 @@
+"""Visualization utilities for Optuna optimization results.
+
+This module provides visualization functions for Optuna study results,
+including learning curves and optimization history plots.
+"""
+
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -14,25 +20,44 @@ def get_learning_curve_optuna(
     fontfamily: Optional[str] = None,
     return_axis: bool = False,
 ):
-    """get_leraning_curve
+    """Plot learning curve for Optuna optimization study.
+
+    This function visualizes the optimization history of an Optuna study,
+    showing both the objective values of all trials and the best value
+    found so far at each trial.
 
     Parameters
     ----------
     study : optuna.study.Study
-
+        An Optuna study object containing the optimization history.
     loc : str, optional
-        legend's location, by default 'best'
-    fontfamily : str, optional
-        fontfamily, by default 'Helvetica'
+        Legend location. Can be any valid matplotlib legend location string.
+        Default is 'best'.
+    fontfamily : str or None, optional
+        Font family to use for the plot. If None, uses default font.
+        Default is None.
     return_axis : bool, optional
-        return axis or not, by default False
+        Whether to return the matplotlib axis object along with the figure.
+        Default is False.
 
     Returns
     -------
-    if return_axis is True:
-        tuple (matplotlib.pyplot.figure, matplotlib.pyplot.axis)
-    else:
-        matplotlib.pyplot.figure
+    matplotlib.pyplot.Figure or tuple
+        If return_axis=False, returns only the figure.
+        If return_axis=True, returns (figure, axis) tuple.
+
+    Examples
+    --------
+    >>> from yikit.visualize import get_learning_curve_optuna
+    >>> import optuna
+    >>>
+    >>> def objective(trial):
+    ...     x = trial.suggest_float('x', -10, 10)
+    ...     return (x - 2) ** 2
+    >>>
+    >>> study = optuna.create_study()
+    >>> study.optimize(objective, n_trials=100)
+    >>> fig = get_learning_curve_optuna(study)
     """
     # 2: maximize, 1: minimize
     if study.direction == optuna.study.StudyDirection(1):

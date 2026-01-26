@@ -1,20 +1,53 @@
 # yikit
+
+<!-- badges -->
+[![CI](https://github.com/yu9824/yikit/actions/workflows/CI.yml/badge.svg)](https://github.com/yu9824/yikit/actions/workflows/CI.yml)
+[![docs](https://github.com/yu9824/yikit/actions/workflows/docs.yml/badge.svg)](https://github.com/yu9824/yikit/actions/workflows/docs.yml)
+[![release-pypi](https://github.com/yu9824/yikit/actions/workflows/release-pypi.yml/badge.svg)](https://github.com/yu9824/yikit/actions/workflows/release-pypi.yml)
+
 [![python_badge](https://img.shields.io/pypi/pyversions/yikit)](https://pypi.org/project/yikit/)
 [![license_badge](https://img.shields.io/pypi/l/yikit)](https://pypi.org/project/yikit/)
-[![Downloads](https://pepy.tech/badge/yikit)](https://pepy.tech/project/yikit)
+[![PyPI version](https://badge.fury.io/py/yikit.svg)](https://pypi.org/project/yikit/)
+[![Downloads](https://static.pepy.tech/badge/yikit)](https://pepy.tech/project/yikit)
 
-This is my own tool kit.
+<!--
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/yikit.svg)](https://anaconda.org/conda-forge/yikit)
+[![Conda Platforms](https://img.shields.io/conda/pn/conda-forge/yikit.svg)](https://anaconda.org/conda-forge/yikit)
+-->
 
-## tools
-in preparation.
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://github.com/python/mypy)
+<!-- /badges -->
 
-## models
-in preparation.
+This is my own toolkit.
 
-## feature_selection
-in preparation.
+## Installation
+
+```bash
+pip install yikit
+```
+
+### Optional Dependencies
+
+To use specific features, install the following optional dependencies:
+
+```bash
+# Optuna (hyperparameter optimization)
+pip install yikit[optional]
+
+# Documentation generation
+pip install yikit[docs]
+
+# Development environment
+pip install yikit[dev]
+```
+
+## Documentation
+
+For detailed documentation, please visit [https://yu9824.github.io/yikit/](https://yu9824.github.io/yikit/).
 
 ## License
+
 Copyright © 2021 yu9824
 
 Licensed under the Apache License, Version 2.0 (the "License");

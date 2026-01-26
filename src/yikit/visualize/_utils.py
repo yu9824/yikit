@@ -1,3 +1,9 @@
+"""Utility functions for matplotlib visualization.
+
+This module provides helper functions for configuring matplotlib settings,
+including font configuration and custom matplotlib settings context manager.
+"""
+
 import platform
 from functools import wraps
 from typing import Callable, Optional, TypeVar
@@ -15,6 +21,26 @@ COLORS = Bunch(
 
 
 def set_font(fontfamily: Optional[str] = None, fontsize: int = 13):
+    """Set matplotlib font family and size.
+
+    This function configures the default font family and size for matplotlib plots.
+    If no font family is specified, it uses a platform-appropriate default.
+
+    Parameters
+    ----------
+    fontfamily : str or None, default=None
+        Font family to use. If None, uses platform default:
+        - macOS: 'Helvetica'
+        - Windows/Linux: 'DejaVu Sans'
+    fontsize : int, default=13
+        Font size to use for all text elements.
+
+    Examples
+    --------
+    >>> from yikit.visualize import set_font
+    >>> set_font(fontfamily="Arial", fontsize=14)
+    >>> # Now all matplotlib plots will use Arial font at size 14
+    """
     if fontfamily is None:
         fontfamily = _default_fontfamily()
 
@@ -32,28 +58,42 @@ def _default_fontfamily():
 def with_custom_matplotlib_settings(
     fontfamily: Optional[str] = None, fontsize: int = 13, restore: bool = True
 ):
-    """matplotlibのデフォルト設定を適用するデコレータ
+    """Decorator to apply custom matplotlib settings temporarily.
+
+    This decorator applies custom font family and size settings to matplotlib
+    for the duration of the decorated function execution. After execution,
+    the original settings are restored if `restore=True`.
 
     Parameters
     ----------
-    fontfamily : Optional[str], optional
-        フォントファミリー。Noneの場合はデフォルトフォントを使用, by default None
+    fontfamily : str or None, optional
+        Font family to use. If None, uses platform default:
+        - macOS: 'Helvetica'
+        - Windows/Linux: 'DejaVu Sans'
+        Default is None.
     fontsize : int, optional
-        フォントサイズ, by default 13
+        Font size to use for all text elements. Default is 13.
     restore : bool, optional
-        関数実行後に設定を元に戻すかどうか, by default True
+        Whether to restore original matplotlib settings after function execution.
+        Default is True.
 
     Returns
     -------
     Callable
-        デコレータ関数
+        Decorator function that wraps the target function.
 
     Examples
     --------
-    >>> @with_matplotlib_defaults(fontfamily="Helvetica", fontsize=14)
+    >>> from yikit.visualize import with_custom_matplotlib_settings
+    >>> import matplotlib.pyplot as plt
+    >>>
+    >>> @with_custom_matplotlib_settings(fontfamily="Helvetica", fontsize=14)
     ... def plot_data():
     ...     plt.plot([1, 2, 3], [1, 4, 9])
     ...     return plt.gcf()
+    >>>
+    >>> fig = plot_data()  # Uses Helvetica font at size 14
+    >>> # After function execution, original settings are restored
     """
     if fontfamily is None:
         fontfamily = _default_fontfamily()

@@ -1,3 +1,9 @@
+"""Neural Network regressor using Keras.
+
+This module provides a scikit-learn compatible wrapper for neural network
+regression using Keras with configurable architecture and training options.
+"""
+
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.preprocessing import StandardScaler
@@ -13,6 +19,76 @@ else:
 
 
 class NNRegressor(BaseEstimator, RegressorMixin):
+    """Neural Network regressor using Keras.
+
+    This class provides a scikit-learn compatible wrapper for neural network
+    regression using Keras. It supports configurable network architecture
+    with dropout, batch normalization, and early stopping.
+
+    Parameters
+    ----------
+    input_dropout : float, default=0.0
+        Dropout rate for the input layer.
+    hidden_layers : int, default=3
+        Number of hidden layers.
+    hidden_units : int, default=96
+        Number of units in each hidden layer.
+    hidden_activation : {'relu', 'prelu'}, default='relu'
+        Activation function for hidden layers.
+    hidden_dropout : float, default=0.2
+        Dropout rate for hidden layers.
+    batch_norm : {'before_act'}, default='before_act'
+        Batch normalization placement. Currently only 'before_act' is supported.
+    optimizer_type : {'adam', 'sgd'}, default='adam'
+        Optimizer to use for training.
+    lr : float, default=0.001
+        Learning rate for the optimizer.
+    batch_size : int, default=64
+        Batch size for training.
+    l : float, default=0.01
+        L2 regularization coefficient.
+    random_state : int, RandomState instance or None, default=None
+        Random state for reproducibility.
+    epochs : int, default=200
+        Maximum number of training epochs.
+    patience : int, default=20
+        Number of epochs with no improvement after which training will be stopped.
+    progress_bar : bool, default=True
+        Whether to show a progress bar during model construction.
+    scale : bool, default=True
+        Whether to scale features and target using StandardScaler.
+
+    Attributes
+    ----------
+    estimator_ : keras.models.Sequential
+        The fitted Keras neural network model.
+    scaler_X_ : StandardScaler or None
+        Feature scaler if scale=True, None otherwise.
+    scaler_y_ : StandardScaler or None
+        Target scaler if scale=True, None otherwise.
+    n_features_in_ : int
+        Number of features seen during fit.
+    rng_ : RandomState
+        Random state instance used for reproducibility.
+    early_stopping_ : EarlyStopping
+        Early stopping callback used during training.
+    validation_split_ : float
+        Validation split ratio used during training.
+
+    Examples
+    --------
+    >>> from yikit.models import NNRegressor
+    >>> import numpy as np
+    >>> X = np.random.randn(100, 10)
+    >>> y = np.random.randn(100)
+    >>> model = NNRegressor(hidden_layers=3, hidden_units=96, epochs=100)
+    >>> model.fit(X, y)
+    >>> predictions = model.predict(X)
+
+    Notes
+    -----
+    This class requires the 'keras' package to be installed.
+    """
     def __init__(
         self,
         input_dropout=0.0,

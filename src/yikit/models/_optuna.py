@@ -1,3 +1,10 @@
+"""Hyperparameter optimization using Optuna.
+
+This module provides an Optuna objective class for hyperparameter optimization
+of various machine learning models including scikit-learn estimators and
+custom models from this package.
+"""
+
 import numpy as np
 import optuna
 from joblib import Parallel, delayed

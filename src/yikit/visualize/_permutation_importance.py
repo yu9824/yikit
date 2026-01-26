@@ -1,3 +1,9 @@
+"""Permutation importance visualization.
+
+This module provides utilities for visualizing permutation importance
+results from machine learning models.
+"""
+
 from typing import Optional
 
 import matplotlib.pyplot as plt
