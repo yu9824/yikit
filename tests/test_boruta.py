@@ -1,4 +1,3 @@
-import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 
 from yikit.feature_selection import BorutaPy
