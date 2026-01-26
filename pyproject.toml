@@ -16,7 +16,6 @@ dependencies = [
     "pandas",
     "joblib",
     "scipy",
-    "optuna<3.5.0",                                       # suggest_int
     "matplotlib",
     "seaborn",
 ]
@@ -49,6 +48,7 @@ optional = [
     "lightgbm",
     "keras",
     "Boruta>=0.3",
+    "optuna<3.5.0",   # suggest_int
 ]
 docs = [
     "sphinx",
