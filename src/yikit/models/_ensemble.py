@@ -1,3 +1,9 @@
+"""Ensemble methods for regression.
+
+This module provides ensemble regression methods including blending, averaging,
+and stacking of multiple base estimators.
+"""
+
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -16,8 +22,65 @@ from yikit.helpers import is_installed
 from yikit.metrics import root_mean_squared_error
 
 
-# スケールの概念が入っていないので，それらを内包したscikit-learn準拠モデルを自分で定義する必要がある．
 class EnsembleRegressor(BaseEstimator, RegressorMixin):
+    """Ensemble regressor combining multiple base estimators.
+
+    This class provides ensemble methods for regression including blending,
+    averaging, and stacking. It supports optional feature selection using
+    Boruta and hyperparameter optimization using Optuna.
+
+    Parameters
+    ----------
+    estimators : list of estimator objects, default=(RandomForestRegressor(),)
+        List of base estimators to ensemble. Each estimator must be a
+        scikit-learn compatible regressor.
+    method : {'blending', 'average', 'stacking'}, default='blending'
+        Ensemble method to use:
+        - 'blending': Train each estimator on a different fold and combine predictions
+        - 'average': Simple average of predictions from all estimators
+        - 'stacking': Use a meta-learner to combine predictions
+    cv : int, cross-validation generator or iterable, default=5
+        Determines the cross-validation splitting strategy.
+    n_jobs : int, default=-1
+        Number of jobs to run in parallel.
+    random_state : int, RandomState instance or None, default=None
+        Random state for reproducibility.
+    scoring : str, callable or list, default='neg_mean_squared_error'
+        Scoring metric(s) to use. See scikit-learn documentation for options.
+    verbose : int, default=0
+        Verbosity level.
+    boruta : bool, default=True
+        Whether to perform Boruta feature selection before training.
+    opt : bool, default=True
+        Whether to perform hyperparameter optimization using Optuna.
+
+    Attributes
+    ----------
+    estimators_ : list of fitted estimators
+        The fitted base estimators.
+    meta_estimator_ : estimator or None
+        The meta-learner used in stacking (None for other methods).
+    n_features_in_ : int
+        Number of features seen during fit.
+    feature_names_in_ : ndarray of shape (n_features_in_,)
+        Names of features seen during fit.
+
+    Examples
+    --------
+    >>> from yikit.models import EnsembleRegressor
+    >>> from sklearn.ensemble import RandomForestRegressor
+    >>> from sklearn.linear_model import Ridge
+    >>> import numpy as np
+    >>> X = np.random.randn(100, 10)
+    >>> y = np.random.randn(100)
+    >>> ensemble = EnsembleRegressor(
+    ...     estimators=[RandomForestRegressor(), Ridge()],
+    ...     method='blending',
+    ...     cv=5
+    ... )
+    >>> ensemble.fit(X, y)
+    >>> predictions = ensemble.predict(X)
+    """
     def __init__(
         self,
         estimators=(RandomForestRegressor(),),

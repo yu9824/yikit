@@ -19,16 +19,32 @@
 [![mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://github.com/python/mypy)
 <!-- /badges -->
 
-This is my own tool kit.
+This is my own toolkit.
 
-## tools
-in preparation.
+## Installation
 
-## models
-in preparation.
+```bash
+pip install yikit
+```
 
-## feature_selection
-in preparation.
+### Optional Dependencies
+
+To use specific features, install the following optional dependencies:
+
+```bash
+# Optuna (hyperparameter optimization)
+pip install yikit[optional]
+
+# Documentation generation
+pip install yikit[docs]
+
+# Development environment
+pip install yikit[dev]
+```
+
+## Documentation
+
+For detailed documentation, please visit [https://yu9824.github.io/yikit/](https://yu9824.github.io/yikit/).
 
 ## License
 

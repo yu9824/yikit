@@ -1,3 +1,9 @@
+"""A Python toolkit for machine learning focused on regression tasks.
+
+This package provides models, feature selection, visualization, metrics, and other utilities
+for machine learning workflows.
+"""
+
 __version__ = "0.3.18-rc.0"
 __license__ = "Apache-2.0"
 __author__ = "yu9824"

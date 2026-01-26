@@ -1,3 +1,9 @@
+"""Support Vector Machine regressor for regression tasks.
+
+This module provides a scikit-learn compatible wrapper for Support Vector
+Regression (SVR) with optional feature scaling.
+"""
+
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.preprocessing import StandardScaler
@@ -7,6 +13,51 @@ from sklearn.utils.validation import check_is_fitted
 
 
 class SupportVectorRegressor(BaseEstimator, RegressorMixin):
+    """Support Vector Machine regressor with optional scaling.
+
+    This class provides a scikit-learn compatible wrapper for Support Vector
+    Regression (SVR) with built-in feature and target scaling capabilities.
+    Scaling is recommended for SVR as it is sensitive to feature scales.
+
+    Parameters
+    ----------
+    kernel : {'linear', 'poly', 'rbf', 'sigmoid'}, default='rbf'
+        Kernel type to be used in the algorithm.
+    gamma : {'scale', 'auto'} or float, default='auto'
+        Kernel coefficient for 'rbf', 'poly' and 'sigmoid'.
+    tol : float, default=0.01
+        Tolerance for stopping criterion.
+    C : float, default=1.0
+        Regularization parameter. The strength of the regularization is
+        inversely proportional to C.
+    epsilon : float, default=0.1
+        Epsilon in the epsilon-SVR model. It specifies the epsilon-tube
+        within which no penalty is associated in the training loss function.
+    scale : bool, default=True
+        Whether to scale features and target using StandardScaler.
+        Recommended to keep True for better performance.
+
+    Attributes
+    ----------
+    estimator_ : SVR
+        The fitted SVR estimator.
+    scaler_X_ : StandardScaler or None
+        Feature scaler if scale=True, None otherwise.
+    scaler_y_ : StandardScaler or None
+        Target scaler if scale=True, None otherwise.
+    n_features_in_ : int
+        Number of features seen during fit.
+
+    Examples
+    --------
+    >>> from yikit.models import SupportVectorRegressor
+    >>> import numpy as np
+    >>> X = np.random.randn(100, 10)
+    >>> y = np.random.randn(100)
+    >>> model = SupportVectorRegressor(kernel='rbf', C=1.0, scale=True)
+    >>> model.fit(X, y)
+    >>> predictions = model.predict(X)
+    """
     def __init__(
         self,
         kernel="rbf",

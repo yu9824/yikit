@@ -1,3 +1,10 @@
+"""Machine learning model wrappers and ensemble methods.
+
+This module provides scikit-learn compatible regressors including ensemble methods,
+linear models, support vector machines, gradient boosting, neural networks, and
+hyperparameter optimization utilities.
+"""
+
 from yikit.helpers import is_installed
 
 from ._ensemble import EnsembleRegressor
