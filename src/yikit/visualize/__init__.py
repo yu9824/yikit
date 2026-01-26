@@ -10,6 +10,7 @@ from yikit.helpers import is_installed
 from ._ngboost import get_dist_figure, get_learning_curve_gb
 from ._permutation_importance import SummarizePI
 from ._utils import set_font, with_custom_matplotlib_settings
+from ._yyplot import yyplot
 
 __all__ = [
     "SummarizePI",
@@ -17,6 +18,7 @@ __all__ = [
     "with_custom_matplotlib_settings",
     "get_dist_figure",
     "get_learning_curve_gb",
+    "yyplot",
 ]
 
 if is_installed("optuna"):
