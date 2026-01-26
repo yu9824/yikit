@@ -1,0 +1,83 @@
+# https://packaging.python.org/ja/latest/guides/writing-pyproject-toml/
+[build-system]
+requires = [
+    # "setuptools>=77.0.0"
+    "setuptools",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yikit"
+dynamic = ["version"]
+dependencies = [
+    "typing-extensions >= 4.0.0; python_version < '3.8'",
+    "scikit-learn>=0.24.1,<1.4.0",                        # _fit_and_score (1.4.0)
+    "numpy",
+    "pandas",
+    "joblib",
+    "scipy",
+    "optuna<3.5.0",                                       # suggest_int
+    "matplotlib",
+    "seaborn",
+]
+requires-python = ">= 3.7"
+authors = [{ name = "yu9824" }]
+maintainers = [{ name = "yu9824" }]
+description = ""
+readme = { file = "README.md", content-type = "text/markdown" }
+license = { file = "LICENSE" }
+# license-files = ["LICENSE"]   # setuptools>=77.0.0
+keywords = []
+# https://pypi.org/classifiers/
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+] # https://pypi.org/classifiers/
+
+[project.optional-dependencies]
+test = ["pytest"]
+dev = ["build", "jupytext"]
+optional = [
+    "colorlog",
+    "tqdm",
+    "ngboost==0.3.6",
+    "lightgbm",
+    "keras",
+    "Boruta>=0.3",
+]
+docs = [
+    "sphinx",
+    "myst-parser",
+    "myst-nb",
+    "sphinx-book-theme",
+    "jupyter-sphinx",
+]
+# gui = ["TkEasyGUI"]
+
+[project.urls]
+Homepage = "https://github.com/yu9824/yikit"
+Documentation = "https://yu9824.github.io/yikit/"
+PyPI = "https://pypi.org/project/yikit/"
+Source = "https://github.com/yu9824/yikit"
+Tracker = "https://github.com/yu9824/yikit/issues"
+# Changelog = "https://github.com/yu9824/yikit/blob/main/CHANGELOG.md"
+
+# [project.scripts]
+# yikit = "yikit.__main__:entrypoint"
+
+# [project.gui-scripts]
+# yikit-gui = "yikit:main_gui"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.dynamic]
+version = { attr = "yikit.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src/"]
