@@ -7,12 +7,10 @@ custom models from this package.
 
 import numpy as np
 import optuna
-from joblib import Parallel, delayed
 from sklearn.base import clone
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import check_scoring
-from sklearn.model_selection import check_cv
-from sklearn.model_selection._validation import _fit_and_score
+from sklearn.model_selection import check_cv, cross_validate
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
@@ -32,15 +30,183 @@ else:
     GBDTRegressor = None  # type: ignore[assignment,misc]
 
 
-if is_installed("keras"):
-    from yikit.models._mlp import NNRegressor
-else:
-    NNRegressor = None  # type: ignore[assignment,misc]
-
 if is_installed("ngboost"):
     from ngboost import NGBRegressor
 else:
     NGBRegressor = None  # type: ignore[assignment,misc]
+
+
+class ParamDistributions(
+    dict
+):  # HACK: should be MutableMapping but OptunaSearchCV does not support it
+    """Parameter distributions for OptunaSearchCV.
+
+    This class provides a dictionary-like interface for parameter distributions
+    compatible with optuna.integration.OptunaSearchCV. It is designed to work
+    similarly to the Objective class but returns BaseDistribution objects instead
+    of using trial.suggest_* methods directly.
+    """
+
+    def __init__(
+        self,
+        estimator,
+        custom_params=lambda trial: {},
+        fixed_params={},
+        random_state=None,
+    ):
+        """Initialize parameter distributions.
+
+        Parameters
+        ----------
+        estimator : sklearn-based estimator instance
+            e.g. sklearn.ensemble.RandomForestRegressor()
+        custom_params : func, optional
+            If you want to do your own custom range of optimization, you can define
+            it here with a function that returns a dictionary of BaseDistribution
+            objects, by default lambda trial:{}
+        fixed_params : dict, optional
+            If you have a fixed variable, you can specify it in the dictionary.,
+            by default {}
+        random_state : int or RandomState object, optional
+            seed, by default None
+        """
+        self.estimator = estimator
+        self.custom_params = custom_params
+        self._fixed_params = fixed_params
+        self.rng = check_random_state(random_state)
+        self.distributions = self._build_distributions()
+        for k, v in self.distributions.items():
+            self[k] = v
+
+    def _build_distributions(
+        self,
+    ) -> dict[str, optuna.distributions.BaseDistribution]:
+        """Build parameter distributions based on estimator type."""
+        if isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
+            return {
+                "n_estimators": optuna.distributions.IntDistribution(
+                    low=10, high=1000, log=True
+                ),
+                "min_child_weight": optuna.distributions.FloatDistribution(
+                    low=0.001, high=10, log=True
+                ),
+                "colsample_bytree": optuna.distributions.FloatDistribution(
+                    low=0.6, high=0.95
+                ),
+                "subsample": optuna.distributions.FloatDistribution(
+                    low=0.6, high=0.95
+                ),
+                "num_leaves": optuna.distributions.IntDistribution(
+                    low=2**3, high=2**9, log=True
+                ),
+            }
+        elif isinstance(self.estimator, RandomForestRegressor):
+            return {
+                "min_samples_split": optuna.distributions.IntDistribution(
+                    low=2, high=16
+                ),
+                "max_depth": optuna.distributions.IntDistribution(
+                    low=10, high=100
+                ),
+                "n_estimators": optuna.distributions.IntDistribution(
+                    low=10, high=1000, log=True
+                ),
+            }
+        elif isinstance(self.estimator, (SupportVectorRegressor, SVR)):
+            return {
+                "C": optuna.distributions.FloatDistribution(
+                    low=2**-5, high=2**10, log=True
+                ),
+                "epsilon": optuna.distributions.FloatDistribution(
+                    low=2**-10, high=2**0, log=True
+                ),
+            }
+        elif isinstance(self.estimator, LinearModelRegressor):
+            return {
+                "linear_model": optuna.distributions.CategoricalDistribution(
+                    choices=["ridge", "lasso"]
+                ),
+                "alpha": optuna.distributions.FloatDistribution(
+                    low=0.1, high=10, log=True
+                ),
+                "fit_intercept": optuna.distributions.CategoricalDistribution(
+                    choices=[True, False]
+                ),
+                "max_iter": optuna.distributions.FloatDistribution(
+                    low=100, high=10000, log=True
+                ),
+                "tol": optuna.distributions.FloatDistribution(
+                    low=0.0001, high=0.01, log=True
+                ),
+            }
+        elif isinstance(self.estimator, MLPRegressor):
+            return {
+                "hidden_layer_sizes": optuna.distributions.IntDistribution(
+                    low=50, high=300
+                ),
+                "alpha": optuna.distributions.FloatDistribution(
+                    low=1e-5, high=1e-3, log=True
+                ),
+                "learning_rate_init": optuna.distributions.FloatDistribution(
+                    low=1e-5, high=1e-3, log=True
+                ),
+            }
+        elif is_installed("ngboost") and isinstance(
+            self.estimator, NGBRegressor
+        ):
+            return {
+                "Base__max_depth": optuna.distributions.IntDistribution(
+                    low=2, high=100
+                ),
+                "Base__criterion": optuna.distributions.CategoricalDistribution(
+                    choices=["squared_error", "friedman_mse"]
+                ),
+                "n_estimators": optuna.distributions.IntDistribution(
+                    low=10, high=1000, log=True
+                ),
+                "minibatch_frac": optuna.distributions.FloatDistribution(
+                    low=0.5, high=1.0
+                ),
+            }
+        else:
+            # Try custom_params - it should return a dict of BaseDistribution objects
+            # custom_params can be either:
+            # 1. A dict of BaseDistribution objects directly
+            # 2. A callable that returns a dict of BaseDistribution objects
+            if isinstance(self.custom_params, dict):
+                return self.custom_params
+            elif callable(self.custom_params):
+                try:
+                    # Create a dummy study and trial to test custom_params
+                    study = optuna.create_study()
+                    trial = study.ask()
+                    custom_result = self.custom_params(trial)
+                    study.tell(trial, 0.0)
+                    if custom_result and isinstance(custom_result, dict):
+                        # Verify that values are BaseDistribution objects
+                        from optuna.distributions import BaseDistribution
+
+                        if all(
+                            isinstance(v, BaseDistribution)
+                            for v in custom_result.values()
+                        ):
+                            return custom_result
+                except Exception:
+                    pass
+            raise NotImplementedError(
+                f"ParamDistributions not implemented for {type(self.estimator)}. "
+                "Please provide custom_params as a dict of BaseDistribution objects "
+                "or a callable that returns such a dict."
+            )
+
+    def __repr__(self) -> str:
+        """Return string representation of parameter distributions."""
+        return (
+            f"ParamDistributions({self.estimator}, "
+            f"random_state={self.rng}, "
+            f"fixed_params={self._fixed_params}, "
+            f"custom_params={self.custom_params})"
+        )
 
 
 class Objective:
@@ -94,36 +260,7 @@ class Objective:
         )
 
     def __call__(self, trial: optuna.trial.Trial):
-        if isinstance(self.estimator, NNRegressor):
-            params_ = {
-                "input_dropout": trial.suggest_float(
-                    "input_dropout", 0.0, 0.3
-                ),
-                "hidden_layers": trial.suggest_int("hidden_layers", 2, 4),
-                "hidden_units": trial.suggest_int(
-                    "hidden_units", 32, 1024, 32
-                ),
-                "hidden_activation": trial.suggest_categorical(
-                    "hidden_activation", ["prelu", "relu"]
-                ),
-                "hidden_dropout": trial.suggest_float(
-                    "hidden_dropout", 0.2, 0.5
-                ),
-                "batch_norm": trial.suggest_categorical(
-                    "batch_norm", ["before_act", "no"]
-                ),
-                "optimizer_type": trial.suggest_categorical(
-                    "optimizer_type", ["adam", "sgd"]
-                ),
-                "lr": trial.suggest_loguniform("lr", 0.00001, 0.01),
-                "batch_size": trial.suggest_int("hidden_units", 32, 1024, 32),
-                "l": trial.suggest_loguniform("l", 1e-7, 0.1),
-            }
-            self.fixed_params_ = {
-                "progress_bar": False,
-                "random_state": self.rng,
-            }
-        elif isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
+        if isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
             params_ = {
                 "n_estimators": trial.suggest_int(
                     "n_estimators", 10, 1000, log=True
@@ -241,25 +378,15 @@ class Objective:
             **self.fixed_params_,
         )
 
-        parallel = Parallel(n_jobs=self.n_jobs)
-        # support old version of scikit-learn (<1.4)
-        results = parallel(
-            delayed(_fit_and_score)(
-                clone(self.estimator_),
-                self.X,
-                self.y,
-                self.scoring,
-                train,
-                test,
-                0,
-                dict(**self.fixed_params_, **params_),
-                None,
-            )
-            for train, test in self.cv.split(self.X, self.y)
+        scores = cross_validate(
+            self.estimator_,
+            self.X,
+            self.y,
+            cv=self.cv,
+            scoring=self.scoring,
+            n_jobs=self.n_jobs,
         )
-        return np.mean(
-            [d["test_scores"] for d in results]
-        )  # scikit-learn>=0.24.1
+        return np.mean(scores["test_score"])
 
     def get_best_estimator(self, study):
         best_params_ = self.get_best_params(study)

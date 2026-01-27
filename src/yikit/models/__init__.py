@@ -18,16 +18,11 @@ __all__ = [
 ]
 
 if is_installed("optuna"):
-    from ._optuna import Objective
+    from ._optuna import Objective, ParamDistributions
 
-    __all__ += ["Objective"]
+    __all__ += ["Objective", "ParamDistributions"]
 
 if is_installed("lightgbm"):
     from ._gbdt import GBDTRegressor  # noqa: F401
 
     __all__ += ["GBDTRegressor"]
-
-if is_installed("keras"):
-    from ._mlp import NNRegressor  # noqa: F401
-
-    __all__ += ["NNRegressor"]
