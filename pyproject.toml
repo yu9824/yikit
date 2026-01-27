@@ -42,8 +42,7 @@ dev = ["build", "jupytext"]
 optional = [
     "colorlog",
     "tqdm",
-    "ngboost==0.3.6",
-    "numpy<2.0.0",       # for ngboost
+    "ngboost>=0.3.6",
     "lightgbm",
     "Boruta>=0.3",
     "optuna",
