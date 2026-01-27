@@ -7,12 +7,10 @@ custom models from this package.
 
 import numpy as np
 import optuna
-from joblib import Parallel, delayed
 from sklearn.base import clone
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import check_scoring
-from sklearn.model_selection import check_cv
-from sklearn.model_selection._validation import _fit_and_score
+from sklearn.model_selection import check_cv, cross_validate
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
@@ -380,25 +378,15 @@ class Objective:
             **self.fixed_params_,
         )
 
-        parallel = Parallel(n_jobs=self.n_jobs)
-        # support old version of scikit-learn (<1.4)
-        results = parallel(
-            delayed(_fit_and_score)(
-                clone(self.estimator_),
-                self.X,
-                self.y,
-                self.scoring,
-                train,
-                test,
-                0,
-                dict(**self.fixed_params_, **params_),
-                None,
-            )
-            for train, test in self.cv.split(self.X, self.y)
+        scores = cross_validate(
+            self.estimator_,
+            self.X,
+            self.y,
+            cv=self.cv,
+            scoring=self.scoring,
+            n_jobs=self.n_jobs,
         )
-        return np.mean(
-            [d["test_scores"] for d in results]
-        )  # scikit-learn>=0.24.1
+        return np.mean(scores["test_score"])
 
     def get_best_estimator(self, study):
         best_params_ = self.get_best_params(study)
