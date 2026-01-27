@@ -8,7 +8,7 @@ name = "yikit"
 dynamic = ["version"]
 dependencies = [
     "typing_extensions >= 4.5; python_version < '3.10'",
-    "scikit-learn>=0.24.1,<1.4.0",                       # _fit_and_score (1.4.0)
+    "scikit-learn>=0.24.1",
     "numpy",
     "pandas",
     "joblib",
@@ -37,7 +37,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "optuna-integration[sklearn]"]
 dev = ["build", "jupytext"]
 optional = [
     "colorlog",
@@ -45,7 +45,8 @@ optional = [
     "ngboost==0.3.6",
     "lightgbm",
     "Boruta>=0.3",
-    "optuna<3.5.0",   # suggest_int
+    "optuna",
+    "matplotlib-fontja",
 ]
 docs = [
     "sphinx",
@@ -62,6 +63,7 @@ Documentation = "https://yu9824.github.io/yikit/"
 PyPI = "https://pypi.org/project/yikit/"
 Source = "https://github.com/yu9824/yikit"
 Tracker = "https://github.com/yu9824/yikit/issues"
+"Release Notes" = "https://github.com/yu9824/yikit/releases"
 # Changelog = "https://github.com/yu9824/yikit/blob/main/CHANGELOG.md"
 
 # [project.scripts]
