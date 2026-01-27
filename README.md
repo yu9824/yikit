@@ -21,6 +21,14 @@
 
 This is my own toolkit.
 
+## Links
+
+- **Homepage**: [https://github.com/yu9824/yikit](https://github.com/yu9824/yikit)
+- **Documentation**: [https://yu9824.github.io/yikit/](https://yu9824.github.io/yikit/)
+- **PyPI**: [https://pypi.org/project/yikit/](https://pypi.org/project/yikit/)
+- **Issues**: [https://github.com/yu9824/yikit/issues](https://github.com/yu9824/yikit/issues)
+- **Releases**: [https://github.com/yu9824/yikit/releases](https://github.com/yu9824/yikit/releases)
+
 ## Installation
 
 ```bash
