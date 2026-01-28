@@ -26,6 +26,7 @@ if sys.version_info < (3, 14):
 else:
     NGBRegressor = None
 
+
 SEED = 334
 
 # 参照画像のディレクトリ

@@ -11,7 +11,6 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-from ngboost.distns import Distn
 from sklearn.utils import check_array
 
 from yikit.helpers import is_installed
