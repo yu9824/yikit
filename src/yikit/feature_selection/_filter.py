@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from typing import List, Optional, Set, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -92,9 +92,9 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         self.corr_ = np.empty((n_features, n_features, 2), dtype=float)
 
         # Prepare a list of sets. Each i-th set holds features highly correlated with i-th feature.
-        pairs_highly_correlated: List[Set[int]] = [
+        pairs_highly_correlated: tuple[set[int]] = tuple(
             set() for _ in range(n_features)
-        ]
+        )
 
         # Decide on progress display based on availability of tqdm and verbosity
         use_tqdm = is_installed("tqdm") and self.verbose > 0
@@ -113,7 +113,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
                 self.corr_[j, i, 0] = corr_value
 
         # Identify pairs that need p-value computation (correlation above threshold)
-        pairs_to_compute: Set[Tuple[int, int]] = set()
+        pairs_to_compute: set[tuple[int, int]] = set()
         for i in range(n_features):
             for j in range(i + 1, n_features):
                 if corr_matrix[i, j] > self.r:
@@ -123,8 +123,8 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         if pairs_to_compute:
 
             def _compute_pvalue(
-                pair_idx: Tuple[int, int],
-            ) -> Tuple[int, int, float]:
+                pair_idx: tuple[int, int],
+            ) -> tuple[int, int, float]:
                 """
                 Compute the p-value for the Pearson correlation between two features given by the indices.
 
@@ -187,7 +187,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
             )
 
         def _delete_recursive(
-            pairs_highly_correlated: List[Set[int]],
+            pairs_highly_correlated: list[set[int]],
             boolean: np.ndarray = np.ones(n_features, dtype=bool),
         ) -> np.ndarray:
             """
