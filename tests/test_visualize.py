@@ -123,7 +123,7 @@ def test_summarize_pi():
     reason="ngboost is not supported on Python 3.14",
 )
 def test_get_dist_figure():
-    from yikit.visualize._ngboost import get_dist_figure
+    from yikit.visualize import get_dist_figure
 
     X_train, X_test, y_train, y_test = _make_train_test_split()
 

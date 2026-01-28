@@ -7,7 +7,6 @@ configuration helpers.
 
 from yikit.helpers import is_installed
 
-from ._ngboost import get_dist_figure, get_learning_curve_gb
 from ._permutation_importance import SummarizePI
 from ._utils import set_font, with_custom_matplotlib_settings
 from ._yyplot import yyplot
@@ -25,11 +24,11 @@ if is_installed("optuna"):
     __all__ += ["get_learning_curve_optuna"]
 
 if is_installed("ngboost"):
-    from ._ngboost import get_dist_figure
+    from ._gbdt import get_dist_figure
 
     __all__ += ["get_dist_figure"]
 
 if is_installed("lightgbm") or is_installed("ngboost"):
-    from ._ngboost import get_learning_curve_gb
+    from ._gbdt import get_learning_curve_gb
 
     __all__ += ["get_learning_curve_gb"]
