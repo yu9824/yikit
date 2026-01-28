@@ -19,12 +19,18 @@ dependencies = [
 requires-python = ">= 3.9"
 authors = [{ name = "yu9824" }]
 maintainers = [{ name = "yu9824" }]
-description = ""
+description = "This is my own toolkit."
 readme = { file = "README.md", content-type = "text/markdown" }
 # https://spdx.org/licenses/
 license = "Apache-2.0"
 license-files = ["LICENSE"] # setuptools>=77.0.3
-keywords = []
+keywords = [
+    "machine learning",
+    "regression",
+    "feature selection",
+    "visualization",
+    "metrics",
+]
 # https://pypi.org/classifiers/
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -44,11 +50,11 @@ optional = [
     "tqdm",
     "ngboost>=0.3.6,<0.5.9; python_version < '3.14'",
     "ngboost>=0.3.6,<0.4.0; python_version >= '3.14'",
-    "numpy>=1.20.0,<2.0.0; python_version >= '3.14'",
     "lightgbm",
-    "Boruta>=0.3",
+    "Boruta>=0.3; python_version < '3.14",
+    "Boruta>=0.3,<0.4; python_version >= '3.14",
+    "numpy>=1.20.0,<2.0.0; python_version >= '3.14'",  # boruta and ngboost require numpy<2.0.0
     "optuna",
-    "matplotlib-fontja",
 ]
 docs = [
     "sphinx",
