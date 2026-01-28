@@ -1,7 +1,6 @@
 import sys
 import tempfile
 from pathlib import Path
-from types import NoneType
 
 import matplotlib.pyplot as plt
 import optuna
@@ -22,10 +21,15 @@ from yikit.visualize import (
     get_learning_curve_optuna,
 )
 
+if sys.version_info >= (3, 10):
+    from types import NoneType
+else:
+    NoneType = type(None)  # type: ignore[assignment,misc]
+
 if sys.version_info < (3, 14):
     from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
 else:
-    NGBRegressor = NoneType
+    NGBRegressor = NoneType  # type: ignore[assignment,misc]
 
 
 SEED = 334

@@ -5,7 +5,7 @@ of various machine learning models including scikit-learn estimators and
 custom models from this package.
 """
 
-from types import NoneType
+import sys
 
 import numpy as np
 import optuna
@@ -21,6 +21,11 @@ from sklearn.utils import check_random_state, check_X_y
 from yikit.helpers import is_installed
 from yikit.models._linear import LinearModelRegressor
 from yikit.models._svm import SupportVectorRegressor
+
+if sys.version_info >= (3, 10):
+    from types import NoneType
+else:
+    NoneType = type(None)  # type: ignore[assignment,misc]
 
 if is_installed("lightgbm"):
     from lightgbm import LGBMRegressor  # type: ignore[reportMissingImports]

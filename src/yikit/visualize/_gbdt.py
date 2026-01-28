@@ -4,10 +4,10 @@ This module provides visualization functions for NGBoost models including
 distribution plots and learning curves for gradient boosting models.
 """
 
+import sys
 import warnings
 from decimal import Decimal
 from math import ceil
-from types import NoneType
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -20,6 +20,11 @@ from yikit.visualize._utils import (
     set_font,
     with_custom_matplotlib_settings,
 )
+
+if sys.version_info >= (3, 10):
+    from types import NoneType
+else:
+    NoneType = type(None)  # type: ignore[assignment,misc]
 
 if is_installed("tqdm"):
     from tqdm.auto import tqdm
