@@ -1,6 +1,7 @@
 import sys
 import tempfile
 from pathlib import Path
+from types import NoneType
 
 import matplotlib.pyplot as plt
 import optuna
@@ -22,9 +23,9 @@ from yikit.visualize import (
 )
 
 if sys.version_info < (3, 14):
-    from ngboost import NGBRegressor
+    from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
 else:
-    NGBRegressor = None
+    NGBRegressor = NoneType
 
 
 SEED = 334

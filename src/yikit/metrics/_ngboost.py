@@ -1,4 +1,7 @@
-from ngboost import NGBClassifier, NGBRegressor
+from ngboost import (  # type: ignore[reportMissingImports]
+    NGBClassifier,
+    NGBRegressor,
+)
 
 
 def log_likelihood(estimator, X, y):

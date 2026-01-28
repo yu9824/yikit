@@ -7,6 +7,7 @@ distribution plots and learning curves for gradient boosting models.
 import warnings
 from decimal import Decimal
 from math import ceil
+from types import NoneType
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -26,19 +27,25 @@ else:
     from yikit.helpers import dummy_tqdm as tqdm
 
 if is_installed("lightgbm"):
-    from lightgbm import LGBMClassifier, LGBMRegressor
+    from lightgbm import (  # type: ignore[reportMissingImports]
+        LGBMClassifier,
+        LGBMRegressor,
+    )
 else:
-    LGBMClassifier = None  # type: ignore[misc,assignment]
-    LGBMRegressor = None  # type: ignore[misc,assignment]
+    LGBMClassifier = NoneType  # type: ignore[misc,assignment]
+    LGBMRegressor = NoneType  # type: ignore[misc,assignment]
 
 
 if is_installed("ngboost"):
-    from ngboost import NGBClassifier, NGBRegressor
-    from ngboost.distns import Distn
+    from ngboost import (  # type: ignore[reportMissingImports]
+        NGBClassifier,
+        NGBRegressor,
+    )
+    from ngboost.distns import Distn  # type: ignore[reportMissingImports]
 else:
-    NGBClassifier = None  # type: ignore[misc,assignment]
-    NGBRegressor = None  # type: ignore[misc,assignment]
-    Distn = None  # type: ignore[misc,assignment]
+    NGBClassifier = NoneType  # type: ignore[misc,assignment]
+    NGBRegressor = NoneType  # type: ignore[misc,assignment]
+    Distn = NoneType  # type: ignore[misc,assignment]
 
 
 @with_custom_matplotlib_settings()
