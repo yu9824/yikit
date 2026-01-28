@@ -1,3 +1,12 @@
+"""Visualization utilities for regression model evaluation.
+
+This module provides a `yyplot` function, which draws a scatter plot of
+true vs. predicted values (sometimes called a *y-y plot*).  It can handle
+one or multiple pairs of ``(y_true, y_pred)`` sequences (e.g., train/test
+or train/validation/test) and annotates the figure with common regression
+metrics such as :math:`R^2`, RMSE, MAE, and MSE.
+"""
+
 import sys
 from functools import reduce
 from types import MappingProxyType
@@ -110,6 +119,68 @@ def yyplot(  # type: ignore[misc]
     ax: Optional[matplotlib.axes.Axes] = None,
     alpha: float = 0.05,
 ) -> matplotlib.axes.Axes:
+    """Plot true vs. predicted values for one or more data sets.
+
+    This function draws a scatter plot of multiple ``(y_true, y_pred)`` pairs
+    and overlays the identity line :math:`y = x` as a reference.  It computes
+    summary regression metrics for each pair and displays them as text in the
+    top-left of the plot.  Typical usage is to compare model performance on
+    different splits such as train, validation, and test.
+
+    Parameters
+    ----------
+    *y_data : ArrayLike
+        A sequence of arrays interpreted as consecutive pairs
+        ``(y_true_0, y_pred_0, y_true_1, y_pred_1, ...)``.  The length of
+        ``y_data`` must be even, and each pair must be broadcastable to the
+        same shape.
+    labels : Sequence of str or None, optional
+        Labels for each ``(y_true, y_pred)`` pair, used in the legend and
+        metric annotations.  If ``None`` (default), labels are automatically
+        set to ``("train", "test")`` for two data sets, to
+        ``("train", "val", "test")`` for three data sets, or to all-``None``
+        for other numbers of data sets.
+    metrics : Sequence of {"r2", "rmse", "mae", "mse"}, optional
+        Metrics to compute for each data set.  Each metric is shown in the
+        annotation box together with the corresponding label (if provided).
+        Defaults to ``("r2", "rmse")``.
+    ax : matplotlib.axes.Axes, optional
+        Existing Axes on which to draw the plot.  If ``None``, a new
+        figure and axes are created.
+    alpha : float, optional
+        Relative margin added to the data range when determining plot limits.
+        The default is ``0.05`` (5% margin on each side).
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axes object with the scatter plot and annotations.
+
+    Raises
+    ------
+    ValueError
+        If no data is provided, or if the number of positional arguments
+        is odd (i.e., there is an unmatched ``y_true`` or ``y_pred``), or
+        if the length of ``labels`` does not match the number of data sets,
+        or if an unknown metric name is given in ``metrics``.
+
+    Examples
+    --------
+    Plot a single data set:
+
+    >>> import numpy as np
+    >>> from yikit.visualize import yyplot
+    >>> y_true = np.array([1.0, 2.0, 3.0])
+    >>> y_pred = np.array([0.8, 2.1, 2.9])
+    >>> ax = yyplot(y_true, y_pred)
+
+    Plot train and test data sets:
+
+    >>> y_train, y_pred_train = np.arange(5), np.arange(5) + 0.1
+    >>> y_test, y_pred_test = np.arange(5), np.arange(5) - 0.2
+    >>> ax = yyplot(y_train, y_pred_train, y_test, y_pred_test,
+    ...             labels=("train", "test"))
+    """
     if len(y_data) == 0:
         raise ValueError(
             "At least one pair of data (y_true, y_pred) must be provided."
