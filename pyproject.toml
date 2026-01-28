@@ -48,11 +48,11 @@ dev = ["build", "jupytext"]
 optional = [
     "colorlog",
     "tqdm",
-    "ngboost>=0.3.6,<0.5.9; python_version < '3.14'",
+    "ngboost>=0.3.6,<0.5.9",
     "lightgbm",
     "Boruta>=0.3",
     "scikit-learn<1.4.2; python_version >= '3.14'",
-    "numpy>=1.20.0,<2.0.0; python_version >= '3.14'", # boruta and ngboost require numpy<2.0.0
+    "numpy>=1.20.0,<2.0.0; python_version >= '3.14'", # boruta and ngboost                    # boruta and ngboost require numpy<2.0.0
     "optuna",
 ]
 docs = [
