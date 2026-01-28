@@ -52,6 +52,22 @@ class ParamDistributions(
     compatible with optuna.integration.OptunaSearchCV. It is designed to work
     similarly to the Objective class but returns BaseDistribution objects instead
     of using trial.suggest_* methods directly.
+
+    Example
+    -------
+    >>> from yikit.models import ParamDistributions
+    >>> from optuna.integration import OptunaSearchCV
+    >>> from sklearn.ensemble import RandomForestRegressor
+    >>> param_distributions = ParamDistributions(RandomForestRegressor())
+    >>> study = optuna.create_study()
+    >>> optuna_search_cv = OptunaSearchCV(
+    >>>     estimator=RandomForestRegressor(),
+    >>>     param_distributions=param_distributions,
+    >>>     study=study,
+    >>>     cv=5,
+    >>>     random_state=42,
+    >>> )
+    >>> optuna_search_cv.fit(X, y)
     """
 
     def __init__(
