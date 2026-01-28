@@ -17,7 +17,6 @@ from sklearn.tree import DecisionTreeRegressor
 from yikit.models import Objective
 from yikit.visualize import (
     SummarizePI,
-    get_dist_figure,
     get_learning_curve_gb,
     get_learning_curve_optuna,
 )
@@ -124,6 +123,8 @@ def test_summarize_pi():
     reason="ngboost is not supported on Python 3.14",
 )
 def test_get_dist_figure():
+    from yikit.visualize._ngboost import get_dist_figure
+
     X_train, X_test, y_train, y_test = _make_train_test_split()
 
     ngb = NGBRegressor(random_state=SEED, verbose=False).fit(X_train, y_train)
