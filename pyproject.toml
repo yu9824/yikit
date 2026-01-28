@@ -43,7 +43,7 @@ optional = [
     "colorlog",
     "tqdm",
     "ngboost>=0.3.6,<0.5.9; python_version < '3.14'",
-    "ngboost>=0.3.6,<0.4.0; python_version >= '3.14'",
+    "ngboost>=0.3.6,<0.6.0; python_version >= '3.14'",
     "numpy>=1.20.0,<2.0.0; python_version >= '3.14'",
     "lightgbm",
     "Boruta>=0.3",
