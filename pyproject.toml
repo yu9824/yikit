@@ -19,12 +19,18 @@ dependencies = [
 requires-python = ">= 3.9"
 authors = [{ name = "yu9824" }]
 maintainers = [{ name = "yu9824" }]
-description = ""
+description = "This is my own toolkit."
 readme = { file = "README.md", content-type = "text/markdown" }
 # https://spdx.org/licenses/
 license = "Apache-2.0"
 license-files = ["LICENSE"] # setuptools>=77.0.3
-keywords = []
+keywords = [
+    "machine learning",
+    "regression",
+    "feature selection",
+    "visualization",
+    "metrics",
+]
 # https://pypi.org/classifiers/
 classifiers = [
     "Programming Language :: Python :: 3",

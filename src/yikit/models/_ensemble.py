@@ -81,6 +81,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
     >>> ensemble.fit(X, y)
     >>> predictions = ensemble.predict(X)
     """
+
     def __init__(
         self,
         estimators=(RandomForestRegressor(),),
@@ -193,7 +194,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                 # 特徴量削減
                 feature_selector_ = BorutaPy(
                     estimator=RandomForestRegressor(
-                        n_jobs=-1, random_state=rng_
+                        n_jobs=1, random_state=rng_
                     ),
                     random_state=rng_,
                     max_iter=300,
