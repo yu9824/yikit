@@ -48,7 +48,7 @@ dev = ["build", "jupytext"]
 optional = [
     "colorlog",
     "tqdm",
-    "ngboost>=0.3.6,<0.5.9",
+    "ngboost>=0.3.6,<0.5.9; python_version < '3.14'",
     "lightgbm",
     "Boruta>=0.3",
     "scikit-learn<1.4.0; python_version >= '3.14'",

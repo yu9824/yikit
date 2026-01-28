@@ -5,6 +5,8 @@ of various machine learning models including scikit-learn estimators and
 custom models from this package.
 """
 
+import sys
+
 import numpy as np
 import optuna
 from sklearn.base import clone
@@ -20,20 +22,25 @@ from yikit.helpers import is_installed
 from yikit.models._linear import LinearModelRegressor
 from yikit.models._svm import SupportVectorRegressor
 
+if sys.version_info >= (3, 10):
+    from types import NoneType
+else:
+    NoneType = type(None)  # type: ignore[assignment,misc]
+
 if is_installed("lightgbm"):
-    from lightgbm import LGBMRegressor
+    from lightgbm import LGBMRegressor  # type: ignore[reportMissingImports]
 
     from yikit.models._gbdt import GBDTRegressor
 
 else:
-    LGBMRegressor = None  # type: ignore[assignment,misc]
-    GBDTRegressor = None  # type: ignore[assignment,misc]
+    LGBMRegressor = NoneType  # type: ignore[assignment,misc]
+    GBDTRegressor = NoneType  # type: ignore[assignment,misc]
 
 
 if is_installed("ngboost"):
-    from ngboost import NGBRegressor
+    from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
 else:
-    NGBRegressor = None  # type: ignore[assignment,misc]
+    NGBRegressor = NoneType
 
 
 class ParamDistributions(
