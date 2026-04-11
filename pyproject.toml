@@ -1,6 +1,6 @@
 # https://packaging.python.org/ja/latest/guides/writing-pyproject-toml/
 [build-system]
-requires = ["setuptools>=77.0.3"]
+requires = ["setuptools>=82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -23,7 +23,7 @@ description = "This is my own toolkit."
 readme = { file = "README.md", content-type = "text/markdown" }
 # https://spdx.org/licenses/
 license = "Apache-2.0"
-license-files = ["LICENSE"] # setuptools>=77.0.3
+license-files = ["LICENSE"] # setuptools>=82.0.1
 keywords = [
     "machine learning",
     "regression",
