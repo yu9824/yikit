@@ -50,7 +50,7 @@ optional = [
     "tqdm",
     "ngboost>=0.3.6,<0.5.9; python_version < '3.14'",
     "lightgbm",
-    "Boruta>=0.3",
+    "Boruta>=0.4.3",
     "optuna",
 ]
 docs = [
