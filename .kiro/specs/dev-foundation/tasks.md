@@ -34,7 +34,7 @@
   - _Requirements: 3.4, 3.5, 7.1, 7.2, 7.3, 8.1_
 
 - [ ] 3. テストの調整
-- [ ] 3.1 図を、文字を除いた画像として参照画像と比べる仕組みを作る
+- [x] 3.1 図を、文字を除いた画像として参照画像と比べる仕組みを作る
   - 図のすべての文字を見えなくしてから保存し、実際の図と参照画像の写しを一時ディレクトリに置いて比べる
   - 許容値を超えたときは、RMS の値・許容値・一時ファイルの場所・参照画像の作り直し方を含むメッセージで失敗させる。参照画像がないときも、作り直し方を示して失敗させる
   - pytest の引数で、参照画像を作り直すモードに切り替えられるようにする
@@ -91,3 +91,4 @@
 - 1.2: ruff 0.16 の `ruff format .` は Markdown（`.kiro/`、README など）も対象にして書き換える。手元では `ruff format src tests` のようにパスを指定して実行する。`force-exclude = true` は、VS Code の拡張のようにファイルを名指ししても除外を効かせるため
 - 2.1: 自動修正の順番は I002 → I001・UP037 → UP045・UP007（unsafe）→ UP036（unsafe）→ F401（CLI で `--fixable F401`）→ I001。isort の修正でモジュールの docstring と import の間の空行が消えるので、`ruff format` で整える（2.2）。test_optuna の最初の study は、浮動小数の最後の桁が実行ごとにぶれる（変更の前からある非決定性）
 - 2.2: `cast` の型は文字列で書く（例: `cast("NDArray[Any] | Sequence[float]", x)`）。実行時に評価されないので Python 3.8 でも動く。`numpy.typing.NDArray` は numpy 1.20 で入ったので、`TYPE_CHECKING` の中で import する（numpy に下限がないため）。`np.min` に Series を渡すと `Series.min`（NaN を飛ばす）に任されるので、`np.asarray` に変えると振る舞いが変わる
+- 3.1: 比較の仕組みは `check(fig, name, *, reference_dir=None)`。許容値 20 では、既定の大きさの図で線を1本変えても RMS は約 7 で通ってしまう（5.1 で下げる）。yikit の図の関数は作るときに `tight_layout()` を呼ぶので、文字を消す前にフォントの寸法で軸の位置が決まる。凡例の枠も見えない文字の大きさで決まる。3.2 では、文字を消した後に layout をやり直すか、CI の RMS で確かめる

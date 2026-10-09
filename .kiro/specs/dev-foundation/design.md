@@ -309,8 +309,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 @pytest.fixture
 def assert_figure_matches_reference(
     request: pytest.FixtureRequest, tmp_path: Path
-) -> Callable[[Figure, str], None]:
-    """Return a checker that compares ``fig`` with ``tests/imgs/<name>``."""
+) -> Callable[..., None]:
+    """Return ``check(fig, name, *, reference_dir=None)``.
+
+    ``reference_dir`` defaults to ``tests/imgs``; the fixture's own
+    self-tests pass a temporary directory.
+    """
 ```
 - Preconditions: `fig` は matplotlib の Figure。`name` は `tests/imgs/` の中のファイル名（`.png`）
 - Postconditions:
@@ -320,6 +324,8 @@ def assert_figure_matches_reference(
   - リポジトリの中には何も書かない（保存のモードを除く）
   - 図は閉じる
 - Invariants: dpi は固定（36、既存）。許容値は1つの定数で、CI の全版の RMS をもとに決める（research.md に記録）
+- 保存か比較かは、呼び出すたびに `--save-reference-figures` の値を読んで決める（仕組みのテストが切り替えられるように）
+- 許容値の目安: 既定の大きさの図で線を1本だけ変えると RMS は約 7 になる。許容値はこれを検出できる値（CI の全版の最大の RMS より大きく、7 より小さい値）を目指す。無理な場合は、各テストの値の比較（文字と要素の数）で内容の変化を検出する
 
 **Implementation Notes**
 - Risks: 文字を除いても、線の描き方の違いで RMS が出る。CI の全版で測ってから許容値を決める

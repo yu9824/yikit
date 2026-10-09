@@ -3,13 +3,17 @@ from __future__ import annotations
 import sys
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+import matplotlib.image
 import matplotlib.pyplot as plt
 import optuna
 import pandas as pd
 import pytest
 from lightgbm import LGBMRegressor
 from matplotlib.testing.compare import compare_images
+from matplotlib.text import Text
+from matplotlib.ticker import PercentFormatter
 from sklearn.datasets import make_regression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
@@ -32,6 +36,303 @@ if sys.version_info < (3, 14):
     from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
 else:
     NGBRegressor = NoneType  # type: ignore[assignment,misc]
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    from matplotlib.figure import Figure
+
+
+# ===========================================================================
+# Self-tests of the ``assert_figure_matches_reference`` fixture
+# (tests/conftest.py).
+#
+# They draw small synthetic figures and keep every reference image they
+# create inside ``tmp_path``; ``tests/imgs`` is only read, never written.
+# ===========================================================================
+
+_REPO_REFERENCE_DIR = Path(__file__).parent / "imgs"
+_SAVE_REFERENCE_OPTION = "--save-reference-figures"
+_SELF_TEST_DPI = 36  # resolution the fixture uses when saving figures
+
+_X_VALUES = (0.0, 1.0, 2.0, 3.0, 4.0)
+_BASE_LINES = (
+    (1.0, 3.0, 2.0, 5.0, 4.0),
+    (6.0, 5.0, 7.0, 6.0, 8.0),
+)
+_EXTRA_LINE = (9.0, 1.0, 9.0, 1.0, 9.0)
+_CHANGED_LINES = (
+    (1.0, 3.0, 2.0, 5.0, 4.0),
+    (2.0, 9.0, 1.0, 8.0, 3.0),
+)
+
+
+@pytest.fixture
+def reference_figure_mode(
+    monkeypatch: pytest.MonkeyPatch, pytestconfig: pytest.Config
+) -> Callable[[bool], None]:
+    """Force the fixture's mode, whatever the command line says.
+
+    Compare mode is set on entry; the returned callable switches to save
+    mode (``True``) or back to compare mode (``False``).
+    """
+
+    def set_save_mode(save: bool) -> None:
+        # ``raising=True`` also proves that the option is registered.
+        monkeypatch.setattr(
+            pytestconfig.option, "save_reference_figures", save
+        )
+
+    set_save_mode(False)
+    return set_save_mode
+
+
+def _make_line_figure(
+    lines: Sequence[Sequence[float]] = _BASE_LINES,
+    *,
+    title: str = "Reference",
+    xlabel: str = "x",
+    ylabel: str = "y",
+    fontfamily: str = "DejaVu Sans",
+    fontsize: float = 10.0,
+) -> Figure:
+    """Draw ``lines`` on fixed axis limits so only the data moves pixels.
+
+    The lines are thick so that changing one of them clearly exceeds the
+    fixture's tolerance.
+    """
+    fig, ax = plt.subplots(figsize=(4, 3))
+    for ys in lines:
+        ax.plot(_X_VALUES, ys, linewidth=5)
+    ax.set_xlim(0, 4)
+    ax.set_ylim(0, 10)
+    ax.set_title(title, fontfamily=fontfamily, fontsize=fontsize)
+    ax.set_xlabel(xlabel, fontfamily=fontfamily, fontsize=fontsize)
+    ax.set_ylabel(ylabel, fontfamily=fontfamily, fontsize=fontsize)
+    ax.tick_params(labelsize=fontsize)
+    return fig
+
+
+def _make_text_variant() -> Figure:
+    """Same data as the default figure, with every text changed."""
+    fig = _make_line_figure(
+        title="A completely different and much longer title",
+        xlabel="another x label",
+        ylabel="another y label",
+        fontfamily="DejaVu Serif",
+        fontsize=16.0,
+    )
+    ax = fig.axes[0]
+    ax.xaxis.set_major_formatter(PercentFormatter())
+    ax.tick_params(labelcolor="tab:red")
+    fig.suptitle("Suptitle", fontsize=20)
+    fig.text(0.5, 0.5, "WATERMARK", fontsize=40, ha="center", va="center")
+    return fig
+
+
+def _save_reference(
+    check: Callable[..., None],
+    set_save_mode: Callable[[bool], None],
+    fig: Figure,
+    name: str,
+    reference_dir: Path,
+) -> Path:
+    """Write a reference image through the fixture's save mode."""
+    set_save_mode(True)
+    try:
+        check(fig, name, reference_dir=reference_dir)
+    finally:
+        set_save_mode(False)
+    reference_path = reference_dir / name
+    assert reference_path.is_file()
+    return reference_path
+
+
+def _snapshot(directory: Path) -> dict[str, tuple[int, int]]:
+    """Map each file name in ``directory`` to its size and mtime."""
+    return {
+        path.name: (path.stat().st_size, path.stat().st_mtime_ns)
+        for path in directory.iterdir()
+    }
+
+
+def test_figure_fixture_passes_for_identical_figure(
+    assert_figure_matches_reference, reference_figure_mode, tmp_path
+):
+    reference_dir = tmp_path / "references"
+    _save_reference(
+        assert_figure_matches_reference,
+        reference_figure_mode,
+        _make_line_figure(),
+        "lines.png",
+        reference_dir,
+    )
+
+    fig = _make_line_figure()
+    assert_figure_matches_reference(
+        fig, "lines.png", reference_dir=reference_dir
+    )
+    assert not plt.fignum_exists(fig.number)
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [(*_BASE_LINES, _EXTRA_LINE), _CHANGED_LINES],
+    ids=["extra-line", "changed-line-values"],
+)
+def test_figure_fixture_fails_for_changed_lines(
+    assert_figure_matches_reference, reference_figure_mode, tmp_path, lines
+):
+    reference_dir = tmp_path / "references"
+    _save_reference(
+        assert_figure_matches_reference,
+        reference_figure_mode,
+        _make_line_figure(),
+        "lines.png",
+        reference_dir,
+    )
+
+    fig = _make_line_figure(lines)
+    with pytest.raises(AssertionError) as excinfo:
+        assert_figure_matches_reference(
+            fig, "lines.png", reference_dir=reference_dir
+        )
+    message = str(excinfo.value)
+    assert "RMS" in message
+    assert "tolerance" in message
+    assert _SAVE_REFERENCE_OPTION in message
+    # The difference image lands in tmp_path, next to the actual image and
+    # the copy of the reference, not next to the reference itself.
+    diff_images = list(tmp_path.rglob("*-failed-diff.png"))
+    assert len(diff_images) == 1
+    assert str(diff_images[0]) in message
+    assert reference_dir not in diff_images[0].parents
+    assert not plt.fignum_exists(fig.number)
+
+
+def test_figure_fixture_ignores_text_only_differences(
+    assert_figure_matches_reference, reference_figure_mode, tmp_path
+):
+    # Control: with their texts drawn, the two figures do differ.
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    for fig, filename in (
+        (_make_line_figure(), "base.png"),
+        (_make_text_variant(), "variant.png"),
+    ):
+        fig.savefig(raw_dir / filename, dpi=_SELF_TEST_DPI)
+        plt.close(fig)
+    assert (
+        compare_images(
+            str(raw_dir / "base.png"), str(raw_dir / "variant.png"), tol=0
+        )
+        is not None
+    )
+
+    reference = _save_reference(
+        assert_figure_matches_reference,
+        reference_figure_mode,
+        _make_line_figure(),
+        "lines.png",
+        tmp_path / "references",
+    )
+    variant = _save_reference(
+        assert_figure_matches_reference,
+        reference_figure_mode,
+        _make_text_variant(),
+        "lines.png",
+        tmp_path / "variant-references",
+    )
+    # With the texts hidden, the renderings are pixel-identical ...
+    assert compare_images(str(reference), str(variant), tol=0) is None
+    # ... so the comparison passes.
+    assert_figure_matches_reference(
+        _make_text_variant(), "lines.png", reference_dir=reference.parent
+    )
+
+
+def test_figure_fixture_hides_every_text_artist(
+    assert_figure_matches_reference, reference_figure_mode, tmp_path
+):
+    fig = _make_line_figure()
+    fig.axes[0].legend(["first", "second"])
+    fig.suptitle("Suptitle")
+    fig.text(0.1, 0.1, "Figure text")
+    assert any(
+        text.get_visible() and text.get_text() for text in fig.findobj(Text)
+    )
+
+    _save_reference(
+        assert_figure_matches_reference,
+        reference_figure_mode,
+        fig,
+        "texts.png",
+        tmp_path / "references",
+    )
+    # Includes the tick labels created while the figure was saved.
+    visible_texts = [
+        text.get_text() for text in fig.findobj(Text) if text.get_visible()
+    ]
+    assert visible_texts == []
+
+
+def test_figure_fixture_writes_nothing_beside_references_on_failure(
+    assert_figure_matches_reference, reference_figure_mode, tmp_path
+):
+    reference_dir = tmp_path / "references"
+    _save_reference(
+        assert_figure_matches_reference,
+        reference_figure_mode,
+        _make_line_figure(),
+        "lines.png",
+        reference_dir,
+    )
+    repo_before = _snapshot(_REPO_REFERENCE_DIR)
+    reference_before = _snapshot(reference_dir)
+
+    # Failure against a reference in a temporary directory.
+    with pytest.raises(AssertionError, match="RMS"):
+        assert_figure_matches_reference(
+            _make_line_figure(_CHANGED_LINES),
+            "lines.png",
+            reference_dir=reference_dir,
+        )
+    assert _snapshot(reference_dir) == reference_before
+
+    # Failure against a committed reference in tests/imgs.
+    repo_reference = sorted(_REPO_REFERENCE_DIR.glob("*.png"))[0]
+    height, width = matplotlib.image.imread(repo_reference).shape[:2]
+    fig = plt.figure(
+        figsize=(
+            (width + 0.5) / _SELF_TEST_DPI,
+            (height + 0.5) / _SELF_TEST_DPI,
+        )
+    )
+    fig.add_subplot().fill_between([0, 1], [0, 1], color="black")
+    with pytest.raises(AssertionError, match="RMS"):
+        assert_figure_matches_reference(fig, repo_reference.name)
+    assert _snapshot(_REPO_REFERENCE_DIR) == repo_before
+
+
+def test_figure_fixture_fails_with_instructions_when_reference_is_missing(
+    assert_figure_matches_reference, reference_figure_mode
+):
+    name = "__missing_reference_for_self_test__.png"
+    repo_before = _snapshot(_REPO_REFERENCE_DIR)
+
+    fig = _make_line_figure()
+    with pytest.raises(AssertionError) as excinfo:
+        assert_figure_matches_reference(fig, name)
+    message = str(excinfo.value)
+    assert str(_REPO_REFERENCE_DIR / name) in message
+    assert _SAVE_REFERENCE_OPTION in message
+    assert _snapshot(_REPO_REFERENCE_DIR) == repo_before
+    assert not plt.fignum_exists(fig.number)
+
+
+# ===========================================================================
+# Figure tests of yikit.visualize
+# ===========================================================================
 
 
 SEED = 334
