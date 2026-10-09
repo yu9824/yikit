@@ -9,7 +9,7 @@
   - 完了の状態: 最上位で `pytest --collect-only -q` を実行すると `tests/` のテストだけが並び、`pip install --dry-run ".[test,optional,dev]"` が依存を解決できる（実際のインストールはしない。新しいパッケージが必要になる場合は作者の承認を得る）
   - _Requirements: 2.1, 2.2, 2.4, 4.1, 4.2, 4.3, 4.4, 4.5, 6.1_
 
-- [ ] 1.2 ruff と mypy の規則と対象を固定する
+- [x] 1.2 ruff と mypy の規則と対象を固定する
   - ruff の対象版を Python 3.8 にし、選ぶ規則を design の一覧（E4・E7・E9・F・W・I・UP・FA）に固定する
   - すべてのモジュールに `from __future__ import annotations` を必須とする設定を加える
   - `examples/` と `docs_src/` を ruff の対象から外す
@@ -88,3 +88,4 @@
 ## Implementation Notes
 - 1.1: `setuptools>=77.0.3` は Python 3.9 以上が必要で、3.8 ではソースからビルドできなかった。作者の判断で `setuptools>=61`・表の形の `license`・`license-files` の削除にした。新しい setuptools は 2027-02-18 の期限つきで非推奨の警告を出す。3.8 の確認には `/Users/yu9824/opt/miniforge3/envs/conductivity-prediction-old/bin/python3.8` を読み取りだけで使える（`pip install --dry-run` に限る）
 - 共通: `tests/test_visualize.py` を実行すると、既知の失敗で `tests/imgs/*-failed-diff.png` ができる（3.1 で直すまで）。実行の後に消す
+- 1.2: ruff 0.16 の `ruff format .` は Markdown（`.kiro/`、README など）も対象にして書き換える。手元では `ruff format src tests` のようにパスを指定して実行する。`force-exclude = true` は、VS Code の拡張のようにファイルを名指ししても除外を効かせるため

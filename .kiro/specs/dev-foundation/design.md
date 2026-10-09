@@ -98,7 +98,7 @@ graph TB
 
 ### Modified Files
 - `pyproject.toml` — `[build-system]` を `setuptools>=61` に下げ、`license` を表の形（`{ text = "Apache-2.0" }`）に戻して `license-files` を消す（Python 3.8 でもソースからビルドできるように）。`requires-python = ">=3.8"`、classifiers に 3.8、optional の依存を `Boruta>=0.4.3`・`optuna>=3.0`・`optuna-integration` に、`test` の extra を `pytest` だけに、`dev` の extra に `ruff`・`mypy`、`[tool.pytest.ini_options]` に `testpaths = ["tests"]`
-- `ruff.toml` — `target-version = "py38"`、`extend-exclude = ["examples", "docs_src"]`、`[lint] select`、`[lint.isort] required-imports`
+- `ruff.toml` — `target-version = "py38"`、`extend-exclude = ["examples", "docs_src"]`・`force-exclude = true`、`[lint] select`、`[lint.isort] required-imports`
 - `mypy.ini` — `files = src/yikit` を追加
 - `.github/workflows/CI.yml` — `test` ジョブを 3.8〜3.14・`fail-fast: false`・`pytest -ra` に（ruff・mypy のジョブは加えない）
 - `.github/dependabot.yml` — `versioning-strategy: increase-if-necessary`
@@ -223,7 +223,7 @@ sequenceDiagram
 **Responsibilities & Constraints**
 - `ruff.toml`
   - `target-version = "py38"`、`line-length = 79`（既存）
-  - `extend-exclude = ["examples", "docs_src"]`
+  - `extend-exclude = ["examples", "docs_src"]`、`force-exclude = true`（VS Code の ruff 拡張のようにファイルを名指しして実行しても除外が効くように）
   - `[lint] select = ["E4", "E7", "E9", "F", "W", "I", "UP", "FA"]`、`unfixable = ["F401"]`（既存）
   - `[lint.isort] required-imports = ["from __future__ import annotations"]`
   - `[lint.pydocstyle] convention = "numpy"`（既存。D は選ばないので、今は効かない）
