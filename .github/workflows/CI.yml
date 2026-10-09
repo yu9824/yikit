@@ -39,12 +39,13 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    # runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    # Pinned: setup-python does not publish Python 3.8/3.9 builds for ubuntu-26.04.
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-      # max-parallel: 6
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+      # max-parallel: 7
 
     steps:
     - uses: actions/checkout@v4
@@ -61,4 +62,4 @@ jobs:
         pip install ".[test,optional]"
     - name: Test with pytest
       run: |
-        pytest -xs .
+        pytest -ra

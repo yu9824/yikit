@@ -38,7 +38,7 @@
 - EnsembleRegressor の `np.bool` など、テストで使われていないモデルの不具合（ensemble-on-sklearn、gbdt-fix）
 
 ### Allowed Dependencies
-- GitHub Actions（`actions/checkout`、`actions/setup-python`）と ubuntu-latest の Python 3.8〜3.14
+- GitHub Actions（`actions/checkout`、`actions/setup-python`）と ubuntu-24.04 の Python 3.8〜3.14
 - 開発用の道具: ruff（0.16 以上）、mypy（2.4 以上）は手元で使う。pytest は手元と CI で使う
 - 依存の範囲: 必須の依存の下限は変えない。optional の依存は Boruta>=0.4.3、optuna>=3.0、optuna-integration（下限なし）
 - テストは matplotlib の公開されたテスト用の道具（`matplotlib.testing.compare.compare_images`）を使う
@@ -88,7 +88,7 @@ graph TB
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| CI | GitHub Actions、ubuntu-latest、`actions/setup-python@v5` | テストの実行 | 3.8.18 は ubuntu-24.04 でも入手できる |
+| CI | GitHub Actions、ubuntu-24.04（固定）、`actions/setup-python@v5` | テストの実行 | 3.8・3.9 は ubuntu-26.04 向けの配布がないので 24.04 に固定 |
 | Lint / Format（手元） | ruff 0.16 以上 | 静的検査、書式、型注釈の自動書き換え | `select` を明示し、`target-version = "py38"` |
 | Type check（手元） | mypy 2.4 以上 | `src/yikit` の型検査 | 対象版は指定しない（3.10 未満を指定できないため） |
 | Test | pytest、`matplotlib.testing.compare` | テストの実行と画像の比較 | |
@@ -248,7 +248,7 @@ sequenceDiagram
 ##### Batch / Job Contract
 - Trigger: main への push、pull request（opened・synchronize・reopened・ready_for_review）、`workflow_dispatch`。パスの条件は既存のもの（`pyproject.toml`、`tests/**`、`src/**`、`CI.yml` など）を保つ
 - ruff・mypy のジョブは置かない（手元で実行する）
-- `test` ジョブ: `python-version` は 3.8〜3.14、`fail-fast: false`。`pip install ".[test,optional]"` の後に `pytest -ra`
+- `test` ジョブ: `runs-on: ubuntu-24.04`（setup-python が Python 3.8・3.9 を ubuntu-26.04 向けに配っていないので、`ubuntu-latest` の移行で壊れないよう固定する）。`python-version` は 3.8〜3.14、`fail-fast: false`。`pip install ".[test,optional]"` の後に `pytest -ra`
 - Output: 版ごとのジョブの成否。どれかが失敗すれば workflow 全体が失敗（1.3）
 - Idempotency & recovery: 同じコミットで再実行しても同じ結果になる（テストは固定の種と固定の入力）
 

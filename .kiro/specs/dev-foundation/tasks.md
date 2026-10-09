@@ -58,7 +58,7 @@
   - _Requirements: 4.6, 4.7_
 
 - [ ] 4. CI と依存の更新の設定
-- [ ] 4.1 CI のテストを Python 3.8〜3.14 の行列にする
+- [x] 4.1 CI のテストを Python 3.8〜3.14 の行列にする
   - テストのジョブは Python 3.8〜3.14 の各版で、test と optional の依存を入れて pytest を実行し、ある版が失敗しても他の版を止めない
   - 起動の条件（main への push、pull request、手動実行）と対象のパスは今のものを保つ。ruff・mypy のジョブは加えない
   - 完了の状態: workflow の定義が YAML として読め、テストのジョブ 7 つ（3.8〜3.14、fail-fast なし）が定義されている
@@ -94,3 +94,4 @@
 - 3.1: 比較の仕組みは `check(fig, name, *, reference_dir=None)`。許容値 20 では、既定の大きさの図で線を1本変えても RMS は約 7 で通ってしまう（5.1 で下げる）。yikit の図の関数は作るときに `tight_layout()` を呼ぶので、文字を消す前にフォントの寸法で軸の位置が決まる。凡例の枠も見えない文字の大きさで決まる。3.2 では、文字を消した後に layout をやり直すか、CI の RMS で確かめる
 - 3.2: 手元（3.12）では、フォントや大きさを変えても参照画像との RMS は最大 0.033。内容を変えたときの RMS は 2.5〜18.6 なので、5.1 では CI の全版の RMS を見て許容値を 2.5 より十分小さくできるか確かめる。内容の変化は、まず各テストの値の確認（文字、要素の数、描いたデータ、軸の範囲）で捕まえる。matplotlib 3.5 未満は凡例の並びが違うので、凡例の文字は並べ替えて比べる。LightGBM の学習曲線は lightgbm 3.2.1 と 4.7 で同じ値になった
 - 3.3: `-W error::FutureWarning` は、ngboost の import で sklearn の `friedman_mse` の FutureWarning が出て失敗するので使えない。src の docstring の例（`_optuna.py` の `from optuna.integration import OptunaSearchCV`）は optuna-tuning で直す
+- 4.1: runner は `ubuntu-24.04` に固定した。setup-python は Python 3.8・3.9 を ubuntu-26.04 向けに配っていない。GitHub が ubuntu-24.04 の image をなくすときに見直す
