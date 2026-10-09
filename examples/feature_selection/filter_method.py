@@ -7,7 +7,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.20.0
 #   kernelspec:
-#     display_name: Python 3.9.13 ('yikit')
+#     display_name: py312
 #     language: python
 #     name: python3
 # ---
@@ -26,8 +26,8 @@ import pandas as pd
 
 # %%
 diabetes = load_diabetes()
-X = pd.DataFrame(diabetes['data'], columns = diabetes['feature_names'])
-y = pd.Series(diabetes['target'])
+X = pd.DataFrame(diabetes["data"], columns=diabetes["feature_names"])
+y = pd.Series(diabetes["target"])
 X.head()
 
 # %% [markdown]
@@ -40,7 +40,7 @@ sns.pairplot(X)
 # ### 削減してみる
 
 # %%
-selector = FilterSelector(r = 0.90)
+selector = FilterSelector(r=0.85, n_jobs=-1)
 selector.fit(X)
 X_selected = X.loc[:, selector.get_support()]
 X_selected.head()
@@ -58,10 +58,10 @@ for i in range(selector.corr_.shape[0]):
 # ### 相関係数
 
 # %%
-pd.DataFrame(selector.corr_[:, :, 0], columns = X.columns, index = X.columns)
+pd.DataFrame(selector.corr_[:, :, 0], columns=X.columns, index=X.columns)
 
 # %% [markdown]
 # ### p値
 
 # %%
-pd.DataFrame(selector.corr_[:, :, 1], columns = X.columns, index = X.columns)
+pd.DataFrame(selector.corr_[:, :, 1], columns=X.columns, index=X.columns)
