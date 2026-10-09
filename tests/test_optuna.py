@@ -3,11 +3,15 @@ from __future__ import annotations
 import math
 
 import optuna
-from optuna.integration import OptunaSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import KFold
 
 from yikit.models import Objective, ParamDistributions
+
+try:
+    from optuna_integration import OptunaSearchCV
+except ImportError:  # old optuna that still bundles the integration
+    from optuna.integration import OptunaSearchCV
 
 BEST_SCORE = -65.6
 ABS_TOL = 0.2

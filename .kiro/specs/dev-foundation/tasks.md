@@ -51,9 +51,9 @@
   - 完了の状態: 手元で `pytest tests/test_visualize.py` がすべて通り、`tests/imgs/` の 5 枚が文字を除いた画像に置き換わっている
   - _Requirements: 6.2, 6.3, 6.4, 6.5, 6.6_
 
-- [ ] 3.3 (P) テストの `OptunaSearchCV` を新しい場所から読み込む
+- [x] 3.3 (P) テストの `OptunaSearchCV` を新しい場所から読み込む
   - optuna-integration から読み込み、入っていない環境では optuna の元の場所から読み込む
-  - 完了の状態: `pytest tests/test_optuna.py -W "error:optuna.integration:FutureWarning"` 相当の確認で、import 元が非推奨であるという警告が出ず、テストが通る
+  - 完了の状態: `pytest tests/test_optuna.py -W 'error:`optuna.integration:FutureWarning'` の確認（警告の文はバッククォートで始まる）で、import 元が非推奨であるという警告が出ず、テストが通る
   - _Boundary: OptunaImportInTests_
   - _Requirements: 4.6, 4.7_
 
@@ -93,3 +93,4 @@
 - 2.2: `cast` の型は文字列で書く（例: `cast("NDArray[Any] | Sequence[float]", x)`）。実行時に評価されないので Python 3.8 でも動く。`numpy.typing.NDArray` は numpy 1.20 で入ったので、`TYPE_CHECKING` の中で import する（numpy に下限がないため）。`np.min` に Series を渡すと `Series.min`（NaN を飛ばす）に任されるので、`np.asarray` に変えると振る舞いが変わる
 - 3.1: 比較の仕組みは `check(fig, name, *, reference_dir=None)`。許容値 20 では、既定の大きさの図で線を1本変えても RMS は約 7 で通ってしまう（5.1 で下げる）。yikit の図の関数は作るときに `tight_layout()` を呼ぶので、文字を消す前にフォントの寸法で軸の位置が決まる。凡例の枠も見えない文字の大きさで決まる。3.2 では、文字を消した後に layout をやり直すか、CI の RMS で確かめる
 - 3.2: 手元（3.12）では、フォントや大きさを変えても参照画像との RMS は最大 0.033。内容を変えたときの RMS は 2.5〜18.6 なので、5.1 では CI の全版の RMS を見て許容値を 2.5 より十分小さくできるか確かめる。内容の変化は、まず各テストの値の確認（文字、要素の数、描いたデータ、軸の範囲）で捕まえる。matplotlib 3.5 未満は凡例の並びが違うので、凡例の文字は並べ替えて比べる。LightGBM の学習曲線は lightgbm 3.2.1 と 4.7 で同じ値になった
+- 3.3: `-W error::FutureWarning` は、ngboost の import で sklearn の `friedman_mse` の FutureWarning が出て失敗するので使えない。src の docstring の例（`_optuna.py` の `from optuna.integration import OptunaSearchCV`）は optuna-tuning で直す
