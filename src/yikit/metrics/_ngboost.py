@@ -39,5 +39,5 @@ def log_likelihood(estimator, X, y):
         return -estimator.score(X, y)  # LL (- NLL)
     else:
         raise TypeError(
-            "'estimator' is not {0} or {1}".format(NGBRegressor, NGBClassifier)
+            f"'estimator' is not {NGBRegressor} or {NGBClassifier}"
         )

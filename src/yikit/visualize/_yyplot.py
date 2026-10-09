@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from functools import reduce
 from types import MappingProxyType
-from typing import Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 import matplotlib.axes
 import matplotlib.figure
@@ -27,6 +27,10 @@ if sys.version_info >= (3, 9):
     from collections.abc import Sequence
 else:
     from typing import Sequence
+
+if TYPE_CHECKING:
+    # ``NDArray`` is missing from numpy < 1.21, so import it for typing only.
+    from numpy.typing import NDArray
 
 METRIC_INFO_MAP = MappingProxyType(
     {
@@ -237,8 +241,16 @@ def yyplot(  # type: ignore[misc]
                 f"{metric_info['label']}{suffix}$ = {metric_value:{metric_info['fmt']}}$"
             )
 
-        _data_min = reduce(min, (_data_min, np.min(x), np.min(y)))
-        _data_max = reduce(max, (_data_max, np.max(x), np.max(y)))
+        # ``ArrayLike`` also admits str and bytes, which numpy's stubs reject
+        # in ``np.min``/``np.max``. The plotted values are numeric.
+        x_values = cast("NDArray[Any] | Sequence[float]", x)
+        y_values = cast("NDArray[Any] | Sequence[float]", y)
+        _data_min = reduce(
+            min, (_data_min, np.min(x_values), np.min(y_values))
+        )
+        _data_max = reduce(
+            max, (_data_max, np.max(x_values), np.max(y_values))
+        )
 
     # set plot limits
     datalim = (_data_min, _data_max)

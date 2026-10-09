@@ -8,6 +8,7 @@ custom models from this package.
 from __future__ import annotations
 
 import sys
+from typing import Any
 
 import numpy as np
 import optuna
@@ -285,6 +286,8 @@ class Objective:
         )
 
     def __call__(self, trial: optuna.trial.Trial):
+        # Values mix int, float, str, bool and estimator objects.
+        params_: dict[str, Any]
         if isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
             params_ = {
                 "n_estimators": trial.suggest_int(
@@ -390,7 +393,7 @@ class Objective:
             params_ = self.custom_params(trial)
             self.fixed_params_ = {}  # あとで加えるので空でOK．
         else:
-            raise NotImplementedError("{0}".format(self.estimator))
+            raise NotImplementedError(f"{self.estimator}")
 
         # もしfixed_paramsを追加で指定されたらそれを取り入れる
         self.fixed_params_.update(self._fixed_params)

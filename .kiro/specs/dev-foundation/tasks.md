@@ -25,7 +25,7 @@
   - 完了の状態: `src/` と `tests/` に `typing` の `Optional`・`Union`・`List`・`Dict`・`Tuple`・`Set`・`Type` の import がなく、手元（Python 3.12）で `test_boruta`・`test_filtermethod`・`test_optuna` が書き換えの前と同じ結果で通る（`test_visualize` の画像比較の既知の失敗 3 件は 3 で扱う）
   - _Requirements: 2.3, 3.1, 3.2, 3.3, 3.5, 7.1, 7.2_
 
-- [ ] 2.2 自動修正で残った違反と mypy のエラーを手で直す
+- [x] 2.2 自動修正で残った違反と mypy のエラーを手で直す
   - 選んだ規則の残りの違反を、公開 API の名前・引数・既定値・返り値を変えずに直す
   - mypy のエラー（`_optuna.py` の dict-item、`_yyplot.py` の arg-type 2 件）を、注釈を正すか値の型を明示して直す。計算は変えない
   - 実行時に評価される場所で、PEP 585/604 の書き方を使っていないことを確かめる
@@ -90,3 +90,4 @@
 - 共通: `tests/test_visualize.py` を実行すると、既知の失敗で `tests/imgs/*-failed-diff.png` ができる（3.1 で直すまで）。実行の後に消す
 - 1.2: ruff 0.16 の `ruff format .` は Markdown（`.kiro/`、README など）も対象にして書き換える。手元では `ruff format src tests` のようにパスを指定して実行する。`force-exclude = true` は、VS Code の拡張のようにファイルを名指ししても除外を効かせるため
 - 2.1: 自動修正の順番は I002 → I001・UP037 → UP045・UP007（unsafe）→ UP036（unsafe）→ F401（CLI で `--fixable F401`）→ I001。isort の修正でモジュールの docstring と import の間の空行が消えるので、`ruff format` で整える（2.2）。test_optuna の最初の study は、浮動小数の最後の桁が実行ごとにぶれる（変更の前からある非決定性）
+- 2.2: `cast` の型は文字列で書く（例: `cast("NDArray[Any] | Sequence[float]", x)`）。実行時に評価されないので Python 3.8 でも動く。`numpy.typing.NDArray` は numpy 1.20 で入ったので、`TYPE_CHECKING` の中で import する（numpy に下限がないため）。`np.min` に Series を渡すと `Series.min`（NaN を飛ばす）に任されるので、`np.asarray` に変えると振る舞いが変わる

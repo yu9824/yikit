@@ -30,6 +30,7 @@ sklearn 互換の部品を集めた Python ライブラリです。サーバー�
 ### 型
 - `from __future__ import annotations` を使い、注釈には `X | None`、`dict[str, Any]` などを書く。`typing.Optional`・`Union`・`List` などの古い書き方は使わない
 - 実行時に評価される場所（`isinstance`、型の別名、関数の外の式、`cast`）では PEP 585/604 の書き方を使わない（3.8 対策）
+- `cast` の型は文字列で書く（`cast("X | Y", value)`）。新しい版の numpy などにしかない型は `TYPE_CHECKING` の中で import する
 - mypy で検査する（`mypy.ini`: `ignore_missing_imports = True`）
 
 ### sklearn の estimator の決まり

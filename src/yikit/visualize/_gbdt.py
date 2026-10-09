@@ -89,13 +89,13 @@ def get_dist_figure(
     """
     # check
     if not isinstance(y_dist, Distn):
-        raise TypeError("`y_dist` is not {0} object".format(Distn.__name__))
+        raise TypeError(f"`y_dist` is not {Distn.__name__} object")
     y_pred = y_dist.mean()
     y_pred = check_array(y_pred, ensure_2d=False)
     n_samples = len(y_pred)
     if len(titles) not in (0, n_samples):
         raise ValueError(
-            "`titles`'s lengh must be 0 or n_samples({}).".format(n_samples)
+            f"`titles`'s lengh must be 0 or n_samples({n_samples})."
         )
 
     offset = np.ptp(y_pred) * 0.05
@@ -138,9 +138,9 @@ def get_dist_figure(
         ax.set_ylabel("Probability density")
         ax.legend(loc="best", facecolor="#f0f0f0", edgecolor="None")
         if titles:
-            ax.set_title("{0}".format(titles[idx]))
+            ax.set_title(f"{titles[idx]}")
         else:
-            ax.set_title("idx: {0}".format(idx))
+            ax.set_title(f"idx: {idx}")
 
         ax.set_xlim(y_range[0], y_range[-1])
         if keep_y_range:
@@ -234,7 +234,7 @@ def get_learning_curve_gb(
     # plot
     for data_name, result in evals_result.items():
         if data_name not in COLORS:
-            raise ValueError("{} is not in `COLOR`.".format(data_name))
+            raise ValueError(f"{data_name} is not in `COLOR`.")
         score_name = list(result.keys())[0]
         score = result[score_name]
         ax.plot(range(len(score)), score, label=data_name, c=COLORS[data_name])

@@ -309,7 +309,7 @@ class BorutaPy(boruta.BorutaPy):
         self.r_ccmax_ = np.nanmax(self.pears_, axis=None).item()
         perc = 100 * (1 - self.r_ccmax_)
         if self.verbose > 0:
-            logger.info("Assgigned perc = {:.1f}\n".format(perc))
+            logger.info(f"Assgigned perc = {perc:.1f}\n")
         return perc
 
     def _print_results(self, dec_reg, _iter, flag):
