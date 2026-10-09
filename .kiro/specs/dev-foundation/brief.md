@@ -21,12 +21,15 @@ yikit の作者（と将来の貢献者）は、変更が型や書式、古い P
 - `OptunaSearchCV` は `optuna_integration` から import し、なければ `optuna.integration` を使う
 - dependabot は `versioning-strategy: increase-if-necessary`
 - dev の extra に ruff・mypy を入れ、pytest の設定を `pyproject.toml` に置く
+- Python 3.8 と依存の下限に近い版の組み合わせでテストする CI のジョブがある。下限のない必須の依存（numpy・pandas など）には、確かめた版を下限として書く（上げるのではなく、初めて決める）
+- 画像を比べるテストが CI のすべての組み合わせで通り、差分の画像をリポジトリに残さない（main の CI は 2026-10 時点でこのテストにより失敗している）
+- ruff の対象は `src/` と `tests/`（`examples/` は外す）。mypy の対象は `src/yikit`
 
 ## Approach
 設定ファイルと CI を先に直し、続けてパッケージ全体を機械的に書き換えます（型の書き方、3.8 で動かない構文）。振る舞いは変えません。Python 3.8 で依存が解決できるか（scikit-learn 1.3.2、optuna-integration 4.1〜4.5 など）を CI で確かめます。
 
 ## Scope
-- **In**: `pyproject.toml`（requires-python、依存、extra、pytest・ruff・mypy の設定）、`.github/workflows/CI.yml`（lint と型のジョブ、3.8 を加えた版の一覧）、`.github/dependabot.yml`、パッケージ全体の注釈の書き換えと 3.8 対策、mypy のエラーの解消、テストでの `OptunaSearchCV` の import の書き換え、classifiers の更新、dependabot の #25・#26 の後始末（#26 の中身は取り込み、PR は閉じる）
+- **In**: `pyproject.toml`（requires-python、依存、extra、pytest・ruff・mypy の設定）、`.github/workflows/CI.yml`（lint と型のジョブ、3.8 を加えた版の一覧、依存の下限のジョブ）、画像を比べるテストの安定化、`.github/dependabot.yml`、パッケージ全体の注釈の書き換えと 3.8 対策、mypy のエラーの解消、テストでの `OptunaSearchCV` の import の書き換え、classifiers の更新、dependabot の #25・#26 の後始末（#26 の中身は取り込み、PR は閉じる）
 - **Out**: docstring の英語化とテストの追加（module-quality と各 spec）、モデルの振る舞いの変更（optuna-tuning、ensemble-on-sklearn、gbdt-fix）
 
 ## Boundary Candidates
@@ -35,7 +38,7 @@ yikit の作者（と将来の貢献者）は、変更が型や書式、古い P
 
 ## Out of Boundary
 - 公開 API の追加や変更
-- 新しいテストの追加（既存のテストを 3.8・新しい import に合わせて動かすところまで）
+- 新しいテストの追加（既存のテストを 3.8・依存の下限・新しい import に合わせて動かし、画像を比べるテストを安定させるところまで）
 - docs の仕組み（Sphinx の設定や docs のワークフロー）
 
 ## Upstream / Downstream
@@ -47,7 +50,7 @@ yikit の作者（と将来の貢献者）は、変更が型や書式、古い P
 - **Adjacent**: module-quality（同じモジュールの docstring を書く。こちらは注釈だけを変える）、optuna-tuning（`_optuna.py` を大きく書き換えるので、こちらでは機械的な変更にとどめる）
 
 ## Constraints
-- 依存の下限は、上の2つ（Boruta、optuna）の他は上げない
+- 依存の下限は、上の2つ（Boruta、optuna）の他は上げない。下限の組み合わせで動かない箇所は、まずコードを直す。直せない場合は理由を記録し、作者の承認を得てから下限を変える
 - 新しい mypy は、検査の対象を Python 3.8 にできないことがある。3.8 で動くことは CI の pytest で保証し、mypy は使える版を対象にする
 - GitHub Actions の ubuntu-24.04 には Python 3.8.18 がある
 - 3.8 では、pip が古い依存を選ぶ（scikit-learn 1.3.2 など）。その版の組み合わせでテストが通るか確かめる
