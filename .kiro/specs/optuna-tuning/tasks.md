@@ -42,7 +42,7 @@
   - _Requirements: 2.1, 2.2, 2.6, 10.4, 10.6_
 
 - [ ] 3. 利用の窓口
-- [ ] 3.1 Objective を、表と引数の処理を使う形に作り直す
+- [x] 3.1 Objective を、表と引数の処理を使う形に作り直す
   - 作るとき: TPESampler の種を今と同じ順番で引いた後に、未指定の `random_state` に入れる整数を1回だけ引いて公開する。探索範囲は渡された X の列の数で作り、`fixed_params` の名前を除く
   - 範囲がなく `custom_params` もないときは、作るときに型の名前と `custom_params` の案内を含む NotImplementedError にする。`fixed_params` と未指定の `random_state` の名前は作るときに一度当てて、誤りを ValueError にする
   - 試行: `custom_params` が空でない辞書を返せばそれを、そうでなければ探索範囲の各分布を対応する suggest に読み替えた値を使う。`{未指定の random_state の値, 探索した値, fixed_params}` の順に重ねてモデルの写しに入れ、最後の試行のモデルとして公開し、交差検証の平均を返す
