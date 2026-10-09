@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
+from matplotlib.legend import Legend
 from matplotlib.testing.compare import compare_images
 from matplotlib.testing.exceptions import ImageComparisonFailure
 from matplotlib.text import Text
@@ -42,6 +43,12 @@ FIGURE_DPI = 36
 #: Largest RMS difference (0-255 color scale) accepted between a figure and
 #: its reference image, after every text has been hidden.
 FIGURE_RMS_TOLERANCE = 20
+
+#: Font size given to the hidden tick labels and to ``font.size`` while a
+#: figure is laid out again and saved. The number of automatic ticks and the
+#: padding of ``tight_layout`` follow it, instead of the fonts of the figure
+#: or the ``rcParams`` left by earlier code.
+FIGURE_FONT_SIZE = 10.0
 
 _SAVE_REFERENCE_OPTION = "--save-reference-figures"
 _REGENERATE_COMMAND = (
@@ -110,14 +117,45 @@ def matplotlib_settings():
 
 
 def _hide_texts(fig: Figure) -> None:
-    """Make every text artist of ``fig`` invisible.
+    """Make every text artist and every legend of ``fig`` invisible.
 
-    This covers titles, axis labels, tick labels, offset texts, legend
-    texts and figure texts. Ticks created later while drawing copy the
-    visibility of the first tick, so their labels stay hidden as well.
+    They are also taken out of the layout. This covers titles, axis labels,
+    tick labels, offset texts, legends and figure texts. Tick labels are
+    turned off through ``tick_params`` as well, which
+    also reaches the ticks that are not in use yet and the ticks created
+    later while drawing; their size is set to :data:`FIGURE_FONT_SIZE`
+    because it decides how many automatic ticks fit on an axis. Legends are
+    hidden as a whole because their frames and handles are sized and placed
+    from their texts; the tests check the legend texts as values.
     """
-    for text in fig.findobj(Text):
-        text.set_visible(False)
+    for ax in fig.axes:
+        ax.tick_params(
+            which="both",
+            labelbottom=False,
+            labeltop=False,
+            labelleft=False,
+            labelright=False,
+            labelsize=FIGURE_FONT_SIZE,
+        )
+    for artist in (*fig.findobj(Text), *fig.findobj(Legend)):
+        artist.set_visible(False)
+        # ``tight_layout`` keeps room for a suptitle unless it is out of
+        # the layout, even when it is invisible.
+        artist.set_in_layout(False)
+
+
+def _save_without_texts(fig: Figure, path: Path) -> None:
+    """Hide the texts of ``fig``, lay it out again and save it to ``path``.
+
+    Figure functions call ``tight_layout`` while the texts are visible, so
+    the axes positions depend on the font metrics. Running it again after
+    the texts are hidden places the axes from the non-text artists only.
+    """
+    _hide_texts(fig)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with plt.rc_context({"font.size": FIGURE_FONT_SIZE}):
+        fig.tight_layout()
+        fig.savefig(path, dpi=FIGURE_DPI)
 
 
 def _compare_with_reference(actual_path: Path, reference_path: Path) -> None:
@@ -180,12 +218,14 @@ def assert_figure_matches_reference(
 ) -> Callable[..., None]:
     """Return a checker that compares ``fig`` with ``tests/imgs/<name>``.
 
-    The checker hides every text of the figure, saves it with
-    :data:`FIGURE_DPI` and closes it. With ``--save-reference-figures`` it
-    overwrites the reference image; otherwise it compares the figure with
-    the reference inside ``tmp_path`` and fails when the RMS difference
-    exceeds :data:`FIGURE_RMS_TOLERANCE`. Texts are checked as values by
-    the tests themselves, before calling the checker.
+    The checker hides every text and legend of the figure, runs
+    ``tight_layout`` again so that the fonts do not move the axes, saves the
+    figure with :data:`FIGURE_DPI` and closes it. With
+    ``--save-reference-figures`` it overwrites the reference image;
+    otherwise it compares the figure with the reference inside ``tmp_path``
+    and fails when the RMS difference exceeds :data:`FIGURE_RMS_TOLERANCE`.
+    Texts are checked as values by the tests themselves, before calling the
+    checker.
 
     Parameters
     ----------
@@ -214,9 +254,7 @@ def assert_figure_matches_reference(
         save_mode = bool(request.config.getoption(_SAVE_REFERENCE_OPTION))
         output_path = reference_path if save_mode else work_dir / name
         try:
-            _hide_texts(fig)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            fig.savefig(output_path, dpi=FIGURE_DPI)
+            _save_without_texts(fig, output_path)
         finally:
             plt.close(fig)
         if not save_mode:

@@ -318,7 +318,8 @@ def assert_figure_matches_reference(
 ```
 - Preconditions: `fig` は matplotlib の Figure。`name` は `tests/imgs/` の中のファイル名（`.png`）
 - Postconditions:
-  - 図のすべての文字（タイトル、軸のラベル、目盛り、凡例の文字）を見えなくしてから保存する
+  - 図のすべての文字（タイトル、軸のラベル、目盛り、凡例の文字）を見えなくし、layout からも外す。目盛りの文字は `tick_params` で消す（使われていない Tick の文字も消すため）。凡例は丸ごと見えなくする（枠の大きさが文字で決まるため。凡例の文字は各テストで値として確かめる）
+  - 文字を消した後に、rc の `font.size` を固定の値（10）にした状態で `tight_layout` をやり直してから保存する。yikit の図の関数は作るときに `tight_layout` を呼び、`set_font` は rc の `font.size` を書き換えたまま残すので、そのままではフォントやテストの実行順で配置が変わる
   - 保存のモード（`--save-reference-figures`）では、`tests/imgs/<name>` を書き換える
   - 比較のモードでは、実際の図と参照画像を `tmp_path` に置いて比べる。RMS が許容値を超えたら、RMS の値と一時ファイルの場所を含む AssertionError で失敗する。参照画像がなければ、作り直しの方法を含むメッセージで失敗する
   - リポジトリの中には何も書かない（保存のモードを除く）
