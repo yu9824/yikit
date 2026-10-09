@@ -32,6 +32,7 @@
   - Python 3.8 で入る最新の版の目安: scikit-learn 1.3.2、numpy 1.24.4、pandas 2.0.3、matplotlib 3.7.5、seaborn 0.13.2、optuna 4.5.0、optuna-integration 4.5.0、lightgbm 4.6.0、Boruta 0.4.3。ngboost も 3.8 に対応する版がある
   - optuna-integration は 4.6.0 から `>=3.9`。`requires_python` の情報があるので、pip は Python の版に合った版を自動で選ぶ（marker は不要）
   - GitHub Actions の ubuntu-24.04 に Python 3.8.18 がある
+- **追記（task 1.1 のレビュー）**: ビルドの要件 `setuptools>=77.0.3` は、77.0.3 以上がすべて `Requires-Python >=3.9` なので、Python 3.8 ではソースからビルドできない（`No matching distribution found for setuptools>=77.0.3`）。3.8 で入る setuptools 75.3.4 は PEP 639 の `license = "Apache-2.0"` と `license-files` を受け付けない。作者の判断で、`setuptools>=61` に下げ、`license` を表の形に戻し、`license-files` を消すことにした（2026-10-09）。新しい setuptools では表の形の `license` が非推奨（期限 2027-02-18）なので、期限の前に PEP 639 の書き方へ戻す（1.0.0 で 3.8 を外すときなど）
 - **Implications**: 依存の宣言に Python の版の marker を足す必要はない。3.8 では古い scikit-learn・optuna で結果の数値が変わる可能性があり、値を固定で比べるテスト（`test_optuna.py` の最良値、`test_boruta.py` の選ばれた特徴量）が 3.8 で失敗するおそれがある
 
 ### 3.8 で動かない書き方

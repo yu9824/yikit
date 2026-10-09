@@ -97,7 +97,7 @@ graph TB
 ## File Structure Plan
 
 ### Modified Files
-- `pyproject.toml` — `requires-python = ">=3.8"`、classifiers に 3.8、optional の依存を `Boruta>=0.4.3`・`optuna>=3.0`・`optuna-integration` に、`test` の extra を `pytest` だけに、`dev` の extra に `ruff`・`mypy`、`[tool.pytest.ini_options]` に `testpaths = ["tests"]`
+- `pyproject.toml` — `[build-system]` を `setuptools>=61` に下げ、`license` を表の形（`{ text = "Apache-2.0" }`）に戻して `license-files` を消す（Python 3.8 でもソースからビルドできるように）。`requires-python = ">=3.8"`、classifiers に 3.8、optional の依存を `Boruta>=0.4.3`・`optuna>=3.0`・`optuna-integration` に、`test` の extra を `pytest` だけに、`dev` の extra に `ruff`・`mypy`、`[tool.pytest.ini_options]` に `testpaths = ["tests"]`
 - `ruff.toml` — `target-version = "py38"`、`extend-exclude = ["examples", "docs_src"]`、`[lint] select`、`[lint.isort] required-imports`
 - `mypy.ini` — `files = src/yikit` を追加
 - `.github/workflows/CI.yml` — `test` ジョブを 3.8〜3.14・`fail-fast: false`・`pytest -ra` に（ruff・mypy のジョブは加えない）
@@ -198,6 +198,7 @@ sequenceDiagram
 
 **Responsibilities & Constraints**
 - `requires-python = ">=3.8"`。classifiers は 3.8〜3.14
+- `[build-system] requires = ["setuptools>=61"]`。`license = { text = "Apache-2.0" }` にし、`license-files` は消す（LICENSE は setuptools が既定で同梱する）。setuptools 77.0.3 以上は Python 3.9 以上を要求し、3.8 で入る setuptools（75.3.x）は PEP 639 の書き方（`license = "Apache-2.0"`、`license-files`）を受け付けないため
 - 必須の依存（scikit-learn>=0.24.1 など）は変えない
 - `optional`: `Boruta>=0.4.3`、`optuna>=3.0`、`optuna-integration` を追加。ngboost の marker（`python_version < '3.14'`）はそのまま
 - `test`: `pytest`（`optuna-integration` は `optional` に移す）
@@ -210,6 +211,7 @@ sequenceDiagram
 **Implementation Notes**
 - Validation: CI の全版で `pip install ".[test,optional]"` が通る。3.8 では pip が `requires_python` を見て古い版を選ぶ
 - Risks: 3.8 で入らない依存があれば、その依存に marker を付ける。それでも通せなければ 2.5 に従う
+- Risks: 新しい setuptools は表の形の `license` に「2027-02-18 までに直す」という非推奨の警告を出す。その後の setuptools でビルドが失敗するおそれがあるので、期限の前に（遅くとも 1.0.0 で 3.8 を外すときに）PEP 639 の書き方へ戻す
 
 #### LintConfig
 

@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. 基盤: パッケージの宣言と検査の設定
-- [ ] 1.1 パッケージの宣言を、実際に動く範囲と新しい検査の道具に合わせる
+- [x] 1.1 パッケージの宣言を、実際に動く範囲と新しい検査の道具に合わせる
   - 対応する Python を 3.8 以上にし、分類に 3.8〜3.14 を並べる
   - optional の依存を Boruta 0.4.3 以上、optuna 3.0 以上にし、optuna-integration を加える。ngboost の Python の版の条件はそのまま残す
   - test の extra は pytest だけにし、dev の extra に ruff と mypy を加える。必須の依存の下限は変えない
@@ -84,3 +84,7 @@
   - 完了の状態: #25 と #26 がコメント付きで閉じられ、Boruta の下限 0.4.3 が main の宣言に入っている
   - _Depends: 1.1, 4.2_
   - _Requirements: 4.1, 5.3_
+
+## Implementation Notes
+- 1.1: `setuptools>=77.0.3` は Python 3.9 以上が必要で、3.8 ではソースからビルドできなかった。作者の判断で `setuptools>=61`・表の形の `license`・`license-files` の削除にした。新しい setuptools は 2027-02-18 の期限つきで非推奨の警告を出す。3.8 の確認には `/Users/yu9824/opt/miniforge3/envs/conductivity-prediction-old/bin/python3.8` を読み取りだけで使える（`pip install --dry-run` に限る）
+- 共通: `tests/test_visualize.py` を実行すると、既知の失敗で `tests/imgs/*-failed-diff.png` ができる（3.1 で直すまで）。実行の後に消す
