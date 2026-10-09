@@ -41,8 +41,10 @@ REFERENCE_IMAGES_DIR = Path(__file__).parent / "imgs"
 FIGURE_DPI = 36
 
 #: Largest RMS difference (0-255 color scale) accepted between a figure and
-#: its reference image, after every text has been hidden.
-FIGURE_RMS_TOLERANCE = 20
+#: its reference image, after every text has been hidden. CI measured at most
+#: 0.037 across Python 3.8-3.14, while the smallest content change tried
+#: (one optuna trial value) gives about 2.5.
+FIGURE_RMS_TOLERANCE = 1.0
 
 #: Font size given to the hidden tick labels and to ``font.size`` while a
 #: figure is laid out again and saved. The number of automatic ticks and the
