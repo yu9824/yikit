@@ -586,9 +586,9 @@ def test_learning_curve_lightgbm(assert_figure_matches_reference):
 _OTHER_FONT_FAMILY = "DejaVu Sans Mono"
 
 #: RMS accepted between the same figure drawn with the two font families,
-#: far below the fixture's tolerance: once the texts are hidden, the fonts
-#: must not move the other artists at all.
-_FONT_RMS_TOLERANCE = 1.0
+#: well below the fixture's tolerance: once the texts are hidden, the fonts
+#: must not move the other artists at all (CI measured 0 on every version).
+_FONT_RMS_TOLERANCE = 0.1
 
 
 @pytest.mark.parametrize(
