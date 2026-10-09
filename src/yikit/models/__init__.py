@@ -5,6 +5,8 @@ linear models, support vector machines, gradient boosting, neural networks, and
 hyperparameter optimization utilities.
 """
 
+from __future__ import annotations
+
 from yikit.helpers import is_installed
 
 from ._ensemble import EnsembleRegressor

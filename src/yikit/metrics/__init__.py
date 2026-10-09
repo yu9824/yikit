@@ -4,6 +4,8 @@ This module provides various metrics for evaluating regression models,
 including root mean squared error and log-likelihood for NGBoost.
 """
 
+from __future__ import annotations
+
 from yikit.helpers import is_installed
 
 from ._common import root_mean_squared_error

@@ -7,6 +7,8 @@ version: 2
 updates:
   - package-ecosystem: "pip" # See documentation for possible values
     directory: "/" # Location of package manifests
+    # Keep the declared ranges; only widen them when a new release falls outside.
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: "weekly"
     commit-message:

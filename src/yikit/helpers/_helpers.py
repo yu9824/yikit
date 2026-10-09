@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import importlib.util
 import inspect
 import sys
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 import joblib
 
@@ -32,7 +34,7 @@ def is_installed(package_name: str) -> bool:
     return bool(importlib.util.find_spec(package_name))
 
 
-def is_argument(__callable: "Callable[..., Any]", arg_name: str) -> bool:
+def is_argument(__callable: Callable[..., Any], arg_name: str) -> bool:
     """
     Check if a given argument name is present in the callable's signature.
 
@@ -78,7 +80,7 @@ class dummy_tqdm(Iterable, Generic[T]):
     """
 
     def __init__(
-        self, __iterable: Optional["Iterable[T]"] = None, *args, **kwargs
+        self, __iterable: Iterable[T] | None = None, *args, **kwargs
     ) -> None:
         """
         Initialize the dummy tqdm wrapper.
@@ -94,7 +96,7 @@ class dummy_tqdm(Iterable, Generic[T]):
         """
         self.__iterable = __iterable if __iterable else ()
 
-    def __iter__(self) -> "Iterator[T]":
+    def __iter__(self) -> Iterator[T]:
         """
         Return an iterator for the given iterable.
 
@@ -105,7 +107,7 @@ class dummy_tqdm(Iterable, Generic[T]):
         """
         return iter(self.__iterable)
 
-    def __getattr__(self, name: str) -> "Callable[..., None]":
+    def __getattr__(self, name: str) -> Callable[..., None]:
         """
         Handle unsupported attribute access by returning a no-op function.
 

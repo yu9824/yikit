@@ -4,7 +4,7 @@ This module provides visualization functions for Optuna study results,
 including learning curves and optimization history plots.
 """
 
-from typing import Optional
+from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import optuna
@@ -17,7 +17,7 @@ from yikit.visualize._utils import set_font, with_custom_matplotlib_settings
 def get_learning_curve_optuna(
     study: optuna.study.Study,
     loc="best",
-    fontfamily: Optional[str] = None,
+    fontfamily: str | None = None,
     return_axis: bool = False,
 ):
     """Plot learning curve for Optuna optimization study.

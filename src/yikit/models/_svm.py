@@ -4,6 +4,8 @@ This module provides a scikit-learn compatible wrapper for Support Vector
 Regression (SVR) with optional feature scaling.
 """
 
+from __future__ import annotations
+
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.preprocessing import StandardScaler
@@ -58,6 +60,7 @@ class SupportVectorRegressor(BaseEstimator, RegressorMixin):
     >>> model.fit(X, y)
     >>> predictions = model.predict(X)
     """
+
     def __init__(
         self,
         kernel="rbf",

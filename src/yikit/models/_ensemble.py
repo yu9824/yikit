@@ -4,6 +4,8 @@ This module provides ensemble regression methods including blending, averaging,
 and stacking of multiple base estimators.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -384,9 +386,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
             for n in range(self.n_estimators_)
         ]
         y_oof_ = pd.concat([df.loc[:, "pred"] for df in dfs_y_oof_], axis=1)
-        y_oof_.columns = [
-            "estimator{}".format(n) for n in range(self.n_estimators_)
-        ]
+        y_oof_.columns = [f"estimator{n}" for n in range(self.n_estimators_)]
 
         # *** ensemble ***
         # モデルがひとつのとき．
@@ -404,9 +404,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
             # rmseで最適化（今後指定できるようにしてもいいかも．）
             def objective(trial: optuna.trial.Trial) -> float:
                 params = {
-                    "weight{0}".format(i): trial.suggest_float(
-                        "weight{0}".format(i), 0, 1
-                    )
+                    f"weight{i}": trial.suggest_float(f"weight{i}", 0, 1)
                     for i in range(self.n_estimators_)
                 }
                 weights = np.array(list(params.values()))

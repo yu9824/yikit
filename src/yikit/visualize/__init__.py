@@ -5,6 +5,8 @@ permutation importance, learning curves, distribution plots, and matplotlib
 configuration helpers.
 """
 
+from __future__ import annotations
+
 from yikit.helpers import is_installed
 
 from ._permutation_importance import SummarizePI

@@ -4,6 +4,8 @@ This module provides a scikit-learn compatible wrapper for linear models
 including Ridge and Lasso regression.
 """
 
+from __future__ import annotations
+
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import Lasso, Ridge
 from sklearn.utils import check_array, check_random_state, check_X_y
@@ -52,6 +54,7 @@ class LinearModelRegressor(BaseEstimator, RegressorMixin):
     >>> model.fit(X, y)
     >>> predictions = model.predict(X)
     """
+
     def __init__(
         self,
         linear_model="ridge",

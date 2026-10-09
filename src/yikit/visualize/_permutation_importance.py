@@ -4,7 +4,7 @@ This module provides utilities for visualizing permutation importance
 results from machine learning models.
 """
 
-from typing import Optional
+from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,7 +26,7 @@ class SummarizePI:
         """
         self.importances = importances
 
-    def get_figure(self, fontfamily: Optional[str] = None):
+    def get_figure(self, fontfamily: str | None = None):
         # 平均をとる．
         imp = self.importances.mean(axis=1)
 

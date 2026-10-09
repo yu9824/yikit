@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from typing import Optional, Union
+from __future__ import annotations
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -35,8 +35,8 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         self,
         r: float = 0.9,
         alpha: float = 0.05,
-        verbose: Union[int, bool] = True,
-        n_jobs: Optional[int] = None,
+        verbose: int | bool = True,
+        n_jobs: int | None = None,
     ):
         """
         Filter method for feature selection using correlation coefficient and significance.

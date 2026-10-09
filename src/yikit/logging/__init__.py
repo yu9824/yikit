@@ -7,6 +7,8 @@ in logging configurations.
 
 """
 
+from __future__ import annotations
+
 from logging import CRITICAL, DEBUG, ERROR, INFO, NOTSET, WARNING
 
 from ._logging import (
