@@ -6,6 +6,7 @@ are intended to simplify common tasks, such as checking if a package is installe
 iterating with a dummy progress bar, and verifying function arguments.
 
 """
+from __future__ import annotations
 
 from ._helpers import dummy_tqdm, is_argument, is_installed, tqdm_joblib
 

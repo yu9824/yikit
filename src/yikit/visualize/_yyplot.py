@@ -6,11 +6,12 @@ one or multiple pairs of ``(y_true, y_pred)`` sequences (e.g., train/test
 or train/validation/test) and annotates the figure with common regression
 metrics such as :math:`R^2`, RMSE, MAE, and MSE.
 """
+from __future__ import annotations
 
 import sys
 from functools import reduce
 from types import MappingProxyType
-from typing import Optional, overload
+from typing import Literal, overload
 
 import matplotlib.axes
 import matplotlib.figure
@@ -20,11 +21,6 @@ from numpy.typing import ArrayLike
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from yikit.metrics import root_mean_squared_error
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 if sys.version_info >= (3, 9):
     from collections.abc import Sequence
@@ -50,12 +46,12 @@ def yyplot(
     y_true: ArrayLike,
     y_pred: ArrayLike,
     *,
-    labels: Optional[Sequence[Optional[str]]] = None,
+    labels: Sequence[str | None] | None = None,
     metrics: Sequence[Literal["r2", "rmse", "mae", "mse"]] = (
         "r2",
         "rmse",
     ),
-    ax: Optional[matplotlib.axes.Axes] = None,
+    ax: matplotlib.axes.Axes | None = None,
     alpha: float = 0.05,
 ) -> matplotlib.axes.Axes: ...
 
@@ -67,12 +63,12 @@ def yyplot(
     y_test: ArrayLike,
     y_pred_on_test: ArrayLike,
     *,
-    labels: Optional[Sequence[str]] = ("train", "test"),
+    labels: Sequence[str] | None = ("train", "test"),
     metrics: Sequence[Literal["r2", "rmse", "mae", "mse"]] = (
         "r2",
         "rmse",
     ),
-    ax: Optional[matplotlib.axes.Axes] = None,
+    ax: matplotlib.axes.Axes | None = None,
     alpha: float = 0.05,
 ) -> matplotlib.axes.Axes: ...
 
@@ -86,12 +82,12 @@ def yyplot(
     y_test: ArrayLike,
     y_pred_on_test: ArrayLike,
     *,
-    labels: Optional[Sequence[Optional[str]]] = ("train", "val", "test"),
+    labels: Sequence[str | None] | None = ("train", "val", "test"),
     metrics: Sequence[Literal["r2", "rmse", "mae", "mse"]] = (
         "r2",
         "rmse",
     ),
-    ax: Optional[matplotlib.axes.Axes] = None,
+    ax: matplotlib.axes.Axes | None = None,
     alpha: float = 0.05,
 ) -> matplotlib.axes.Axes: ...
 
@@ -99,24 +95,24 @@ def yyplot(
 @overload
 def yyplot(
     *y_data: ArrayLike,
-    labels: Optional[Sequence[Optional[str]]] = None,
+    labels: Sequence[str | None] | None = None,
     metrics: Sequence[Literal["r2", "rmse", "mae", "mse"]] = (
         "r2",
         "rmse",
     ),
-    ax: Optional[matplotlib.axes.Axes] = None,
+    ax: matplotlib.axes.Axes | None = None,
     alpha: float = 0.05,
 ) -> matplotlib.axes.Axes: ...
 
 
 def yyplot(  # type: ignore[misc]
     *y_data: ArrayLike,
-    labels: Optional[Sequence[Optional[str]]] = None,
+    labels: Sequence[str | None] | None = None,
     metrics: Sequence[Literal["r2", "rmse", "mae", "mse"]] = (
         "r2",
         "rmse",
     ),
-    ax: Optional[matplotlib.axes.Axes] = None,
+    ax: matplotlib.axes.Axes | None = None,
     alpha: float = 0.05,
 ) -> matplotlib.axes.Axes:
     """Plot true vs. predicted values for one or more data sets.

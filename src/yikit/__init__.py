@@ -3,6 +3,7 @@
 This package provides models, feature selection, visualization, metrics, and other utilities
 for machine learning workflows.
 """
+from __future__ import annotations
 
 __version__ = "0.4.0-rc.0"
 __license__ = "Apache-2.0"

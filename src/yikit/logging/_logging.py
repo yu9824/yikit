@@ -1,4 +1,5 @@
 """Module for logging configuration and utilities."""
+from __future__ import annotations
 
 import importlib.util
 import os
@@ -14,7 +15,7 @@ from logging import (
     getLogger,
 )
 from types import TracebackType
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 HandlerType = TypeVar("HandlerType", bound=Handler)
 
@@ -42,7 +43,7 @@ def _color_supported() -> bool:
         return True
 
 
-_default_handler: Optional[StreamHandler] = None
+_default_handler: StreamHandler | None = None
 """default root logger handler
 
 if not configured, None
@@ -95,7 +96,7 @@ This formatter is either colorized or plain depending on environment support.
 
 def get_handler(
     handler: HandlerType,
-    formatter: Optional[Formatter] = None,
+    formatter: Formatter | None = None,
     level: int = NOTSET,
 ) -> HandlerType:
     """
@@ -281,8 +282,8 @@ class catch_default_handler:
 
     def __exit__(
         self,
-        exc_type: "Optional[type[Exception]]",
-        exc_value: Optional[Exception],
-        traceback: Optional[TracebackType],
+        exc_type: type[Exception] | None,
+        exc_value: Exception | None,
+        traceback: TracebackType | None,
     ) -> None:
         enable_default_handler()

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from ngboost import (  # type: ignore[reportMissingImports]
     NGBClassifier,
     NGBRegressor,

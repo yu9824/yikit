@@ -3,6 +3,7 @@
 This module provides filter methods and wrapper methods for feature selection,
 including correlation-based filtering and Boruta algorithm.
 """
+from __future__ import annotations
 
 from yikit.helpers import is_installed
 

@@ -3,6 +3,7 @@
 This module provides ensemble regression methods including blending, averaging,
 and stacking of multiple base estimators.
 """
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd

@@ -6,6 +6,7 @@ Additionally, this module defines constants for various logging levels to be use
 in logging configurations.
 
 """
+from __future__ import annotations
 
 from logging import CRITICAL, DEBUG, ERROR, INFO, NOTSET, WARNING
 

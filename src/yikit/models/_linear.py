@@ -3,6 +3,7 @@
 This module provides a scikit-learn compatible wrapper for linear models
 including Ridge and Lasso regression.
 """
+from __future__ import annotations
 
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import Lasso, Ridge

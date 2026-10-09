@@ -3,10 +3,11 @@
 This module provides helper functions for configuring matplotlib settings,
 including font configuration and custom matplotlib settings context manager.
 """
+from __future__ import annotations
 
 import platform
 from functools import wraps
-from typing import Callable, Optional, TypeVar
+from typing import Callable, TypeVar
 
 import matplotlib.pyplot as plt
 from sklearn.utils import Bunch
@@ -20,7 +21,7 @@ COLORS = Bunch(
 )
 
 
-def set_font(fontfamily: Optional[str] = None, fontsize: int = 13):
+def set_font(fontfamily: str | None = None, fontsize: int = 13):
     """Set matplotlib font family and size.
 
     This function configures the default font family and size for matplotlib plots.
@@ -56,7 +57,7 @@ def _default_fontfamily():
 
 
 def with_custom_matplotlib_settings(
-    fontfamily: Optional[str] = None, fontsize: int = 13, restore: bool = True
+    fontfamily: str | None = None, fontsize: int = 13, restore: bool = True
 ):
     """Decorator to apply custom matplotlib settings temporarily.
 

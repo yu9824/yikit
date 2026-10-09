@@ -18,7 +18,7 @@
   - _Requirements: 3.1, 3.2, 3.3, 8.2, 8.3_
 
 - [ ] 2. パッケージ全体の型注釈の書き換え
-- [ ] 2.1 ruff の自動修正で、future import の追加・注釈の書き換え・古い版の分岐の削除を行う
+- [x] 2.1 ruff の自動修正で、future import の追加・注釈の書き換え・古い版の分岐の削除を行う
   - `src/` と `tests/` のすべてのモジュールに future import を入れ、`Optional`・`Union`・`List` などを `X | None` と組み込みの型の書き方に置き換える
   - Python 3.8 未満向けの分岐を消し、`Literal` などは標準の `typing` から使う
   - 自動修正の結果だけを1つのコミットにまとめる
@@ -89,3 +89,4 @@
 - 1.1: `setuptools>=77.0.3` は Python 3.9 以上が必要で、3.8 ではソースからビルドできなかった。作者の判断で `setuptools>=61`・表の形の `license`・`license-files` の削除にした。新しい setuptools は 2027-02-18 の期限つきで非推奨の警告を出す。3.8 の確認には `/Users/yu9824/opt/miniforge3/envs/conductivity-prediction-old/bin/python3.8` を読み取りだけで使える（`pip install --dry-run` に限る）
 - 共通: `tests/test_visualize.py` を実行すると、既知の失敗で `tests/imgs/*-failed-diff.png` ができる（3.1 で直すまで）。実行の後に消す
 - 1.2: ruff 0.16 の `ruff format .` は Markdown（`.kiro/`、README など）も対象にして書き換える。手元では `ruff format src tests` のようにパスを指定して実行する。`force-exclude = true` は、VS Code の拡張のようにファイルを名指ししても除外を効かせるため
+- 2.1: 自動修正の順番は I002 → I001・UP037 → UP045・UP007（unsafe）→ UP036（unsafe）→ F401（CLI で `--fixable F401`）→ I001。isort の修正でモジュールの docstring と import の間の空行が消えるので、`ruff format` で整える（2.2）。test_optuna の最初の study は、浮動小数の最後の桁が実行ごとにぶれる（変更の前からある非決定性）

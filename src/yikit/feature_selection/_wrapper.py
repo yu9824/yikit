@@ -13,10 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from __future__ import annotations
 
-import sys
 from array import array
-from typing import Optional, Union
+from typing import Literal
 
 import boruta
 import numpy as np
@@ -28,11 +28,6 @@ from sklearn.utils.validation import check_is_fitted
 
 from yikit.helpers import is_installed, tqdm_joblib
 from yikit.logging import get_child_logger
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 if is_installed("tqdm"):
     from tqdm.auto import tqdm
@@ -47,15 +42,15 @@ class BorutaPy(boruta.BorutaPy):
     def __init__(
         self,
         estimator,
-        n_estimators: Union[int, Literal["auto"]] = "auto",
-        perc: Union[float, Literal["auto"]] = "auto",
+        n_estimators: int | Literal["auto"] = "auto",
+        perc: float | Literal["auto"] = "auto",
         alpha: float = 0.05,
         two_step: bool = True,
         max_iter: int = 100,
-        random_state: Optional[Union[np.random.RandomState, int]] = None,
+        random_state: np.random.RandomState | int | None = None,
         verbose: int = 1,
         max_shuf: int = 10000,
-        n_jobs: Optional[int] = None,
+        n_jobs: int | None = None,
     ):
         """
         This docstring is modified from and uses parts of scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
@@ -289,7 +284,7 @@ class BorutaPy(boruta.BorutaPy):
             for comparison between shadow and real features.
         """
 
-        def _get_pearsonrs(X: np.ndarray) -> "array[float]":
+        def _get_pearsonrs(X: np.ndarray) -> array[float]:
             X_shuffled = shuffle(X, random_state=self.random_state)
             assert isinstance(X_shuffled, np.ndarray)
             return array(

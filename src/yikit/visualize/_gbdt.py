@@ -3,12 +3,12 @@
 This module provides visualization functions for NGBoost models including
 distribution plots and learning curves for gradient boosting models.
 """
+from __future__ import annotations
 
 import sys
 import warnings
 from decimal import Decimal
 from math import ceil
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -61,7 +61,7 @@ def get_dist_figure(
     return_axis=False,
     verbose=True,
     titles=[],
-    fontfamily: Optional[str] = None,
+    fontfamily: str | None = None,
 ):
     """get distribution figure.
 
@@ -174,7 +174,7 @@ def is_correct_dist(y_pred, y_dist):
 
 
 def get_learning_curve_gb(
-    estimator, fontfamily: Optional[str] = None, return_axis: bool = False
+    estimator, fontfamily: str | None = None, return_axis: bool = False
 ):
     """Plot learning curve for gradient boosting models.
 
