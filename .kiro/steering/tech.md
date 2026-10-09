@@ -49,6 +49,7 @@ sklearn 互換の部品を集めた Python ライブラリです。サーバー�
 - 乱数の種は `SEED = 334` に揃える
 - 図は `matplotlib.testing.compare.compare_images` で `tests/imgs/` の参照画像と比べる（許容値あり）。差分の画像は一時ディレクトリに出し、リポジトリを汚さない
 - CI（GitHub Actions）は Python の各版で `pip install ".[test,optional]"` の後に pytest を回す
+- ruff と mypy は手元で実行して通す。CI では走らせない
 
 ## Development Environment
 

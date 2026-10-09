@@ -83,7 +83,7 @@
 
 ### Decision: mypy は実行している Python を対象にする
 - **Context**: mypy 2.4 は 3.10 未満を対象にできない
-- **Selected Approach**: `mypy.ini` に対象のファイル（`src/yikit`）を書き、対象の版は書かない。CI の型検査は 1 つの Python（3.12）で行う
+- **Selected Approach**: `mypy.ini` に対象のファイル（`src/yikit`）を書き、対象の版は書かない。mypy と ruff は手元で実行し、CI では走らせない（2026-10-09 に作者が決定）
 - **Trade-offs**: 3.8 固有の型の誤りは mypy では見つからない。実行時の問題は CI の 3.8 のテストで見つける
 
 ### Decision: 画像比較を、固定の入力と、文字を除いた比較に変える

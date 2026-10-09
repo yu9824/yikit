@@ -1,12 +1,13 @@
 # Design Document: dev-foundation
 
 ## Overview
-**Purpose**: yikit の作者が、変更のたびに書式・静的検査・型・テストを自動で確かめられるようにし、古い Python（3.8）の環境の利用者にも yikit を届ける。
+**Purpose**: yikit の作者が、変更のたびにテストを Python の各版で自動で確かめ、書式・静的検査・型を手元で確かめられるようにし、古い Python（3.8）の環境の利用者にも yikit を届ける。
 **Users**: yikit の作者（開発とレビュー）、Python 3.8 を含む古い環境で yikit を使う利用者（licond など）。後に続く spec（module-quality、optuna-tuning、ensemble-on-sklearn）と gbdt-fix は、この土台の上で進める。
-**Impact**: CI は「Python 3.9〜3.14 で pytest だけ」から「静的検査・書式・型の検査と、Python 3.8〜3.14 のテスト」になる。パッケージ全体の型注釈が新しい書き方に揃い、依存の宣言が実際に動く範囲に合う。main で失敗している画像比較のテストが、依存の版に左右されなくなる。公開 API の振る舞いは変えない。
+**Impact**: CI は「Python 3.9〜3.14 で pytest」から「Python 3.8〜3.14 で pytest」になる。ruff と mypy は手元で実行し、規則と対象を設定ファイルで固定する。パッケージ全体の型注釈が新しい書き方に揃い、依存の宣言が実際に動く範囲に合う。main で失敗している画像比較のテストが、依存の版に左右されなくなる。公開 API の振る舞いは変えない。
 
 ### Goals
-- CI で ruff・mypy・pytest が走り、Python 3.8〜3.14 のすべてで通る
+- CI で pytest が Python 3.8〜3.14 のすべてで通る
+- 手元で ruff（静的検査・書式）と mypy がエラー 0 件で通る
 - パッケージ全体の型注釈が `from __future__ import annotations` と新しい書き方に揃い、mypy のエラーが 0 件
 - 依存の宣言（Python の版、Boruta、optuna、optuna-integration、extra）が実際に動く範囲と一致する
 - 画像比較のテストが依存の版で揺れず、リポジトリを汚さない
@@ -16,11 +17,12 @@
 - 新しいテストの追加と docstring の英語化（module-quality、各 spec）
 - モデルの振る舞いの変更（optuna-tuning、ensemble-on-sklearn、gbdt-fix）
 - ruff の bugbear（B）や docstring（D）の規則の導入
+- CI での ruff・mypy の実行（作者の判断で手元だけにする）
 
 ## Boundary Commitments
 
 ### This Spec Owns
-- CI の定義（`.github/workflows/CI.yml`）: 起動の条件、静的検査・書式・型検査のジョブ、Python の版ごとのテストのジョブ
+- CI の定義（`.github/workflows/CI.yml`）: 起動の条件と、Python の版ごとのテストのジョブ
 - パッケージの宣言（`pyproject.toml`）: `requires-python`、classifiers、依存と extra の範囲、pytest の設定
 - 静的検査と型検査の設定（`ruff.toml`、`mypy.ini`）
 - dependabot の設定（`.github/dependabot.yml`）と、開いている dependabot の PR（#25、#26）の後始末
@@ -37,7 +39,7 @@
 
 ### Allowed Dependencies
 - GitHub Actions（`actions/checkout`、`actions/setup-python`）と ubuntu-latest の Python 3.8〜3.14
-- 開発用の道具: ruff（0.16 以上）、mypy（2.4 以上、型検査のジョブで使う）、pytest
+- 開発用の道具: ruff（0.16 以上）、mypy（2.4 以上）は手元で使う。pytest は手元と CI で使う
 - 依存の範囲: 必須の依存の下限は変えない。optional の依存は Boruta>=0.4.3、optuna>=3.0、optuna-integration（下限なし）
 - テストは matplotlib の公開されたテスト用の道具（`matplotlib.testing.compare.compare_images`）を使う
 
@@ -60,12 +62,11 @@
 ```mermaid
 graph TB
     Push[Push or PullRequest] --> CI
-    CI --> LintJob
     CI --> TestMatrix
-    LintJob --> RuffCheck
-    LintJob --> RuffFormat
-    LintJob --> Mypy
     TestMatrix --> Pytest
+    Developer[Developer local] --> RuffCheck
+    Developer --> RuffFormat
+    Developer --> Mypy
     RuffCheck --> RuffConfig
     RuffFormat --> RuffConfig
     Mypy --> MypyConfig
@@ -77,8 +78,8 @@ graph TB
 ```
 
 **Architecture Integration**:
-- Selected pattern: 「検査のジョブ（1 版）」と「テストの行列（7 版）」を分けた CI。検査は版に依存しないので 1 回で足り、テストは版ごとの依存の違いを確かめる
-- Domain/feature boundaries: 設定（pyproject、ruff、mypy、dependabot）、CI、コードの書き換え、図のテストの仕組み、の4つに分かれ、互いのファイルを共有しない
+- Selected pattern: CI はテストの行列（7 版）だけを持ち、版ごとの依存の違いを確かめる。静的検査・書式・型検査は版に依存しないので、手元で設定ファイルに従って実行する
+- Domain/feature boundaries: 設定（pyproject、ruff、mypy、dependabot）、CI、コードの書き換え、図のテストの仕組み、の4つに分かれ、互いのファイルを共有しない。ruff と mypy は設定だけを持ち、実行は手元で行う
 - Existing patterns preserved: src レイアウト、`[test,optional]` の extra で CI に入れる方式、`tests/imgs/` の参照画像
 - New components rationale: 画像比較の fixture は、図のテストが増えても（module-quality）同じ比べ方を使えるようにするため
 - Steering compliance: tech.md の型の決まり（future import、3.8 でも動く書き方）、依存の下限の方針
@@ -87,9 +88,9 @@ graph TB
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| CI | GitHub Actions、ubuntu-latest、`actions/setup-python@v5` | 検査とテストの実行 | 3.8.18 は ubuntu-24.04 でも入手できる |
-| Lint / Format | ruff 0.16 以上 | 静的検査、書式、型注釈の自動書き換え | `select` を明示し、`target-version = "py38"` |
-| Type check | mypy 2.4 以上 | `src/yikit` の型検査 | 対象版は指定しない（3.10 未満を指定できないため） |
+| CI | GitHub Actions、ubuntu-latest、`actions/setup-python@v5` | テストの実行 | 3.8.18 は ubuntu-24.04 でも入手できる |
+| Lint / Format（手元） | ruff 0.16 以上 | 静的検査、書式、型注釈の自動書き換え | `select` を明示し、`target-version = "py38"` |
+| Type check（手元） | mypy 2.4 以上 | `src/yikit` の型検査 | 対象版は指定しない（3.10 未満を指定できないため） |
 | Test | pytest、`matplotlib.testing.compare` | テストの実行と画像の比較 | |
 | Runtime | Python 3.8〜3.14 | 対応する版 | 3.8 で失敗が解消できなければ 3.9〜 に戻す |
 
@@ -99,7 +100,7 @@ graph TB
 - `pyproject.toml` — `requires-python = ">=3.8"`、classifiers に 3.8、optional の依存を `Boruta>=0.4.3`・`optuna>=3.0`・`optuna-integration` に、`test` の extra を `pytest` だけに、`dev` の extra に `ruff`・`mypy`、`[tool.pytest.ini_options]` に `testpaths = ["tests"]`
 - `ruff.toml` — `target-version = "py38"`、`extend-exclude = ["examples", "docs_src"]`、`[lint] select`、`[lint.isort] required-imports`
 - `mypy.ini` — `files = src/yikit` を追加
-- `.github/workflows/CI.yml` — `lint` ジョブの追加、`test` ジョブを 3.8〜3.14・`fail-fast: false`・`pytest -ra` に、起動の条件に `ruff.toml`・`mypy.ini` を追加
+- `.github/workflows/CI.yml` — `test` ジョブを 3.8〜3.14・`fail-fast: false`・`pytest -ra` に（ruff・mypy のジョブは加えない）
 - `.github/dependabot.yml` — `versioning-strategy: increase-if-necessary`
 - `src/yikit/**/*.py` — `from __future__ import annotations` の追加、注釈の書き換え、3.8 未満向けの分岐の削除、mypy のエラー 3 件の解消、選んだ規則の残りの違反の修正（振る舞いは変えない）
 - `tests/conftest.py` — 画像比較の fixture `assert_figure_matches_reference` と pytest の引数 `--save-reference-figures`
@@ -136,13 +137,10 @@ sequenceDiagram
 
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
-| 1.1 | ruff の静的検査と書式の検査 | CIWorkflow、LintConfig | `ruff check src tests`、`ruff format --check src tests` | — |
-| 1.2 | mypy の型検査 | CIWorkflow、LintConfig | `mypy`（対象は `mypy.ini`） | — |
-| 1.3 | 3.8〜3.14 でのテスト | CIWorkflow、PackagingConfig | `pip install ".[test,optional]"`、`pytest -ra` | — |
-| 1.4 | 版の失敗で他を止めない | CIWorkflow | `strategy.fail-fast: false` | — |
-| 1.5 | どれかが失敗したら全体を失敗に | CIWorkflow | ジョブの終了コード | — |
-| 1.6 | examples を対象外に | LintConfig、CIWorkflow | `extend-exclude`、対象のパス | — |
-| 1.7 | 設定の変更でも CI を起動 | CIWorkflow | `on.push.paths`、`on.pull_request.paths` | — |
+| 1.1 | 3.8〜3.14 でのテスト | CIWorkflow、PackagingConfig | `pip install ".[test,optional]"`、`pytest -ra` | — |
+| 1.2 | 版の失敗で他を止めない | CIWorkflow | `strategy.fail-fast: false` | — |
+| 1.3 | どれかが失敗したら全体を失敗に | CIWorkflow | ジョブの終了コード | — |
+| 1.4 | 設定や依存の変更でも CI を起動 | CIWorkflow | `on.push.paths`、`on.pull_request.paths` | — |
 | 2.1 | 3.8 以上を宣言 | PackagingConfig | `requires-python` | — |
 | 2.2 | classifiers に 3.8〜3.14 | PackagingConfig | classifiers | — |
 | 2.3 | 3.8 で import してもエラーにならない | TypingSweep、CIWorkflow | future import | — |
@@ -172,16 +170,19 @@ sequenceDiagram
 | 7.1 | 公開 API を変えない | TypingSweep | — | — |
 | 7.2 | 同じ入力・種で同じ結果 | TypingSweep | 既存のテスト | — |
 | 7.3 | 振る舞いを変える修正は承認を得る | TypingSweep | 判断の手順 | — |
+| 8.1 | 手元の ruff がエラー 0 件 | LintConfig、TypingSweep | `ruff check src tests`、`ruff format --check src tests` | — |
+| 8.2 | examples を対象外に | LintConfig | `extend-exclude` | — |
+| 8.3 | 規則を明示して固定 | LintConfig | `[lint] select` | — |
 
 ## Components and Interfaces
 
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
-| PackagingConfig | 設定 | パッケージの宣言と pytest の設定 | 1.3, 2.1, 2.2, 2.4, 2.5, 4.1–4.5, 6.1 | pip（P0） | State |
-| LintConfig | 設定 | ruff と mypy の規則と対象 | 1.1, 1.2, 1.6, 3.1–3.4 | ruff（P0）、mypy（P0） | State |
-| CIWorkflow | CI | 検査とテストの実行と報告 | 1.1–1.7, 2.3, 6.3 | GitHub Actions（P0） | Batch |
+| PackagingConfig | 設定 | パッケージの宣言と pytest の設定 | 1.1, 2.1, 2.2, 2.4, 2.5, 4.1–4.5, 6.1 | pip（P0） | State |
+| LintConfig | 設定 | 手元で使う ruff と mypy の規則と対象 | 3.1–3.4, 8.1–8.3 | ruff（P0）、mypy（P0） | State |
+| CIWorkflow | CI | テストの実行と報告 | 1.1–1.4, 2.3, 6.3 | GitHub Actions（P0） | Batch |
 | DependabotConfig | CI | 依存の更新 PR の方針 | 5.1–5.3 | dependabot（P1） | State |
-| TypingSweep | コード | 型注釈の書き換えと 3.8 対策 | 2.3, 2.5, 3.1–3.5, 7.1–7.3 | LintConfig（P0） | — |
+| TypingSweep | コード | 型注釈の書き換えと 3.8 対策 | 2.3, 2.5, 3.1–3.5, 7.1–7.3, 8.1 | LintConfig（P0） | — |
 | FigureFixture | テスト | 文字を除いた画像の比較と参照画像の保存 | 6.2–6.5 | matplotlib.testing（P0） | Service |
 | VisualizeTests | テスト | 5 つの図のテストを固定の入力で行う | 6.3–6.6 | FigureFixture（P0）、yikit.visualize（P0） | — |
 | OptunaImportInTests | テスト | `OptunaSearchCV` の import 元の切り替え | 4.6, 4.7 | optuna-integration（P1） | — |
@@ -193,7 +194,7 @@ sequenceDiagram
 | Field | Detail |
 |-------|--------|
 | Intent | `pyproject.toml` の依存・extra・Python の版・pytest の設定を、実際に動く範囲に合わせる |
-| Requirements | 1.3, 2.1, 2.2, 2.4, 2.5, 4.1, 4.2, 4.3, 4.4, 4.5, 6.1 |
+| Requirements | 1.1, 2.1, 2.2, 2.4, 2.5, 4.1, 4.2, 4.3, 4.4, 4.5, 6.1 |
 
 **Responsibilities & Constraints**
 - `requires-python = ">=3.8"`。classifiers は 3.8〜3.14
@@ -214,8 +215,8 @@ sequenceDiagram
 
 | Field | Detail |
 |-------|--------|
-| Intent | ruff の規則と対象、mypy の対象を固定する |
-| Requirements | 1.1, 1.2, 1.6, 3.1, 3.2, 3.3, 3.4 |
+| Intent | 手元で使う ruff の規則と対象、mypy の対象を固定する |
+| Requirements | 3.1, 3.2, 3.3, 3.4, 8.1, 8.2, 8.3 |
 
 **Responsibilities & Constraints**
 - `ruff.toml`
@@ -229,7 +230,7 @@ sequenceDiagram
 **Contracts**: State [x]
 
 **Implementation Notes**
-- Risks: ruff の新しい版で、選んだ規則の中に新しい検査が入ることがある。CI が失敗したら、規則を直すか ruff の版を確かめる
+- Risks: ruff の新しい版で、選んだ規則の中に新しい検査が入ることがある。手元で違反が増えたら、規則を直すか ruff の版を確かめる
 
 ### CI
 
@@ -237,16 +238,16 @@ sequenceDiagram
 
 | Field | Detail |
 |-------|--------|
-| Intent | push と pull request で検査とテストを走らせ、結果を版ごとに報告する |
-| Requirements | 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.3, 6.3 |
+| Intent | push と pull request でテストを走らせ、結果を版ごとに報告する |
+| Requirements | 1.1, 1.2, 1.3, 1.4, 2.3, 6.3 |
 
 **Contracts**: Batch [x]
 
 ##### Batch / Job Contract
-- Trigger: main への push、pull request（opened・synchronize・reopened・ready_for_review）、`workflow_dispatch`。パスの条件は既存のものに `ruff.toml`・`mypy.ini` を加える
-- `lint` ジョブ（Python 3.12）: `pip install -e ".[dev,optional]"` の後に `ruff check src tests`、`ruff format --check src tests`、`mypy`
+- Trigger: main への push、pull request（opened・synchronize・reopened・ready_for_review）、`workflow_dispatch`。パスの条件は既存のもの（`pyproject.toml`、`tests/**`、`src/**`、`CI.yml` など）を保つ
+- ruff・mypy のジョブは置かない（手元で実行する）
 - `test` ジョブ: `python-version` は 3.8〜3.14、`fail-fast: false`。`pip install ".[test,optional]"` の後に `pytest -ra`
-- Output: ジョブごとの成否。どれかが失敗すれば workflow 全体が失敗（1.5）
+- Output: 版ごとのジョブの成否。どれかが失敗すれば workflow 全体が失敗（1.3）
 - Idempotency & recovery: 同じコミットで再実行しても同じ結果になる（テストは固定の種と固定の入力）
 
 **Implementation Notes**
@@ -354,7 +355,7 @@ def assert_figure_matches_reference(
 ## Error Handling
 
 ### Error Strategy
-- CI: 各ステップの失敗をそのままジョブの失敗にする。テストの行列は `fail-fast: false` で、すべての版の結果を残す
+- CI: テストの失敗をそのままジョブの失敗にする。テストの行列は `fail-fast: false` で、すべての版の結果を残す
 - 画像比較: 失敗のメッセージに RMS の値、許容値、一時ファイルの場所、参照画像の作り直しの方法を含める
 - 3.8 での失敗: コードの不具合なら直す。依存の版による数値の違いなら、research.md の方針でテストを置き換える。直せなければ作者に相談し、2.5 に従う
 
@@ -370,7 +371,10 @@ def assert_figure_matches_reference(
 - `test_optuna` が `OptunaSearchCV` の非推奨の警告を出さない（`-W error::FutureWarning` 相当の確認、4.7）
 
 ### CI での確認
-- Python 3.8〜3.14 の全版で `pytest` が通り、`lint` ジョブ（ruff check、ruff format、mypy）が通る（1.1〜1.5、2.3、6.3）
+- Python 3.8〜3.14 の全版で `pytest` が通る（1.1〜1.3、2.3、6.3）
+
+### 手元での確認
+- `ruff check src tests`、`ruff format --check src tests`、`mypy` がエラー 0 件（3.4、8.1）
 - Python 3.8 で yikit と各サブパッケージを import できる（2.3）
 
 ## Migration Strategy

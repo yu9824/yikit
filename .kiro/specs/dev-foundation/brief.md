@@ -13,7 +13,7 @@ yikit の作者（と将来の貢献者）は、変更が型や書式、古い P
 - 手元の古い環境 py312 は壊れていた。新しく `yikit-dev`（Python 3.12）を作った
 
 ## Desired Outcome
-- CI で ruff（check と format）、mypy、pytest が走り、pytest は Python 3.8〜3.14 で通る
+- CI で pytest が Python 3.8〜3.14 で通る。ruff（check と format）と mypy は手元で実行して通す（CI では走らせない。2026-10-09 に作者が決定）
 - `requires-python = ">=3.8"`。3.8 で通せなければ `>=3.9` にし、通せなかった理由を記録する
 - パッケージ全体が `from __future__ import annotations` と新しい注釈の書き方（`X | None`、`dict[str, Any]`）に揃い、実行時に評価される場所は 3.8 でも動く
 - mypy がパッケージ全体で通る

@@ -1,29 +1,26 @@
 # Requirements Document
 
 ## Project Description (Input)
-yikit 0.4.0 に向けて、開発と検査の土台を整える。CI で ruff・mypy・pytest を走らせ、Python 3.8〜3.14 で動くことを確かめる。依存の下限と extra を実際に動く範囲に合わせ、dependabot が下限を上げるだけの PR を出さないようにする。パッケージ全体の型注釈を新しい書き方に揃えつつ、Python 3.8 でも動くようにする。main の CI を失敗させている画像比較テストを安定させる。詳しい背景は `brief.md` を参照。
+yikit 0.4.0 に向けて、開発と検査の土台を整える。CI で pytest を Python 3.8〜3.14 で走らせる。ruff と mypy は手元で実行して通す。依存の下限と extra を実際に動く範囲に合わせ、dependabot が下限を上げるだけの PR を出さないようにする。パッケージ全体の型注釈を新しい書き方に揃えつつ、Python 3.8 でも動くようにする。main の CI を失敗させている画像比較テストを安定させる。詳しい背景は `brief.md` を参照。
 
 ## Introduction
 yikit の作者と、古いオフライン環境で yikit を使う利用者（licond など）のために、変更が壊れていないことを自動で確かめられる土台を作る。この spec は公開 API の振る舞いを変えない。後に続く spec（module-quality、optuna-tuning、ensemble-on-sklearn）と直接実装の作業（gbdt-fix）は、この土台の上で進める。
 
 ## Boundary Context
-- **In scope**: CI の検査（書式、静的検査、型、テスト）、対応する Python の版、依存の下限と extra の宣言、dependabot の設定、パッケージ全体の型注釈の書き方、テストの実行設定、画像比較テストの安定化、テストでの `OptunaSearchCV` の import 元
-- **Out of scope**: 依存の下限の組み合わせでの動作の保証と、そのための CI のジョブ（個人開発のライブラリなので、CI で確かめるのは各 Python の版で入る依存の組み合わせまでとする）、新しいテストの追加と docstring の英語化（module-quality と各 spec）、モデルの振る舞いの変更（optuna-tuning、ensemble-on-sklearn、gbdt-fix）、docs の生成の仕組み、リリースと変更履歴（release-0.4.0）
+- **In scope**: CI でのテスト、手元で実行する静的検査・書式・型検査の設定と、それが通る状態、対応する Python の版、依存の下限と extra の宣言、dependabot の設定、パッケージ全体の型注釈の書き方、テストの実行設定、画像比較テストの安定化、テストでの `OptunaSearchCV` の import 元
+- **Out of scope**: CI での ruff・mypy の実行（作者の判断で手元だけにする）、依存の下限の組み合わせでの動作の保証と、そのための CI のジョブ（個人開発のライブラリなので、CI で確かめるのは各 Python の版で入る依存の組み合わせまでとする）、新しいテストの追加と docstring の英語化（module-quality と各 spec）、モデルの振る舞いの変更（optuna-tuning、ensemble-on-sklearn、gbdt-fix）、docs の生成の仕組み、リリースと変更履歴（release-0.4.0）
 - **Adjacent expectations**: Python 3.8 で動かない箇所が、後の spec で書き換えるモジュール（`models` など）に見つかった場合、この spec では 3.8 で動くための最小限の修正にとどめる。GBDTRegressor が LightGBM 4 で動かない問題は gbdt-fix が持つ
 
 ## Requirements
 
-### Requirement 1: CI での自動検査
-**Objective:** As yikit の作者, I want 変更のたびに書式・静的検査・型・テストが自動で確かめられること, so that 壊れた変更を main に入れずに済む
+### Requirement 1: CI での自動テスト
+**Objective:** As yikit の作者, I want 変更のたびにテストが Python の各版で自動で確かめられること, so that 壊れた変更を main に入れずに済む
 
 #### Acceptance Criteria
-1. When main への push があったとき、または main 向けの pull request が作成・更新されたとき, the CI shall `src/` と `tests/` に対して ruff の静的検査と書式の検査を実行する
-2. When main への push があったとき、または main 向けの pull request が作成・更新されたとき, the CI shall `src/yikit` に対して mypy の型検査を実行する
-3. When main への push があったとき、または main 向けの pull request が作成・更新されたとき, the CI shall Python 3.8・3.9・3.10・3.11・3.12・3.13・3.14 のそれぞれで、test と optional の依存を入れてテストを実行する
-4. If ある Python の版でテストが失敗したとき, the CI shall 他の版のテストを中断せずに最後まで実行し、版ごとの結果を報告する
-5. If 静的検査・書式・型検査・テストのいずれかが失敗したとき, the CI shall その実行全体を失敗として報告する
-6. The CI shall `examples/` を静的検査・書式・型検査の対象に含めない
-7. When CI の設定ファイル、ruff・mypy・pytest の設定、またはパッケージの依存の宣言が変更されたとき, the CI shall 検査を実行する
+1. When main への push があったとき、または main 向けの pull request が作成・更新されたとき, the CI shall Python 3.8・3.9・3.10・3.11・3.12・3.13・3.14 のそれぞれで、test と optional の依存を入れてテストを実行する
+2. If ある Python の版でテストが失敗したとき, the CI shall 他の版のテストを中断せずに最後まで実行し、版ごとの結果を報告する
+3. If いずれかの版でテストが失敗したとき, the CI shall その実行全体を失敗として報告する
+4. When CI の設定ファイル、pytest の設定、またはパッケージの依存の宣言が変更されたとき, the CI shall テストを実行する
 
 ### Requirement 2: 対応する Python の版
 **Objective:** As 古い Python の環境で yikit を使う利用者, I want yikit が Python 3.8 でも入って動くこと, so that 環境を新しくできなくても yikit を使える
@@ -83,3 +80,11 @@ yikit の作者と、古いオフライン環境で yikit を使う利用者（l
 1. The dev-foundation の変更 shall 公開 API の追加・削除・名前の変更を含まない
 2. When 同じ入力と同じ乱数の種で公開 API を呼んだとき, the yikit パッケージ shall この spec の変更の前と同じ結果を返す
 3. If Python 3.8 で動かすための修正が既存の振る舞いを変えざるを得ないとき, the 開発の手順 shall その変更を spec の文書に記録し、作者の承認を得てから行う
+
+### Requirement 8: 手元での静的検査と書式の検査
+**Objective:** As yikit の開発者, I want 手元で ruff を実行すれば書式と静的検査の問題が分かること, so that CI に頼らずに変更の品質を確かめられる
+
+#### Acceptance Criteria
+1. When 開発者が手元で `src/` と `tests/` に ruff の静的検査と書式の検査を実行したとき, the 検査 shall エラーを0件で終える
+2. The 静的検査と書式の検査 shall `examples/` を対象に含めない
+3. The 静的検査の規則 shall ruff の版を上げても変わらないように、使う規則を明示して固定する
