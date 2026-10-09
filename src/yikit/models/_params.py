@@ -1,5 +1,10 @@
 """Apply parameters to copies of estimators without changing the originals.
 
+``find_unspecified_random_states`` finds the ``random_state`` parameters
+that the user left unspecified (None, or the global ``RandomState`` of
+NumPy that ngboost puts in their place), in the estimator and in all the
+estimators nested in it.
+
 ``apply_params`` is how yikit sets the parameters of a trial on the
 estimator passed by the user. It accepts the prefixed names returned by the
 search space (``svr__C``, ``regressor__svr__C``, ``Base__max_depth``) and
@@ -24,9 +29,12 @@ import inspect
 from typing import TYPE_CHECKING, Any
 
 from sklearn.base import clone
+from sklearn.utils import check_random_state
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+    import numpy as np
 
 #: Attributes other than the parameters that ``sklearn.base.clone`` carries
 #: over to its copy: the configuration of ``set_output`` (scikit-learn >=
@@ -323,3 +331,116 @@ def apply_params(estimator: Any, params: Mapping[str, Any]) -> Any:
     1.0
     """
     return _apply_params(estimator, params, prefix="")
+
+
+def _is_random_state_name(name: str) -> bool:
+    """Return whether ``name`` is a (prefixed) ``random_state`` name."""
+    return name == "random_state" or name.endswith("__random_state")
+
+
+def _find_unspecified_random_states(
+    estimator: Any, prefix: str, global_random_state: np.random.RandomState
+) -> list[str]:
+    """Return the unspecified ``random_state`` names under ``estimator``.
+
+    Parameters
+    ----------
+    estimator : object
+        Estimator instance to inspect. It is not modified.
+    prefix : str
+        Names on the way from the outermost estimator, joined with ``"__"``
+        and ending with ``"__"`` (empty for the outermost estimator).
+    global_random_state : numpy.random.RandomState
+        The global ``RandomState`` of NumPy, which means the same as None.
+
+    Returns
+    -------
+    list of str
+        Names prefixed with ``prefix``, in the order of
+        ``get_params(deep=True)``. The names found inside an estimator
+        whose own names that listing omits come at the place of the
+        estimator.
+    """
+    params = estimator.get_params(deep=True)
+    # Names of the parameters whose nested names get_params lists.
+    listed_heads = {
+        name.rpartition("__")[0] for name in params if "__" in name
+    }
+    names: list[str] = []
+    for name, value in params.items():
+        if _is_random_state_name(name) and (
+            value is None or value is global_random_state
+        ):
+            names.append(prefix + name)
+        elif _is_estimator(value) and name not in listed_heads:
+            names.extend(
+                _find_unspecified_random_states(
+                    value, f"{prefix}{name}__", global_random_state
+                )
+            )
+    return names
+
+
+def find_unspecified_random_states(estimator: Any) -> list[str]:
+    """Return the prefixed names of unspecified ``random_state`` parameters.
+
+    A ``random_state`` parameter of ``estimator`` or of any estimator nested
+    in it (the steps of a ``Pipeline``, the ``regressor`` and
+    ``transformer`` of a ``TransformedTargetRegressor``, the ``Base`` of
+    ngboost's ``NGBRegressor``, ...) is unspecified when its value is None
+    or the global ``RandomState`` of NumPy (``check_random_state(None)``).
+    Both mean "use the global random state"; ngboost turns None into the
+    latter in its constructor. Integers and other ``RandomState`` objects
+    are values given by the user, so their names are not returned.
+
+    The names are taken from ``get_params(deep=True)``. When a parameter
+    holds an estimator whose own names are not listed there, which is the
+    case of ``Base`` since ngboost 0.4.0 because its ``get_params`` ignores
+    ``deep``, the names of that estimator are looked up recursively. Models
+    without a ``random_state`` parameter, such as ``SVR`` and
+    ``PLSRegression``, add no name.
+
+    Parameters
+    ----------
+    estimator : object
+        Estimator instance to inspect, e.g. ``NGBRegressor()`` or a
+        ``Pipeline``. It is not modified. Inspect the estimator passed by
+        the user rather than a copy: ``clone`` deep-copies the global
+        ``RandomState``, which then can no longer be told from one given by
+        the user.
+
+    Returns
+    -------
+    list of str
+        Names accepted by ``set_params`` of scikit-learn (and by
+        ``apply_params``), such as ``random_state``,
+        ``quantiletransformer__random_state`` or ``Base__random_state``,
+        each at most once, in a deterministic order. Empty when there is no
+        unspecified ``random_state``.
+
+    Examples
+    --------
+    >>> from sklearn.compose import TransformedTargetRegressor
+    >>> from sklearn.ensemble import RandomForestRegressor
+    >>> from sklearn.pipeline import make_pipeline
+    >>> from sklearn.preprocessing import QuantileTransformer, StandardScaler
+    >>> from sklearn.svm import SVR
+    >>> find_unspecified_random_states(
+    ...     TransformedTargetRegressor(
+    ...         regressor=RandomForestRegressor(),
+    ...         transformer=QuantileTransformer(),
+    ...     )
+    ... )
+    ['regressor__random_state', 'transformer__random_state']
+    >>> find_unspecified_random_states(
+    ...     make_pipeline(
+    ...         QuantileTransformer(), RandomForestRegressor(random_state=7)
+    ...     )
+    ... )
+    ['quantiletransformer__random_state']
+    >>> find_unspecified_random_states(make_pipeline(StandardScaler(), SVR()))
+    []
+    """
+    return _find_unspecified_random_states(
+        estimator, prefix="", global_random_state=check_random_state(None)
+    )

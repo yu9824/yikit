@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. 探索範囲の表と入れ子の解決
+- [x] 1. 探索範囲の表と入れ子の解決
 - [x] 1.1 探索範囲の表と、モデルの型との照合を作る
   - 登録済みの 10 種類のモデル（LightGBM と GBDTRegressor は同じ行）の探索範囲を、design の表のとおりに optuna の分布で持つ。0.4.0-rc.0 から引き継ぐ範囲の値は変えない
   - 上から順に型で照合し、最初に当たった行を使う。Lasso を ElasticNet より前に置き、派生クラスにも同じ行が当たるようにする
@@ -23,7 +23,7 @@
   - 完了の状態: `TransformedTargetRegressor(Pipeline([..., ("svr", SVR())]))` の探索範囲が `regressor__svr__C`・`regressor__svr__epsilon` の2つになり、推奨値が `{"regressor__svr__gamma": "auto"}` になる。`tests/test_search_space.py` が通る
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 6.6, 7.2, 7.4, 7.5, 10.6_
 
-- [ ] 2. 引数をモデルに入れる処理と、未指定の random_state の判定
+- [x] 2. 引数をモデルに入れる処理と、未指定の random_state の判定
 - [x] 2.1 (P) 前置き付きの引数を、元を変えずにモデルの写しへ入れる処理を作る
   - 入れ子の名前は中のモデルの写しに再帰的に入れ、コンストラクタの引数はコンストラクタから作り直して入れ、`Pipeline` の段の名前は `set_params` で入れる
   - どこにも当てはまらない名前は、モデルの型と名前を示す ValueError にする
@@ -33,7 +33,7 @@
   - _Boundary: EstimatorParams_
   - _Requirements: 1.1, 1.7, 2.5, 4.5, 10.4, 10.6_
 
-- [ ] 2.2 未指定の random_state の名前を見つける処理を作る
+- [x] 2.2 未指定の random_state の名前を見つける処理を作る
   - 入れ子をすべてたどり、`random_state` の値が None か NumPy の大域の RandomState（ngboost が None を変換したもの）である引数の名前を、前置き付きで返す。`get_params(deep=True)` が入れ子を出さないモデル（ngboost の Base）も自分でたどる
   - 英語の numpy 形式の docstring を付ける
   - テスト（`tests/test_params.py`）: None、明示した値、`random_state` を持たないモデル（SVR、PLSRegression）、`Pipeline` の各段、ngboost の大域の RandomState と Base

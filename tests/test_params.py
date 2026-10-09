@@ -7,8 +7,10 @@ import pandas as pd
 import pytest
 import sklearn
 from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
+from sklearn.cross_decomposition import PLSRegression
 from sklearn.datasets import make_regression
 from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline, make_pipeline
@@ -18,7 +20,7 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
-from yikit.models._params import apply_params
+from yikit.models._params import apply_params, find_unspecified_random_states
 
 SEED = 334
 N_SAMPLES = 40
@@ -563,3 +565,174 @@ def test_lightgbm_accepts_extra_keyword_arguments(small_data):
     assert "max_bin" not in estimator.get_params()
     _assert_unchanged(estimator, snapshot)
     result.fit(X, y)
+
+
+def _find_as_set(estimator: Any) -> set[str]:
+    names = find_unspecified_random_states(estimator)
+    assert isinstance(names, list)
+    assert len(names) == len(set(names)), names
+    return set(names)
+
+
+@pytest.mark.parametrize(
+    ("random_state", "expected"),
+    [
+        pytest.param(None, {"random_state"}, id="None"),
+        # ngboost turns None into this object, so it means the same.
+        pytest.param(
+            check_random_state(None), {"random_state"}, id="global-RandomState"
+        ),
+        pytest.param(0, set(), id="int-0"),
+        pytest.param(7, set(), id="int"),
+        pytest.param(np.random.RandomState(7), set(), id="RandomState"),
+    ],
+)
+def test_find_unspecified_random_states_by_value(random_state, expected):
+    estimator = DecisionTreeRegressor(random_state=random_state)
+
+    assert _find_as_set(estimator) == expected
+    assert estimator.random_state is random_state
+
+
+@pytest.mark.parametrize(
+    "make_estimator",
+    [
+        pytest.param(SVR, id="SVR"),
+        pytest.param(PLSRegression, id="PLSRegression"),
+        pytest.param(_scaled_svr, id="Pipeline-SVR"),
+        pytest.param(
+            lambda: TransformedTargetRegressor(
+                regressor=make_pipeline(StandardScaler(), PLSRegression())
+            ),
+            id="TransformedTargetRegressor-PLSRegression",
+        ),
+    ],
+)
+def test_find_unspecified_random_states_skips_models_without_random_state(
+    make_estimator,
+):
+    assert find_unspecified_random_states(make_estimator()) == []
+
+
+@pytest.mark.parametrize(
+    ("make_estimator", "expected"),
+    [
+        pytest.param(
+            lambda: make_pipeline(
+                QuantileTransformer(n_quantiles=10),
+                PCA(n_components=2, random_state=3),
+                DecisionTreeRegressor(),
+            ),
+            {
+                "quantiletransformer__random_state",
+                "decisiontreeregressor__random_state",
+            },
+            id="Pipeline",
+        ),
+        pytest.param(
+            lambda: TransformedTargetRegressor(
+                regressor=DecisionTreeRegressor(),
+                transformer=QuantileTransformer(n_quantiles=10),
+            ),
+            {"regressor__random_state", "transformer__random_state"},
+            id="TransformedTargetRegressor",
+        ),
+        pytest.param(
+            lambda: TransformedTargetRegressor(
+                regressor=make_pipeline(
+                    QuantileTransformer(n_quantiles=10),
+                    RandomForestRegressor(n_estimators=5),
+                ),
+                transformer=QuantileTransformer(
+                    n_quantiles=10, random_state=np.random.RandomState(2)
+                ),
+            ),
+            {
+                "regressor__quantiletransformer__random_state",
+                "regressor__randomforestregressor__random_state",
+            },
+            id="TransformedTargetRegressor-Pipeline",
+        ),
+    ],
+)
+def test_find_unspecified_random_states_returns_prefixed_names(
+    make_estimator, expected
+):
+    estimator = make_estimator()
+    snapshot = _snapshot(estimator)
+
+    assert _find_as_set(estimator) == expected
+    _assert_unchanged(estimator, snapshot)
+
+
+def test_ngboost_default_random_states_are_unspecified():
+    ngboost = pytest.importorskip("ngboost")
+    from ngboost.learners import default_tree_learner
+
+    default_params = default_tree_learner.get_params()
+    global_state = check_random_state(None).get_state()
+    # The default Base is safe here: nothing is set on the estimator.
+    estimator = ngboost.NGBRegressor()
+    assert estimator.random_state is check_random_state(None)
+    snapshot = _snapshot(estimator)
+
+    assert _find_as_set(estimator) == {"random_state", "Base__random_state"}
+    assert _find_as_set(ngboost.NGBRegressor(random_state=7)) == {
+        "Base__random_state"
+    }
+
+    _assert_unchanged(estimator, snapshot)
+    assert estimator.Base is default_tree_learner
+    assert default_tree_learner.get_params() == default_params
+    _assert_same_state(check_random_state(None), global_state)
+
+
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        pytest.param(
+            {}, {"random_state", "Base__random_state"}, id="unspecified"
+        ),
+        pytest.param(
+            {"random_state": 7}, {"Base__random_state"}, id="random_state"
+        ),
+        pytest.param(
+            {"Base": DecisionTreeRegressor(max_depth=3, random_state=1)},
+            {"random_state"},
+            id="Base",
+        ),
+        pytest.param(
+            {
+                "random_state": np.random.RandomState(2),
+                "Base": DecisionTreeRegressor(
+                    max_depth=3, random_state=np.random.RandomState(1)
+                ),
+            },
+            set(),
+            id="both-RandomState",
+        ),
+    ],
+)
+def test_ngboost_unspecified_random_states(params, expected):
+    ngboost = pytest.importorskip("ngboost")
+    estimator = _small_ngb(ngboost, **params)
+    snapshot = _snapshot(estimator)
+
+    assert _find_as_set(estimator) == expected
+    _assert_unchanged(estimator, snapshot)
+
+
+def test_ngboost_unspecified_random_states_in_nested_estimators():
+    ngboost = pytest.importorskip("ngboost")
+    estimator = TransformedTargetRegressor(
+        regressor=make_pipeline(StandardScaler(), _small_ngb(ngboost)),
+        transformer=QuantileTransformer(n_quantiles=10),
+    )
+    snapshot = _snapshot(estimator)
+
+    assert _find_as_set(estimator) == {
+        "regressor__ngbregressor__random_state",
+        "regressor__ngbregressor__Base__random_state",
+        "transformer__random_state",
+    }
+    _assert_unchanged(estimator, snapshot)
