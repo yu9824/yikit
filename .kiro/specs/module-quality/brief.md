@@ -12,7 +12,7 @@ yikit を使う人（作者、licond など）は、モデル以外のモジュ�
 ## Desired Outcome
 - helpers・logging・metrics・feature_selection・visualize の公開 API に、英語の numpy 形式の docstring がある
 - それぞれの公開 API に、主な使い方と境界の条件を確かめるテストがある
-- テストは Python 3.8〜3.14 と、依存の下限に近い版でも通る
+- テストは Python 3.8〜3.14 で通る
 
 ## Approach
 公開 API ごとに、振る舞いのテスト（入出力、例外、乱数の再現性）を先に書き、docstring を英語の numpy 形式に揃えます。図のテストは、dev-foundation で安定させた画像の比較の仕組みに乗せます。
@@ -40,6 +40,6 @@ yikit を使う人（作者、licond など）は、モデル以外のモジュ�
 - **Adjacent**: optuna-tuning（`visualize` の optuna の学習曲線は `Objective` の study を使う。テストの fixture も共有する）
 
 ## Constraints
-- 依存の下限に近い版（scikit-learn 0.24.1、古い matplotlib など）でも動くテストにする
+- 下限の版での動作は CI で保証しない。ただし、下限の版にない API をテストで使わないように気をつける
 - ngboost は Python 3.14 では入らない（pyproject の marker）。ngboost を使うテストはそれを前提に skip する
 - 乱数の種は `SEED = 334` に揃える

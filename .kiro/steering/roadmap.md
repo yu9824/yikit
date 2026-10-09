@@ -48,7 +48,7 @@ yikit 0.4.0 を出すための残りの作業です。0.4.0-rc.0 はすでに Py
 - [ ] release-0.4.0 -- examples の更新（作り直した EnsembleRegressor と探索範囲に合わせる。`wip/0.4.0-draft` の simulate の例を参考にする）、CHANGELOG.md の作成、版番号を 0.4.0-rc.1 にしてタグ、確認の後に 0.4.0、licond への版番号の連絡。リリースの作業なので spec にしない。Dependencies: すべての spec と gbdt-fix
 
 ## Specs (dependency order)
-- [ ] dev-foundation -- 開発環境と CI（ruff・mypy・pytest、Python 3.8〜3.14、依存の下限のジョブ）、依存の下限と extra の見直し、dependabot、Python 3.8 でも動く型の書き方への全体の書き換え、画像を比べるテストの安定化。Dependencies: none
+- [ ] dev-foundation -- 開発環境と CI（ruff・mypy・pytest、Python 3.8〜3.14）、依存の下限と extra の見直し、dependabot、Python 3.8 でも動く型の書き方への全体の書き換え、画像を比べるテストの安定化。Dependencies: none
 - [ ] module-quality -- モデル以外のモジュール（helpers・logging・metrics・feature_selection・visualize）の英語の docstring とテスト。Dependencies: dev-foundation
 - [ ] optuna-tuning -- 探索範囲の共通ファイル、入れ子の解決、RecommendedParams、モデルの追加と削除、`Objective` が利用者の引数を上書きしない扱い。Dependencies: dev-foundation
 - [ ] ensemble-on-sklearn -- EnsembleRegressor を sklearn の Voting・Stacking で作り直す。Dependencies: optuna-tuning
