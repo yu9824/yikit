@@ -9,7 +9,7 @@
 yikit で optuna を使ってモデルの引数を探索する利用者（licond など）のために、探索が「探索する引数」以外を変えないようにし、`Objective` と `OptunaSearchCV` のどちらで探索しても同じ範囲になるようにする。sklearn の `Pipeline` と `TransformedTargetRegressor` に包んだモデルもそのまま探索できるようにし、それまで必要だった包みのクラスを削除する。この spec は 0.4.0 の破壊的変更（同じ種でも結果が変わる、固定値を入れなくなる、包みのクラスと `ParamDistributions` の一部の引数を削除する）を含む。
 
 ## Boundary Context
-- **In scope**: 登録済みのモデルの探索範囲（既存のものと、PLSRegression・LinearSVR・Ridge・Lasso・ElasticNet の追加）、入れ子（`Pipeline`・`TransformedTargetRegressor`）の解決、`custom_params` の扱い、`Objective` の引数の扱い（固定値、`random_state` の規則、`fixed_params`、`get_best_params`・`get_best_estimator`、学習に失敗した試行の扱い）、`ParamDistributions`（`n_features` の追加、`fixed_params`・`random_state` の削除）、`RecommendedParams`、LinearModelRegressor・SupportVectorRegressor の削除、EnsembleRegressor が動き続けるための最小限の変更、これらのテストと英語の docstring
+- **In scope**: 登録済みのモデルの探索範囲（既存のものと、PLSRegression・LinearSVR・Ridge・Lasso・ElasticNet の追加）、入れ子（`Pipeline`・`TransformedTargetRegressor`）の解決、`custom_params` の扱い、`Objective` の引数の扱い（固定値、`random_state` の規則、`fixed_params`、`get_best_params`・`get_best_estimator`、学習に失敗した試行の扱い）、`ParamDistributions`（`n_features` の追加、`fixed_params`・`random_state` の削除）、`RecommendedParams`、LinearModelRegressor・SupportVectorRegressor の削除、EnsembleRegressor が探索の結果からモデルを作る部分の変更、これらのテストと英語の docstring
 - **Out of scope**: 試行の評価の方法（交差検証の分け方、scoring、交差検証の `n_jobs`）と TPESampler の種の引き方の変更、0.4.0-rc.0 から引き継ぐモデルの探索範囲の変更（scikit-learn の版で使えない値への対応を除く）、`Pipeline`・`TransformedTargetRegressor` 以外の meta-estimator（MultiOutputRegressor、BaggingRegressor、Voting・Stacking など）の入れ子の解決、EnsembleRegressor の作り直し（ensemble-on-sklearn）、GBDTRegressor 自体の修正（gbdt-fix）、examples の更新と CHANGELOG・リリースノート（release-0.4.0）、分類のモデル
 - **Adjacent expectations**:
   - dev-foundation が用意した optuna>=3.0、`optuna_integration` からの import、Python 3.8〜3.14 の CI の上で動く
@@ -84,6 +84,7 @@ yikit で optuna を使ってモデルの引数を探索する利用者（licond
 3. When `n_features` を渡したとき, the ParamDistributions shall それを特徴量の数として、データで決まる範囲（3.3）に使う
 4. If `n_features` を渡さずに、データで決まる範囲を持つモデルを探索するとき, the ParamDistributions shall その上限を 10 にする。特徴量の数を超えた試行は `OptunaSearchCV` の中で失敗として記録され、探索は続く
 5. The ParamDistributions shall `fixed_params` と `random_state` の引数を持たない（0.4.0 で削除し、渡すと TypeError になる）
+6. If 探索するモデルが、自身の `set_params` で入れ子の引数名を受け付けないとき（ngboost の NGBRegressor の `Base__*`）, the ParamDistributions shall `OptunaSearchCV` ではその引数が効かないことと、`Objective` を使うことを警告で伝える
 
 ### Requirement 7: RecommendedParams
 **Objective:** As yikit の利用者, I want yikit の推奨する固定値を、自分で選んだときだけ適用できること, so that 推奨値が黙って入ることなく、必要なときに1行で使える
@@ -103,12 +104,12 @@ yikit で optuna を使ってモデルの引数を探索する利用者（licond
 1. The yikit.models shall LinearModelRegressor と SupportVectorRegressor を提供しない（import すると Python の通常の ImportError になる）
 2. The yikit パッケージ shall 代わりの書き方（Ridge・Lasso・ElasticNet、`TransformedTargetRegressor` と `Pipeline` と SVR の組み合わせ）を、`Objective` と `ParamDistributions` の docstring の例で示す
 
-### Requirement 9: EnsembleRegressor が動き続けること
-**Objective:** As EnsembleRegressor の利用者, I want ensemble-on-sklearn で作り直すまで、探索ありの EnsembleRegressor が動き続けること, so that この spec の変更で既存の使い方が壊れない
+### Requirement 9: EnsembleRegressor の探索の結果の扱い
+**Objective:** As EnsembleRegressor の利用者, I want EnsembleRegressor が、この spec でなくなる `Objective` の属性に依存しないこと, so that ensemble-on-sklearn で作り直すまでの間も、探索した結果が渡したモデルの引数を保つ
 
 #### Acceptance Criteria
-1. While EnsembleRegressor が ensemble-on-sklearn で作り直されていない間, when `opt=True` で `fit` したとき, the EnsembleRegressor shall 各モデルを探索し、渡したモデルの探索しない引数を保ったまま、最良の引数で学習して予測できる
-2. The EnsembleRegressor shall この spec では、探索した結果からモデルを作る部分だけを変える
+1. When `opt=True` の EnsembleRegressor が各モデルの探索を終えたとき, the EnsembleRegressor shall `Objective` の `get_best_estimator` で最良のモデルを作り、渡したモデルの探索しない引数を保つ
+2. The EnsembleRegressor shall この spec では、探索の結果からモデルを作る部分だけを変える。scikit-learn 1.4 以上で `fit` が失敗する問題（非公開の `_score` の引数の変更）と `np.bool` の問題は、ensemble-on-sklearn の作り直しで解消する
 
 ### Requirement 10: 検証と docstring
 **Objective:** As yikit の作者と licond の開発者, I want この spec の振る舞いがテストで確かめられ、英語の docstring で説明されていること, so that 変更が壊れていないことを CI で確かめられ、使い方を docs で調べられる

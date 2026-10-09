@@ -44,7 +44,7 @@ yikit 0.4.0 を出すための残りの作業です。0.4.0-rc.0 はすでに Py
 - なし。初期化だけしていた `objective-respect-estimator-params` は `optuna-tuning` に吸収し、ディレクトリを削除した（背景と、加えるテストの一覧は `optuna-tuning` の brief に引き継いだ）
 
 ## Direct Implementation Candidates
-- [ ] gbdt-fix -- GBDTRegressor の修正。LightGBM 3 と 4 の両方で動く callback 方式の early stopping、`X_train` で学習する、`**kwargs` をやめる、LightGBM 4.7 で非推奨になった `eval_set` への対応、テストと英語の docstring。修正の範囲が1つのクラスに収まるので spec にしない。Dependencies: dev-foundation
+- [ ] gbdt-fix -- GBDTRegressor の修正。LightGBM 3 と 4 の両方で動く callback 方式の early stopping、`X_train` で学習する、`**kwargs` をやめる、LightGBM 4.7 で非推奨になった `eval_set` への対応、テストと英語の docstring。optuna-tuning の探索範囲の表の GBDTRegressor の行の引数で学習できることもテストする（optuna-tuning のテストは GBDTRegressor を学習させない）。修正の範囲が1つのクラスに収まるので spec にしない。Dependencies: dev-foundation
 - [ ] release-0.4.0 -- examples の更新（作り直した EnsembleRegressor と探索範囲に合わせる。`wip/0.4.0-draft` の simulate の例を参考にする）、CHANGELOG.md の作成、版番号を 0.4.0-rc.1 にしてタグ、確認の後に 0.4.0、licond への版番号の連絡。リリースの作業なので spec にしない。Dependencies: すべての spec と gbdt-fix
 
 ## Specs (dependency order)
