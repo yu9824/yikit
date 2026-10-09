@@ -24,7 +24,7 @@
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 6.6, 7.2, 7.4, 7.5, 10.6_
 
 - [ ] 2. 引数をモデルに入れる処理と、未指定の random_state の判定
-- [ ] 2.1 (P) 前置き付きの引数を、元を変えずにモデルの写しへ入れる処理を作る
+- [x] 2.1 (P) 前置き付きの引数を、元を変えずにモデルの写しへ入れる処理を作る
   - 入れ子の名前は中のモデルの写しに再帰的に入れ、コンストラクタの引数はコンストラクタから作り直して入れ、`Pipeline` の段の名前は `set_params` で入れる
   - どこにも当てはまらない名前は、モデルの型と名前を示す ValueError にする
   - 英語の numpy 形式の docstring を付ける
@@ -112,3 +112,4 @@
 - EnsembleRegressor は scikit-learn 1.4 以上で fit が失敗する（非公開の `_score`。ensemble-on-sklearn で直す）。この spec のテストでは EnsembleRegressor を学習させない
 - テストの小さなデータ（40〜60 サンプル、3〜5 特徴量、seed 334）は各テストファイルの中に置く。`tests/conftest.py` は変えない（module-quality と並行して触らないため）
 - ngboost の `set_params` を `setattr` だけにする上書きは 0.4.0 から。0.3.x（古い環境の 0.3.6 を含む）は sklearn 標準の `set_params` で入れ子の名前も効く。判定は版ではなく `NGBRegressor.set_params is not BaseEstimator.set_params` で行う。NGBRegressor の既定の Base はモジュール大域の1つのオブジェクトなので、写していない NGBRegressor に `set_params` しない（テストでは Base を明示する）
+- `apply_params` はコンストラクタから作り直すので、`clone` が引き継ぐ引数以外の状態（`_sklearn_output_config`・`_metadata_request`・`_skl_callbacks`）を作り直したモデルへ移している。sklearn の `clone` がこの一覧を増やしたら合わせる
