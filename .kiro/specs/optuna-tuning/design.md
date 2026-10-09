@@ -300,7 +300,8 @@ def find_unspecified_random_states(estimator: Any) -> list[str]:
 
 **Responsibilities & Constraints**
 - `__init__` の順番: `check_X_y`、`check_cv`、`check_random_state(random_state)` で乱数を作る → TPESampler の種を引く（今と同じ）→ `model_random_state` の整数を引く（2.3）→ 未指定の `random_state` の名前を集める → 探索範囲を作る
-- 探索範囲 `param_distributions` は `get_search_space(estimator, n_features=X.shape[1])` から `fixed_params` の名前を除いたもの（1.5、4.6）。どの行にも当たらないときは None
+- 探索範囲 `param_distributions` は `get_search_space(estimator, n_features=X.shape[1])` から、`fixed_params` に覆われる名前を除いたもの（1.5、4.6）。固定の名前は、それ自身と `<固定の名前>__` で始まる名前を覆う（`Base` を固定すると `Base__max_depth` も探索しない）。どの行にも当たらないときは None
+- `random_state` の規則の値も、`fixed_params` に覆われる名前には入れない。固定の値が estimator のときは、その元のオブジェクトに `find_unspecified_random_states` をかけ、見つけた名前に `<固定の名前>__` を付けて規則を当てる（中の None には整数、明示した値はそのまま。1.4、2.1、2.2）。`custom_params` が固定の estimator の下の名前を返したときは、その写しの上に入れる
 - `custom_params` も探索範囲もないとき（None、または範囲が None で `custom_params` が None）は、`__init__` で NotImplementedError にする（5.4）。`fixed_params` と未指定の `random_state` の名前は `__init__` で一度 `apply_params` して確かめ、誤りは ValueError にする
 - 引数の組み立て `_make_params(trial)`: `custom_params(trial)` が空でない辞書を返せばそれを、そうでなければ `param_distributions` を `_suggest` で読み替えた値を、探索した引数とする（5.1）。結果は `{**random_state の規則の値, **探索した引数, **fixed_params}`（1.4）。`custom_params` が空を返し、範囲もない場合は NotImplementedError
 - `__call__`: `_make_params(trial)` → `apply_params` → `estimator_` に入れる → `cross_validate(estimator_, X, y, cv=cv, scoring=scoring, n_jobs=n_jobs)` の `test_score` の平均を返す。ValueError は 1.8 の扱い

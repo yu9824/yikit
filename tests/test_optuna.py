@@ -18,8 +18,10 @@ from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import Pipeline, make_pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import QuantileTransformer, StandardScaler
 from sklearn.svm import SVR
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
 from yikit.models import Objective, ParamDistributions, _optuna
@@ -471,3 +473,410 @@ def test_get_best_estimator_of_nested_estimator(monkeypatch, small_data):
     assert best_svr.epsilon == study.best_params["regressor__svr__epsilon"]
     assert best_svr.gamma == SVR().gamma
     assert estimator.regressor.named_steps["svr"].C == SVR().C
+
+
+# --- The case of licond: the parameters of the given model are kept ------
+
+
+def _make_lightgbm(**params: Any) -> Any:
+    lightgbm = pytest.importorskip("lightgbm")
+    return lightgbm.LGBMRegressor(**params)
+
+
+def _make_ngboost(**params: Any) -> Any:
+    """Return a small ``NGBRegressor`` with an explicit ``Base``.
+
+    ``Base`` is always given: the default ``Base`` of ngboost is one
+    module-global object shared by every ``NGBRegressor``.
+    """
+    ngboost = pytest.importorskip("ngboost")
+    params.setdefault("Base", DecisionTreeRegressor(max_depth=3))
+    return ngboost.NGBRegressor(n_estimators=10, verbose=False, **params)
+
+
+#: Factories of the models whose ``n_jobs`` and ``random_state`` licond
+#: chooses itself.
+LICOND_MODELS = [
+    pytest.param(RandomForestRegressor, id="RandomForestRegressor"),
+    pytest.param(_make_lightgbm, id="LGBMRegressor"),
+]
+
+
+def _assert_same_state(
+    random_state: np.random.RandomState, expected: np.random.RandomState
+) -> None:
+    state, expected_state = random_state.get_state(), expected.get_state()
+    assert state[0] == expected_state[0]
+    np.testing.assert_array_equal(state[1], expected_state[1])
+    assert state[2:] == expected_state[2:]
+
+
+@pytest.mark.parametrize("make_estimator", LICOND_MODELS)
+def test_n_jobs_is_kept(make_estimator, monkeypatch, small_data):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    estimator = make_estimator(n_jobs=2)
+    original_params = estimator.get_params()
+
+    objective = Objective(estimator, X, y, random_state=SEED)
+    study = _optimize(objective, n_trials=3)
+
+    assert len(evaluated) == 3
+    assert objective.estimator_ is evaluated[-1]
+    assert all(model.n_jobs == 2 for model in evaluated)
+    best_params = objective.get_best_params(study)
+    assert "n_jobs" not in best_params
+    assert best_params == {
+        **study.best_params,
+        "random_state": objective.model_random_state,
+    }
+    best_estimator = objective.get_best_estimator(study)
+    assert best_estimator.n_jobs == 2
+    # The parameters that are not searched keep the values of the input.
+    assert best_estimator.get_params() == {**original_params, **best_params}
+    assert estimator.get_params() == original_params
+
+
+@pytest.mark.parametrize("make_estimator", LICOND_MODELS)
+def test_given_random_state_is_kept(make_estimator, monkeypatch, small_data):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+
+    objective = Objective(
+        make_estimator(random_state=7), X, y, random_state=SEED
+    )
+    study = _optimize(objective, n_trials=3)
+
+    assert all(model.random_state == 7 for model in evaluated)
+    # The rule adds nothing: only the searched values are returned.
+    assert objective.get_best_params(study) == study.best_params
+    assert objective.get_best_estimator(study).random_state == 7
+
+
+@pytest.mark.parametrize("make_estimator", LICOND_MODELS)
+def test_unspecified_random_state_gets_the_drawn_integer(
+    make_estimator, monkeypatch, small_data
+):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    estimator = make_estimator()
+    assert estimator.random_state is None
+
+    objective = Objective(estimator, X, y, random_state=SEED)
+    study = _optimize(objective, n_trials=3)
+
+    expected = objective.model_random_state
+    assert type(expected) is int
+    assert all(model.random_state == expected for model in evaluated)
+    assert objective.estimator_.random_state == expected
+    assert objective.get_best_params(study)["random_state"] == expected
+    assert objective.get_best_estimator(study).random_state == expected
+    assert estimator.random_state is None
+
+
+@pytest.mark.parametrize(
+    "base_random_state", ["unspecified", "int", "RandomState"]
+)
+def test_ngboost_random_states(base_random_state, monkeypatch, small_data):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    given = {
+        "unspecified": None,
+        "int": 11,
+        "RandomState": np.random.RandomState(1),
+    }[base_random_state]
+    base = DecisionTreeRegressor(max_depth=3, random_state=given)
+    base_params = base.get_params()
+    estimator = _make_ngboost(Base=base)
+    # ngboost turns random_state=None into the global RandomState.
+    assert estimator.random_state is check_random_state(None)
+
+    objective = Objective(estimator, X, y, random_state=SEED)
+    study = _optimize(objective, n_trials=3)
+
+    model_random_state = objective.model_random_state
+    expected_params = {**study.best_params, "random_state": model_random_state}
+    if given is None:
+        expected_params["Base__random_state"] = model_random_state
+    assert objective.get_best_params(study) == expected_params
+    best_estimator = objective.get_best_estimator(study)
+    models = [*evaluated, best_estimator]
+    for model in models:
+        # The constructor of ngboost turns the integer into a RandomState.
+        _assert_same_state(
+            model.random_state, np.random.RandomState(model_random_state)
+        )
+        if given is None:
+            assert model.Base.random_state == model_random_state
+        elif isinstance(given, int):
+            assert model.Base.random_state == given
+        else:
+            _assert_same_state(model.Base.random_state, given)
+    assert (
+        best_estimator.Base.max_depth == study.best_params["Base__max_depth"]
+    )
+
+    # No RandomState or Base is shared between the models, nor with the
+    # input estimator or the global RandomState.
+    held = [
+        value
+        for model in models
+        for value in (model.random_state, model.Base.random_state)
+        if isinstance(value, np.random.RandomState)
+    ]
+    held_ids = [id(value) for value in held]
+    assert len(set(held_ids)) == len(held_ids)
+    assert not set(held_ids) & {
+        id(estimator.random_state),
+        id(base.random_state),
+        id(check_random_state(None)),
+    }
+    base_ids = [id(model.Base) for model in models]
+    assert len(set(base_ids)) == len(base_ids)
+    assert id(base) not in base_ids
+    # The input estimator is not modified.
+    assert estimator.random_state is check_random_state(None)
+    assert estimator.Base is base
+    assert base.get_params() == base_params
+
+
+def test_ngboost_trials_and_best_estimator_can_be_fitted(small_data):
+    X, y = small_data
+    # minibatch_frac < 1 draws from the RandomState of the model, which
+    # fails if an integer random_state was not turned into a RandomState.
+    objective = Objective(
+        _make_ngboost(),
+        X,
+        y,
+        fixed_params={"n_estimators": 10, "minibatch_frac": 0.5},
+        cv=3,
+        random_state=SEED,
+    )
+    study = _optimize(objective, n_trials=2)
+
+    assert all(trial.state == TrialState.COMPLETE for trial in study.trials)
+    best_estimator = objective.get_best_estimator(study).fit(X, y)
+    assert best_estimator.predict(X).shape == (N_SAMPLES,)
+
+
+@pytest.mark.parametrize("make_estimator", LICOND_MODELS)
+def test_fixed_n_jobs_and_random_state_are_used(
+    make_estimator, monkeypatch, small_data
+):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    fixed_params = {"n_jobs": 3, "random_state": 5}
+    estimator = make_estimator(n_jobs=2)
+
+    objective = Objective(
+        estimator, X, y, fixed_params=fixed_params, random_state=SEED
+    )
+    study = _optimize(objective, n_trials=3)
+
+    assert all(
+        not set(fixed_params) & set(trial.params) for trial in study.trials
+    )
+    for model in evaluated:
+        assert model.n_jobs == 3
+        assert model.random_state == 5
+    assert objective.get_best_params(study) == {
+        **study.best_params,
+        **fixed_params,
+    }
+    best_estimator = objective.get_best_estimator(study)
+    assert best_estimator.n_jobs == 3
+    assert best_estimator.random_state == 5
+    assert estimator.n_jobs == 2
+    assert estimator.random_state is None
+
+
+def test_svr_kernel_and_gamma_are_kept(monkeypatch, small_data):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    estimator = SVR(kernel="linear")
+
+    objective = Objective(estimator, X, y, random_state=SEED)
+    study = _optimize(objective, n_trials=3)
+
+    best_params = objective.get_best_params(study)
+    # SVR has no random_state, so only the searched values are returned.
+    assert best_params == study.best_params
+    assert set(best_params) == {"C", "epsilon"}
+    best_estimator = objective.get_best_estimator(study)
+    for model in [*evaluated, best_estimator]:
+        assert model.kernel == "linear"
+        assert model.gamma == SVR().gamma
+    assert best_estimator.get_params() == {
+        **estimator.get_params(),
+        **best_params,
+    }
+
+
+# --- fixed_params holding an estimator win over the names under it --------
+
+
+@pytest.mark.parametrize(
+    "base_random_state", [3, None], ids=["explicit", "unspecified"]
+)
+def test_fixed_ngboost_base_is_not_overwritten(
+    base_random_state, monkeypatch, small_data
+):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    # The Base of the input has random_state=None.
+    estimator = _make_ngboost()
+    fixed_base = DecisionTreeRegressor(
+        random_state=base_random_state, max_depth=5
+    )
+    fixed_base_params = fixed_base.get_params()
+
+    objective = Objective(
+        estimator,
+        X,
+        y,
+        fixed_params={"Base": fixed_base},
+        random_state=SEED,
+    )
+    study = _optimize(objective, n_trials=3)
+
+    # Nothing under the fixed Base is searched.
+    assert set(objective.param_distributions) == {
+        "n_estimators",
+        "minibatch_frac",
+    }
+    assert all(
+        set(trial.params) == {"n_estimators", "minibatch_frac"}
+        for trial in study.trials
+    )
+    model_random_state = objective.model_random_state
+    expected_params = {
+        **study.best_params,
+        "random_state": model_random_state,
+        "Base": fixed_base,
+    }
+    if base_random_state is None:
+        # The rule applies to the fixed Base itself.
+        expected_params["Base__random_state"] = model_random_state
+    assert objective.get_best_params(study) == expected_params
+    expected_base_params = {
+        **fixed_base_params,
+        "random_state": (
+            model_random_state
+            if base_random_state is None
+            else base_random_state
+        ),
+    }
+    best_estimator = objective.get_best_estimator(study)
+    for model in [*evaluated, best_estimator]:
+        assert model.Base is not fixed_base
+        assert model.Base.get_params() == expected_base_params
+    assert fixed_base.get_params() == fixed_base_params
+
+
+@pytest.mark.parametrize(
+    "step_random_state", [3, None], ids=["explicit", "unspecified"]
+)
+def test_fixed_pipeline_step_is_not_overwritten(
+    step_random_state, monkeypatch, small_data
+):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    estimator = make_pipeline(
+        QuantileTransformer(n_quantiles=10), RandomForestRegressor()
+    )
+    fixed_step = RandomForestRegressor(
+        random_state=step_random_state, n_estimators=5
+    )
+    fixed_step_params = fixed_step.get_params()
+
+    objective = Objective(
+        estimator,
+        X,
+        y,
+        fixed_params={"randomforestregressor": fixed_step},
+        random_state=SEED,
+    )
+    study = _optimize(objective, n_trials=2)
+
+    # Every searched name is under the fixed step.
+    assert objective.param_distributions == {}
+    assert all(trial.params == {} for trial in study.trials)
+    model_random_state = objective.model_random_state
+    expected_params = {
+        # The steps that are not fixed still follow the rule.
+        "quantiletransformer__random_state": model_random_state,
+        "randomforestregressor": fixed_step,
+    }
+    if step_random_state is None:
+        expected_params["randomforestregressor__random_state"] = (
+            model_random_state
+        )
+    assert objective.get_best_params(study) == expected_params
+    expected_step_params = {
+        **fixed_step_params,
+        "random_state": (
+            model_random_state
+            if step_random_state is None
+            else step_random_state
+        ),
+    }
+    best_estimator = objective.get_best_estimator(study)
+    for model in [*evaluated, best_estimator]:
+        step = model.named_steps["randomforestregressor"]
+        assert step is not fixed_step
+        assert step.get_params() == expected_step_params
+        assert (
+            model.named_steps["quantiletransformer"].random_state
+            == model_random_state
+        )
+    assert fixed_step.get_params() == fixed_step_params
+
+
+def test_fixed_estimator_inside_a_fixed_estimator_wins(
+    monkeypatch, small_data
+):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    estimator = TransformedTargetRegressor(regressor=RandomForestRegressor())
+    # The fixed regressor__randomforestregressor replaces the step of the
+    # fixed regressor, so the rule does not set the random_state of the
+    # replaced step.
+    fixed_params = {
+        "regressor": make_pipeline(
+            QuantileTransformer(n_quantiles=10), RandomForestRegressor()
+        ),
+        "regressor__randomforestregressor": RandomForestRegressor(
+            random_state=3
+        ),
+    }
+
+    objective = Objective(
+        estimator, X, y, fixed_params=fixed_params, random_state=SEED
+    )
+    study = _optimize(objective, n_trials=2)
+
+    assert objective.param_distributions == {}
+    model_random_state = objective.model_random_state
+    assert objective.get_best_params(study) == {
+        "regressor__quantiletransformer__random_state": model_random_state,
+        **fixed_params,
+    }
+    for model in [*evaluated, objective.get_best_estimator(study)]:
+        steps = model.regressor.named_steps
+        assert steps["quantiletransformer"].random_state == model_random_state
+        assert steps["randomforestregressor"].random_state == 3
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("regressor", True),
+        ("regressor__C", True),
+        ("regressor__svr__C", True),
+        ("regressor2__C", False),
+        ("regressor2", False),
+        ("reg__C", False),
+    ],
+)
+def test_fixed_name_covers_only_its_own_path(name, expected):
+    assert _optuna._is_covered(name, ["regressor"]) is expected

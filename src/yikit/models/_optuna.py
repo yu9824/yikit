@@ -33,7 +33,11 @@ from sklearn.utils import check_random_state, check_X_y
 
 from yikit.helpers import is_installed
 from yikit.models._linear import LinearModelRegressor
-from yikit.models._params import apply_params, find_unspecified_random_states
+from yikit.models._params import (
+    _is_estimator,
+    apply_params,
+    find_unspecified_random_states,
+)
 from yikit.models._search_space import get_search_space, resolve_estimator
 from yikit.models._svm import SupportVectorRegressor
 
@@ -305,6 +309,81 @@ def _suggest(
     )
 
 
+def _is_covered(name: str, fixed_names: Iterable[str]) -> bool:
+    """Return whether one of ``fixed_names`` sets the parameter ``name``.
+
+    A fixed name covers itself and the names under it: ``Base`` covers
+    ``Base`` and ``Base__max_depth``, because the estimator fixed as
+    ``Base`` replaces the one that ``Base__max_depth`` would change.
+
+    Parameters
+    ----------
+    name : str
+        Prefixed parameter name, e.g. ``Base__max_depth``.
+    fixed_names : Iterable of str
+        Names of ``fixed_params``.
+
+    Returns
+    -------
+    bool
+        Whether ``name`` equals a fixed name or starts with a fixed name
+        followed by ``"__"``.
+    """
+    return any(
+        name == fixed_name or name.startswith(f"{fixed_name}__")
+        for fixed_name in fixed_names
+    )
+
+
+def _random_state_rule_names(
+    estimator: Any, fixed_params: Mapping[str, Any]
+) -> list[str]:
+    """Return the names that the ``random_state`` rule sets.
+
+    The unspecified ``random_state`` parameters are looked up in
+    ``estimator`` and in each estimator of ``fixed_params``, whose names
+    get the fixed name as prefix (``Base__random_state`` for a fixed
+    ``Base``). The objects given by the user are inspected, not copies, so
+    that the global ``RandomState`` that ngboost puts in place of None is
+    still found. A name found in one of these estimators is dropped when a
+    fixed name inside that estimator covers it (see ``_is_covered``): the
+    fixed value replaces what the rule would change, so the values of
+    ``fixed_params``, including the parameters of a fixed estimator, are
+    never overwritten.
+
+    Parameters
+    ----------
+    estimator : object
+        The estimator passed by the user.
+    fixed_params : Mapping of str to object
+        The ``fixed_params`` passed by the user.
+
+    Returns
+    -------
+    list of str
+        Prefixed names accepted by ``apply_params`` once ``fixed_params``
+        are applied, each at most once.
+    """
+    sources = [("", estimator)] + [
+        (f"{fixed_name}__", value)
+        for fixed_name, value in fixed_params.items()
+        if _is_estimator(value)
+    ]
+    return [
+        prefix + name
+        for prefix, source in sources
+        for name in find_unspecified_random_states(source)
+        if not _is_covered(
+            prefix + name,
+            [
+                fixed_name
+                for fixed_name in fixed_params
+                if fixed_name.startswith(prefix)
+            ],
+        )
+    ]
+
+
 def _no_search_space_message(estimator: Any) -> str:
     """Return the message telling that ``estimator`` has no search space."""
     _, model = resolve_estimator(estimator)
@@ -342,7 +421,8 @@ class Objective:
     None) is set to ``model_random_state``, one integer drawn from
     ``random_state`` when the objective is created. The values given by the
     user are kept, and models without a ``random_state`` parameter get
-    none.
+    none. An estimator given in ``fixed_params`` follows the same rule in
+    place of the one it replaces.
 
     A trial whose model fails to fit in every fold of the cross-validation
     is reported with a ``FitFailedWarning`` and returns nan, as does a
@@ -371,9 +451,20 @@ class Objective:
     fixed_params : Mapping or None, default=None
         Parameter values to set on every model, prefixed like the searched
         names for nested estimators. They take priority over the searched
-        values and the ``random_state`` rule, and the parameters of the
-        table that they name are not searched. ``None`` and ``{}`` mean no
-        fixed value.
+        values and the ``random_state`` rule. A fixed name covers itself
+        and every name under it, and the names of the table that it covers
+        are not searched. When it holds an estimator, such as
+        ``{"Base": DecisionTreeRegressor(max_depth=5)}`` for
+        ``NGBRegressor`` or ``{"svr": SVR(C=10.0)}`` for a ``Pipeline``,
+        the ``random_state`` rule does not set the names under it either
+        (``Base__max_depth``, ``svr__C``, ... are neither searched nor
+        changed), so the parameters of the given estimator are kept. The
+        rule is applied to that estimator instead: its ``random_state``
+        parameters left as None get ``model_random_state`` (e.g.
+        ``Base__random_state``), and those given are kept. Names under a
+        fixed estimator that ``custom_params`` returns are still applied,
+        to the copy of that estimator. ``None`` and ``{}`` mean no fixed
+        value.
     cv : int, cross-validation generator or iterable, default=5
         Cross-validation splitting strategy passed to ``check_cv``.
     random_state : int, RandomState instance or None, default=None
@@ -411,8 +502,9 @@ class Objective:
         for every trial and for ``get_best_params``.
     param_distributions : dict or None
         Prefixed distributions of the search space table for ``estimator``
-        and the number of columns of ``X``, without the names in
-        ``fixed_params``. ``None`` when the table has no row for the model.
+        and the number of columns of ``X``, without the names covered by
+        ``fixed_params`` (the fixed names and the names under them).
+        ``None`` when the table has no row for the model.
     estimator_ : object
         Unfitted model of the last trial, with the parameters of that trial
         set. It exists after the first trial.
@@ -514,11 +606,9 @@ class Objective:
         # The sampler seed is drawn first, as in yikit 0.4.0-rc.0.
         self.sampler = optuna.samplers.TPESampler(seed=rng.randint(2**31 - 1))
         self.model_random_state = int(rng.randint(2**31 - 1))
-        # The original estimator is inspected: a copy would no longer hold
-        # the global RandomState that ngboost puts in place of None.
         self._random_state_params: dict[str, Any] = {
             name: self.model_random_state
-            for name in find_unspecified_random_states(estimator)
+            for name in _random_state_rule_names(estimator, self.fixed_params)
         }
 
         search_space = get_search_space(estimator, n_features=self.X.shape[1])
@@ -528,7 +618,7 @@ class Objective:
             else {
                 name: distribution
                 for name, distribution in search_space.items()
-                if name not in self.fixed_params
+                if not _is_covered(name, self.fixed_params)
             }
         )
         if self.param_distributions is None and self.custom_params is None:

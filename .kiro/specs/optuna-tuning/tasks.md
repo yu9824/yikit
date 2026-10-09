@@ -58,7 +58,7 @@
   - _Depends: 1.2, 2.2_
   - _Requirements: 1.1, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2.3, 2.4, 4.6, 5.1, 5.2, 5.3, 5.4, 8.2, 10.6_
 
-- [ ] 3.2 licond の場合を確かめる
+- [x] 3.2 licond の場合を確かめる
   - 試行のモデル・最良の引数・最良のモデルについて、渡したモデルの引数が保たれることを確かめるテストを書き、見つかった不具合を直す
   - テスト（交差検証は固定のスコアを返す関数に差し替える）: `n_jobs=2` の LGBMRegressor と RandomForestRegressor で、試行のモデル・最良の引数（`n_jobs` を含まない）・最良のモデルの `n_jobs` が 2。`random_state=7` が残る。`random_state=None` では公開した整数が入る。NGBRegressor の Base が None なら整数、明示すればその値で、最良のモデルと Base が RandomState を共有しない。`fixed_params={"n_jobs": 3, "random_state": 5}` が使われる。`SVR(kernel="linear")` の最良のモデルで `kernel`・`gamma` が渡した値のまま。lightgbm・ngboost のテストは入っていなければ飛ばす
   - 完了の状態: licond の要件のテストがすべて `tests/test_optuna.py` で通る
