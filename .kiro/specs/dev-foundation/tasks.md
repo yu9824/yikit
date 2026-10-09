@@ -64,7 +64,7 @@
   - 完了の状態: workflow の定義が YAML として読め、テストのジョブ 7 つ（3.8〜3.14、fail-fast なし）が定義されている
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 4.2 (P) dependabot が宣言の範囲内の更新で PR を作らないようにする
+- [x] 4.2 (P) dependabot が宣言の範囲内の更新で PR を作らないようにする
   - pip の更新の方針を `increase-if-necessary` にし、他の設定（週ごと、コミットの prefix、PR の上限）は変えない
   - 完了の状態: dependabot の設定が YAML として読め、pip の項目に更新の方針が入っている
   - _Boundary: DependabotConfig_
