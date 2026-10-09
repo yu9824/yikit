@@ -1,4 +1,5 @@
 """Module for logging configuration and utilities."""
+
 from __future__ import annotations
 
 import importlib.util

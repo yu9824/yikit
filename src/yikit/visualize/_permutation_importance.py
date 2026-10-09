@@ -3,6 +3,7 @@
 This module provides utilities for visualizing permutation importance
 results from machine learning models.
 """
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt

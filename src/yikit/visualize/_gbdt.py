@@ -3,6 +3,7 @@
 This module provides visualization functions for NGBoost models including
 distribution plots and learning curves for gradient boosting models.
 """
+
 from __future__ import annotations
 
 import sys

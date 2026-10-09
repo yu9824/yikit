@@ -3,6 +3,7 @@
 This module provides a scikit-learn compatible wrapper for LightGBM's
 gradient boosting decision tree regressor with early stopping.
 """
+
 from __future__ import annotations
 
 from lightgbm import LGBMRegressor  # type: ignore[reportMissingImports]

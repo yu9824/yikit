@@ -4,6 +4,7 @@ This module provides an Optuna objective class for hyperparameter optimization
 of various machine learning models including scikit-learn estimators and
 custom models from this package.
 """
+
 from __future__ import annotations
 
 import sys

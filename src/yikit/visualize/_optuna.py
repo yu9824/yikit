@@ -3,6 +3,7 @@
 This module provides visualization functions for Optuna study results,
 including learning curves and optimization history plots.
 """
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt

@@ -4,6 +4,7 @@ This module provides scikit-learn compatible regressors including ensemble metho
 linear models, support vector machines, gradient boosting, neural networks, and
 hyperparameter optimization utilities.
 """
+
 from __future__ import annotations
 
 from yikit.helpers import is_installed

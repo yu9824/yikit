@@ -4,6 +4,7 @@ This module provides utilities for visualizing model results, including
 permutation importance, learning curves, distribution plots, and matplotlib
 configuration helpers.
 """
+
 from __future__ import annotations
 
 from yikit.helpers import is_installed

@@ -6,6 +6,7 @@ one or multiple pairs of ``(y_true, y_pred)`` sequences (e.g., train/test
 or train/validation/test) and annotates the figure with common regression
 metrics such as :math:`R^2`, RMSE, MAE, and MSE.
 """
+
 from __future__ import annotations
 
 import sys

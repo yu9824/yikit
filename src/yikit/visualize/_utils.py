@@ -3,6 +3,7 @@
 This module provides helper functions for configuring matplotlib settings,
 including font configuration and custom matplotlib settings context manager.
 """
+
 from __future__ import annotations
 
 import platform
