@@ -13,7 +13,7 @@
   - 完了の状態: 探索範囲を問い合わせると、登録済みのモデル（派生クラスを含む）には design の表の分布が、それ以外には「なし」が返り、`tests/test_search_space.py` のこれらのテストが通る
   - _Requirements: 1.3, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 10.4, 10.6_
 
-- [ ] 1.2 入れ子の解決と前置き、推奨値の表を作る
+- [x] 1.2 入れ子の解決と前置き、推奨値の表を作る
   - `Pipeline` は最後の段、`TransformedTargetRegressor` は `regressor` を再帰的にたどり、引数名に前置き（`svr__`、`regressor__`、`regressor__svr__` など）を付ける。前段と `transformer` はたどらない
   - 探索範囲の問い合わせが、入れ子を解いた前置き付きの辞書を毎回新しく作って返すようにする
   - 推奨値の表を作り、最初は SVR の `gamma="auto"` だけを持つ。問い合わせは入れ子を同じ規則で解き、当たらなければ空の辞書を返す
@@ -111,3 +111,4 @@
 - GBDTRegressor は LightGBM 4 で fit が失敗する（gbdt-fix で直す）。この spec のテストでは GBDTRegressor を学習させない
 - EnsembleRegressor は scikit-learn 1.4 以上で fit が失敗する（非公開の `_score`。ensemble-on-sklearn で直す）。この spec のテストでは EnsembleRegressor を学習させない
 - テストの小さなデータ（40〜60 サンプル、3〜5 特徴量、seed 334）は各テストファイルの中に置く。`tests/conftest.py` は変えない（module-quality と並行して触らないため）
+- ngboost の `set_params` を `setattr` だけにする上書きは 0.4.0 から。0.3.x（古い環境の 0.3.6 を含む）は sklearn 標準の `set_params` で入れ子の名前も効く。判定は版ではなく `NGBRegressor.set_params is not BaseEstimator.set_params` で行う。NGBRegressor の既定の Base はモジュール大域の1つのオブジェクトなので、写していない NGBRegressor に `set_params` しない（テストでは Base を明示する）

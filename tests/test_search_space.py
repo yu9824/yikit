@@ -10,18 +10,28 @@ from optuna.distributions import (
     FloatDistribution,
     IntDistribution,
 )
+from sklearn.base import clone
+from sklearn.compose import TransformedTargetRegressor
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.datasets import make_regression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import Pipeline, make_pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR, LinearSVR
 from sklearn.tree import DecisionTreeRegressor
 
 import yikit.models._search_space as search_space_module
 from yikit.helpers import is_installed
-from yikit.models._search_space import _criterion_choices, get_search_space
+from yikit.models._search_space import (
+    _criterion_choices,
+    get_recommended_params,
+    get_search_space,
+    ignores_nested_set_params,
+    resolve_estimator,
+)
 
 if TYPE_CHECKING:
     from optuna.distributions import BaseDistribution
@@ -284,6 +294,13 @@ def test_n_features_must_be_positive(n_features):
         pytest.param(ElasticNet(), None, id="ElasticNet"),
         pytest.param(PLSRegression(), None, id="PLSRegression"),
         pytest.param(PLSRegression(), 3, id="PLSRegression-clipped"),
+        pytest.param(
+            TransformedTargetRegressor(
+                regressor=make_pipeline(StandardScaler(), PLSRegression())
+            ),
+            3,
+            id="nested-PLSRegression-clipped",
+        ),
     ],
 )
 def test_returns_new_objects_per_call(estimator, n_features):
@@ -440,3 +457,264 @@ def test_optional_rows_are_left_out_when_not_installed():
         assert get_search_space(SVR()) == _svr_space()
         for estimator in optional_estimators:
             assert get_search_space(estimator) is None
+
+
+def _scaled(name: str, model: Any) -> Pipeline:
+    return Pipeline([("scaler", StandardScaler()), (name, model)])
+
+
+#: ``(function wrapping an SVR, prefix of the names of the SVR)``
+NESTED_SVR = [
+    pytest.param(lambda svr: svr, "", id="SVR"),
+    pytest.param(lambda svr: _scaled("svr", svr), "svr__", id="Pipeline"),
+    pytest.param(
+        lambda svr: make_pipeline(StandardScaler(), svr),
+        "svr__",
+        id="make_pipeline",
+    ),
+    pytest.param(
+        lambda svr: TransformedTargetRegressor(regressor=svr),
+        "regressor__",
+        id="TransformedTargetRegressor",
+    ),
+    pytest.param(
+        lambda svr: TransformedTargetRegressor(regressor=_scaled("svr", svr)),
+        "regressor__svr__",
+        id="TransformedTargetRegressor-Pipeline",
+    ),
+    pytest.param(
+        lambda svr: _scaled("ttr", TransformedTargetRegressor(regressor=svr)),
+        "ttr__regressor__",
+        id="Pipeline-TransformedTargetRegressor",
+    ),
+    pytest.param(
+        lambda svr: make_pipeline(
+            StandardScaler(),
+            TransformedTargetRegressor(
+                regressor=make_pipeline(StandardScaler(), svr)
+            ),
+        ),
+        "transformedtargetregressor__regressor__svr__",
+        id="three-levels",
+    ),
+]
+
+
+@pytest.mark.parametrize(("wrap", "prefix"), NESTED_SVR)
+def test_resolve_estimator_unwraps_nesting(wrap, prefix):
+    svr = SVR()
+
+    resolved_prefix, model = resolve_estimator(wrap(svr))
+
+    assert resolved_prefix == prefix
+    assert model is svr
+
+
+@pytest.mark.parametrize(("wrap", "prefix"), NESTED_SVR)
+def test_search_space_of_nested_model_is_prefixed(wrap, prefix):
+    estimator = wrap(SVR())
+    expected = {
+        f"{prefix}{name}": distribution
+        for name, distribution in _svr_space().items()
+    }
+
+    space = get_search_space(estimator)
+
+    assert space == expected
+    assert space is not None
+    assert list(space) == list(expected)
+    # The prefixed names are accepted by set_params of the estimator.
+    params = _boundary_params(space)[0]
+    model = clone(estimator).set_params(**params)
+    assert {name: model.get_params()[name] for name in params} == params
+
+
+def test_search_space_of_svr_in_target_transformed_pipeline():
+    estimator = TransformedTargetRegressor(regressor=_scaled("svr", SVR()))
+
+    space = get_search_space(estimator)
+
+    assert space is not None
+    assert set(space) == {"regressor__svr__C", "regressor__svr__epsilon"}
+    assert get_recommended_params(estimator) == {
+        "regressor__svr__gamma": "auto"
+    }
+
+
+@pytest.mark.parametrize(
+    ("estimator", "expected_names"),
+    [
+        pytest.param(
+            Pipeline([("pls", PLSRegression()), ("svr", SVR())]),
+            ["svr__C", "svr__epsilon"],
+            id="Pipeline",
+        ),
+        pytest.param(
+            TransformedTargetRegressor(
+                regressor=SVR(), transformer=PLSRegression()
+            ),
+            ["regressor__C", "regressor__epsilon"],
+            id="TransformedTargetRegressor",
+        ),
+        pytest.param(
+            TransformedTargetRegressor(
+                regressor=Pipeline([("pls", PLSRegression()), ("svr", SVR())]),
+                transformer=PLSRegression(),
+            ),
+            ["regressor__svr__C", "regressor__svr__epsilon"],
+            id="TransformedTargetRegressor-Pipeline",
+        ),
+    ],
+)
+def test_preceding_steps_and_transformer_are_not_searched(
+    estimator, expected_names
+):
+    # PLSRegression has a row, so following it would add n_components.
+    space = get_search_space(estimator, n_features=N_FEATURES)
+
+    assert space is not None
+    assert list(space) == expected_names
+
+
+@pytest.mark.parametrize(
+    "estimator",
+    [
+        pytest.param(TransformedTargetRegressor(), id="regressor-None"),
+        pytest.param(
+            _scaled("ttr", TransformedTargetRegressor()),
+            id="Pipeline-regressor-None",
+        ),
+    ],
+)
+def test_transformed_target_regressor_without_regressor(estimator):
+    prefix, model = resolve_estimator(estimator)
+
+    assert prefix.endswith("regressor__")
+    assert model is None
+    assert get_search_space(estimator) is None
+    assert get_search_space(estimator, n_features=N_FEATURES) is None
+    assert get_recommended_params(estimator) == {}
+
+
+def test_resolve_estimator_rejects_pipeline_without_steps():
+    pipeline = Pipeline([("svr", SVR())])
+    # Old scikit-learn validates the steps in __init__, so empty them after.
+    pipeline.steps = []
+
+    with pytest.raises(ValueError, match="no steps"):
+        resolve_estimator(pipeline)
+
+
+@pytest.mark.parametrize(
+    ("n_features", "expected_high"), [(None, 10), (3, 3), (25, 10)]
+)
+def test_nested_pls_n_components_is_clipped_by_n_features(
+    n_features, expected_high
+):
+    estimator = make_pipeline(StandardScaler(), PLSRegression())
+
+    space = get_search_space(estimator, n_features=n_features)
+
+    assert space == {
+        "plsregression__n_components": IntDistribution(1, expected_high)
+    }
+
+
+@pytest.mark.parametrize(("wrap", "prefix"), NESTED_SVR)
+def test_recommended_params_of_svr(wrap, prefix):
+    estimator = wrap(SVR())
+
+    params = get_recommended_params(estimator)
+
+    assert params == {f"{prefix}gamma": "auto"}
+    model = clone(estimator).set_params(**params)
+    assert model.get_params()[f"{prefix}gamma"] == "auto"
+
+
+def test_recommended_params_of_svr_subclass():
+    assert get_recommended_params(_CustomSVR()) == {"gamma": "auto"}
+
+
+@pytest.mark.parametrize(
+    "estimator",
+    [
+        LinearSVR(),
+        Ridge(),
+        PLSRegression(),
+        RandomForestRegressor(),
+        DecisionTreeRegressor(),
+        KNeighborsRegressor(),
+        make_pipeline(StandardScaler(), Ridge()),
+        TransformedTargetRegressor(regressor=LinearSVR()),
+    ],
+    ids=lambda estimator: type(estimator).__name__,
+)
+def test_recommended_params_are_empty_for_other_models(estimator):
+    assert get_recommended_params(estimator) == {}
+
+
+@pytest.mark.parametrize(
+    ("estimator", "expected"),
+    [
+        pytest.param(SVR(), {"gamma": "auto"}, id="SVR"),
+        pytest.param(Ridge(), {}, id="Ridge"),
+    ],
+)
+def test_recommended_params_are_new_per_call(estimator, expected):
+    first = get_recommended_params(estimator)
+    second = get_recommended_params(estimator)
+
+    assert first == second == expected
+    assert first is not second
+
+    first["gamma"] = "scale"
+    assert get_recommended_params(estimator) == expected
+
+
+def test_ngboost_detection_matches_its_set_params():
+    ngboost = pytest.importorskip("ngboost")
+    # An explicit Base keeps ngboost's shared default tree untouched when
+    # an old ngboost (< 0.4.0) applies the nested name.
+    model = ngboost.NGBRegressor(Base=DecisionTreeRegressor(max_depth=3))
+    model.set_params(Base__max_depth=5)
+    applied = model.Base.max_depth == 5
+
+    assert ignores_nested_set_params(ngboost.NGBRegressor()) is not applied
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        SVR(),
+        RandomForestRegressor(),
+        make_pipeline(StandardScaler(), SVR()),
+        TransformedTargetRegressor(regressor=SVR()),
+        None,
+    ],
+    ids=lambda model: type(model).__name__,
+)
+def test_sklearn_models_apply_nested_set_params(model):
+    assert ignores_nested_set_params(model) is False
+
+
+def test_lightgbm_applies_nested_set_params():
+    lightgbm = pytest.importorskip("lightgbm")
+
+    assert ignores_nested_set_params(lightgbm.LGBMRegressor()) is False
+
+
+def test_nested_set_params_check_without_ngboost():
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            search_space_module,
+            "is_installed",
+            lambda name: name != "ngboost",
+        )
+        monkeypatch.setattr(
+            search_space_module,
+            "_IGNORES_NESTED_SET_PARAMS",
+            search_space_module._build_ignores_nested_set_params(),
+        )
+
+        assert search_space_module._IGNORES_NESTED_SET_PARAMS == ()
+        assert ignores_nested_set_params(SVR()) is False
