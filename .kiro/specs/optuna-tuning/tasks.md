@@ -64,7 +64,7 @@
   - 完了の状態: licond の要件のテストがすべて `tests/test_optuna.py` で通る
   - _Requirements: 1.2, 1.3, 1.6, 1.7, 2.1, 2.2, 2.5, 10.1, 10.4_
 
-- [ ] 3.3 ParamDistributions を、表を使う形に作り直す
+- [x] 3.3 ParamDistributions を、表を使う形に作り直す
   - 中身を、探索範囲の問い合わせ（入れ子の解決と前置きを含む）の結果にする。`n_features` はキーワード専用で受け取り、渡されなければ上限は表の値のまま
   - `custom_params` が分布の辞書ならそれを、関数なら空の FixedTrial を渡した結果を使い、空でなければ表の代わりに使う。分布でない値を含むときは TypeError にする
   - 範囲も `custom_params` もないときは NotImplementedError にする。`fixed_params`・`random_state` の引数をなくす
@@ -113,3 +113,4 @@
 - テストの小さなデータ（40〜60 サンプル、3〜5 特徴量、seed 334）は各テストファイルの中に置く。`tests/conftest.py` は変えない（module-quality と並行して触らないため）
 - ngboost の `set_params` を `setattr` だけにする上書きは 0.4.0 から。0.3.x（古い環境の 0.3.6 を含む）は sklearn 標準の `set_params` で入れ子の名前も効く。判定は版ではなく `NGBRegressor.set_params is not BaseEstimator.set_params` で行う。NGBRegressor の既定の Base はモジュール大域の1つのオブジェクトなので、写していない NGBRegressor に `set_params` しない（テストでは Base を明示する）
 - `apply_params` はコンストラクタから作り直すので、`clone` が引き継ぐ引数以外の状態（`_sklearn_output_config`・`_metadata_request`・`_skl_callbacks`）を作り直したモデルへ移している。sklearn の `clone` がこの一覧を増やしたら合わせる
+- release-0.4.0 の CHANGELOG に書くこと（optuna-tuning で公開の振る舞いから消した・変えたもの）: Objective の `model`・`fixed_params_`・`rng` 属性。ParamDistributions の `distributions`・`rng` 属性、`fixed_params`・`random_state` 引数、`__repr__` の形。登録済みのモデルでも空でない `custom_params` が優先されること。NGBRegressor の `Base__criterion` の候補が scikit-learn の版で変わること

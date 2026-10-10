@@ -6,13 +6,14 @@ search space table of ``yikit.models._search_space`` (following the
 estimators nested in ``Pipeline`` and ``TransformedTargetRegressor``) and
 sets the parameters with ``yikit.models._params.apply_params``, so the
 parameters of the estimator passed by the user are kept.
-``ParamDistributions`` holds distributions to pass to ``OptunaSearchCV``.
+``ParamDistributions`` holds the distributions of the same table, to pass
+to ``OptunaSearchCV`` of optuna-integration.
 """
 
 from __future__ import annotations
 
-import sys
 import warnings
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -23,238 +24,27 @@ from optuna.distributions import (
     FloatDistribution,
     IntDistribution,
 )
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.exceptions import FitFailedWarning
 from sklearn.metrics import check_scoring
 from sklearn.model_selection import check_cv, cross_validate
-from sklearn.neural_network import MLPRegressor
-from sklearn.svm import SVR
 from sklearn.utils import check_random_state, check_X_y
 
-from yikit.helpers import is_installed
-from yikit.models._linear import LinearModelRegressor
 from yikit.models._params import (
     _is_estimator,
     apply_params,
     find_unspecified_random_states,
 )
-from yikit.models._search_space import get_search_space, resolve_estimator
-from yikit.models._svm import SupportVectorRegressor
+from yikit.models._search_space import (
+    get_search_space,
+    ignores_nested_set_params,
+    resolve_estimator,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Iterable
 
     from numpy.typing import ArrayLike
     from sklearn.model_selection import BaseCrossValidator
-
-if sys.version_info >= (3, 10):
-    from types import NoneType
-else:
-    NoneType = type(None)  # type: ignore[assignment,misc]
-
-if is_installed("lightgbm"):
-    from lightgbm import LGBMRegressor  # type: ignore[reportMissingImports]
-
-    from yikit.models._gbdt import GBDTRegressor
-
-else:
-    LGBMRegressor = NoneType  # type: ignore[assignment,misc]
-    GBDTRegressor = NoneType  # type: ignore[assignment,misc]
-
-
-if is_installed("ngboost"):
-    from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
-else:
-    NGBRegressor = NoneType
-
-
-class ParamDistributions(
-    dict
-):  # HACK: should be MutableMapping but OptunaSearchCV does not support it
-    """Parameter distributions for OptunaSearchCV.
-
-    This class provides a dictionary-like interface for parameter distributions
-    compatible with optuna.integration.OptunaSearchCV. It is designed to work
-    similarly to the Objective class but returns BaseDistribution objects instead
-    of using trial.suggest_* methods directly.
-
-    Example
-    -------
-    >>> from yikit.models import ParamDistributions
-    >>> from optuna.integration import OptunaSearchCV
-    >>> from sklearn.ensemble import RandomForestRegressor
-    >>> param_distributions = ParamDistributions(RandomForestRegressor())
-    >>> study = optuna.create_study()
-    >>> optuna_search_cv = OptunaSearchCV(
-    >>>     estimator=RandomForestRegressor(),
-    >>>     param_distributions=param_distributions,
-    >>>     study=study,
-    >>>     cv=5,
-    >>>     random_state=42,
-    >>> )
-    >>> optuna_search_cv.fit(X, y)
-    """
-
-    def __init__(
-        self,
-        estimator,
-        custom_params=lambda trial: {},
-        fixed_params={},
-        random_state=None,
-    ):
-        """Initialize parameter distributions.
-
-        Parameters
-        ----------
-        estimator : sklearn-based estimator instance
-            e.g. sklearn.ensemble.RandomForestRegressor()
-        custom_params : func, optional
-            If you want to do your own custom range of optimization, you can define
-            it here with a function that returns a dictionary of BaseDistribution
-            objects, by default lambda trial:{}
-        fixed_params : dict, optional
-            If you have a fixed variable, you can specify it in the dictionary.,
-            by default {}
-        random_state : int or RandomState object, optional
-            seed, by default None
-        """
-        self.estimator = estimator
-        self.custom_params = custom_params
-        self._fixed_params = fixed_params
-        self.rng = check_random_state(random_state)
-        self.distributions = self._build_distributions()
-        for k, v in self.distributions.items():
-            self[k] = v
-
-    def _build_distributions(
-        self,
-    ) -> dict[str, optuna.distributions.BaseDistribution]:
-        """Build parameter distributions based on estimator type."""
-        if isinstance(self.estimator, (GBDTRegressor, LGBMRegressor)):
-            return {
-                "n_estimators": optuna.distributions.IntDistribution(
-                    low=10, high=1000, log=True
-                ),
-                "min_child_weight": optuna.distributions.FloatDistribution(
-                    low=0.001, high=10, log=True
-                ),
-                "colsample_bytree": optuna.distributions.FloatDistribution(
-                    low=0.6, high=0.95
-                ),
-                "subsample": optuna.distributions.FloatDistribution(
-                    low=0.6, high=0.95
-                ),
-                "num_leaves": optuna.distributions.IntDistribution(
-                    low=2**3, high=2**9, log=True
-                ),
-            }
-        elif isinstance(self.estimator, RandomForestRegressor):
-            return {
-                "min_samples_split": optuna.distributions.IntDistribution(
-                    low=2, high=16
-                ),
-                "max_depth": optuna.distributions.IntDistribution(
-                    low=10, high=100
-                ),
-                "n_estimators": optuna.distributions.IntDistribution(
-                    low=10, high=1000, log=True
-                ),
-            }
-        elif isinstance(self.estimator, (SupportVectorRegressor, SVR)):
-            return {
-                "C": optuna.distributions.FloatDistribution(
-                    low=2**-5, high=2**10, log=True
-                ),
-                "epsilon": optuna.distributions.FloatDistribution(
-                    low=2**-10, high=2**0, log=True
-                ),
-            }
-        elif isinstance(self.estimator, LinearModelRegressor):
-            return {
-                "linear_model": optuna.distributions.CategoricalDistribution(
-                    choices=["ridge", "lasso"]
-                ),
-                "alpha": optuna.distributions.FloatDistribution(
-                    low=0.1, high=10, log=True
-                ),
-                "fit_intercept": optuna.distributions.CategoricalDistribution(
-                    choices=[True, False]
-                ),
-                "max_iter": optuna.distributions.FloatDistribution(
-                    low=100, high=10000, log=True
-                ),
-                "tol": optuna.distributions.FloatDistribution(
-                    low=0.0001, high=0.01, log=True
-                ),
-            }
-        elif isinstance(self.estimator, MLPRegressor):
-            return {
-                "hidden_layer_sizes": optuna.distributions.IntDistribution(
-                    low=50, high=300
-                ),
-                "alpha": optuna.distributions.FloatDistribution(
-                    low=1e-5, high=1e-3, log=True
-                ),
-                "learning_rate_init": optuna.distributions.FloatDistribution(
-                    low=1e-5, high=1e-3, log=True
-                ),
-            }
-        elif is_installed("ngboost") and isinstance(
-            self.estimator, NGBRegressor
-        ):
-            return {
-                "Base__max_depth": optuna.distributions.IntDistribution(
-                    low=2, high=100
-                ),
-                "Base__criterion": optuna.distributions.CategoricalDistribution(
-                    choices=["squared_error", "friedman_mse"]
-                ),
-                "n_estimators": optuna.distributions.IntDistribution(
-                    low=10, high=1000, log=True
-                ),
-                "minibatch_frac": optuna.distributions.FloatDistribution(
-                    low=0.5, high=1.0
-                ),
-            }
-        else:
-            # Try custom_params - it should return a dict of BaseDistribution objects
-            # custom_params can be either:
-            # 1. A dict of BaseDistribution objects directly
-            # 2. A callable that returns a dict of BaseDistribution objects
-            if isinstance(self.custom_params, dict):
-                return self.custom_params
-            elif callable(self.custom_params):
-                try:
-                    # Create a dummy study and trial to test custom_params
-                    study = optuna.create_study()
-                    trial = study.ask()
-                    custom_result = self.custom_params(trial)
-                    study.tell(trial, 0.0)
-                    if custom_result and isinstance(custom_result, dict):
-                        # Verify that values are BaseDistribution objects
-                        from optuna.distributions import BaseDistribution
-
-                        if all(
-                            isinstance(v, BaseDistribution)
-                            for v in custom_result.values()
-                        ):
-                            return custom_result
-                except Exception:
-                    pass
-            raise NotImplementedError(
-                f"ParamDistributions not implemented for {type(self.estimator)}. "
-                "Please provide custom_params as a dict of BaseDistribution objects "
-                "or a callable that returns such a dict."
-            )
-
-    def __repr__(self) -> str:
-        """Return string representation of parameter distributions."""
-        return (
-            f"ParamDistributions({self.estimator}, "
-            f"random_state={self.rng}, "
-            f"fixed_params={self._fixed_params}, "
-            f"custom_params={self.custom_params})"
-        )
 
 
 def _suggest(
@@ -384,13 +174,41 @@ def _random_state_rule_names(
     ]
 
 
-def _no_search_space_message(estimator: Any) -> str:
-    """Return the message telling that ``estimator`` has no search space."""
+#: What ``custom_params`` of ``Objective`` must be to replace the table.
+_OBJECTIVE_CUSTOM_PARAMS = (
+    "a function that takes an optuna trial and returns a non-empty dict of "
+    "parameter values"
+)
+
+#: What ``custom_params`` of ``ParamDistributions`` must be to replace the
+#: table.
+_PARAM_DISTRIBUTIONS_CUSTOM_PARAMS = (
+    "a non-empty dict of optuna distributions or a function that returns one"
+)
+
+
+def _no_search_space_message(
+    estimator: Any, custom_params: str = _OBJECTIVE_CUSTOM_PARAMS
+) -> str:
+    """Return the message telling that ``estimator`` has no search space.
+
+    Parameters
+    ----------
+    estimator : object
+        Estimator whose resolved model has no row in the table.
+    custom_params : str, default=_OBJECTIVE_CUSTOM_PARAMS
+        Description of the ``custom_params`` that would replace the table.
+
+    Returns
+    -------
+    str
+        Message naming the type of the resolved model and telling how to
+        pass ``custom_params``.
+    """
     _, model = resolve_estimator(estimator)
     return (
         f"No search space is registered for {type(model).__name__}. Pass "
-        "custom_params, a function that takes an optuna trial and returns a "
-        "non-empty dict of parameter values, to search it."
+        f"custom_params, {custom_params}, to search it."
     )
 
 
@@ -767,3 +585,318 @@ class Objective:
             If ``study`` has no completed trial (raised by optuna).
         """
         return apply_params(self.estimator, self.get_best_params(study))
+
+
+def _custom_distributions(
+    custom_params: (
+        Mapping[str, BaseDistribution]
+        | Callable[[optuna.trial.BaseTrial], Mapping[str, BaseDistribution]]
+        | None
+    ),
+) -> dict[str, BaseDistribution]:
+    """Return the distributions given by ``custom_params``.
+
+    Parameters
+    ----------
+    custom_params : Mapping, callable or None
+        ``custom_params`` of ``ParamDistributions``: a mapping from
+        parameter names to optuna distributions, a function that takes an
+        optuna trial and returns one, or None. The function is called once
+        with ``optuna.trial.FixedTrial({})``, and what it raises propagates.
+
+    Returns
+    -------
+    dict of str to optuna.distributions.BaseDistribution
+        New dict with the given names and distributions. Empty when
+        ``custom_params`` is None or gives no distribution.
+
+    Raises
+    ------
+    TypeError
+        If ``custom_params``, or what its function returns, is not a
+        mapping, or if one of its values is not an optuna distribution.
+    """
+    if custom_params is None:
+        return {}
+    custom: Mapping[str, Any]
+    if isinstance(custom_params, Mapping):
+        custom = custom_params
+    elif callable(custom_params):
+        custom = custom_params(optuna.trial.FixedTrial({}))
+        if not isinstance(custom, Mapping):
+            raise TypeError(
+                "custom_params of ParamDistributions must return a mapping "
+                "from parameter names to optuna distributions, got "
+                f"{type(custom).__name__}."
+            )
+    else:
+        raise TypeError(
+            "custom_params of ParamDistributions must be a mapping from "
+            "parameter names to optuna distributions, a function that "
+            f"returns one, or None, got {type(custom_params).__name__}."
+        )
+    invalid = [
+        f"{name!r} ({type(value).__name__})"
+        for name, value in custom.items()
+        if not isinstance(value, BaseDistribution)
+    ]
+    if invalid:
+        raise TypeError(
+            "custom_params of ParamDistributions must give optuna "
+            "distributions such as optuna.distributions.FloatDistribution, "
+            f"but got other values for {', '.join(invalid)}."
+        )
+    return dict(custom)
+
+
+def _set_params_warning(estimator: Any, names: Iterable[str]) -> str | None:
+    """Return a warning about the names ``OptunaSearchCV`` cannot apply.
+
+    ``OptunaSearchCV`` sets the parameters with ``estimator.set_params``.
+    When the resolved model ignores nested names in its own ``set_params``
+    (``NGBRegressor`` of ngboost 0.4.0 or later), the names that go below
+    the model, such as ``Base__max_depth``, have no effect.
+
+    Parameters
+    ----------
+    estimator : object
+        The estimator passed to ``ParamDistributions``.
+    names : Iterable of str
+        Names of the distributions, prefixed for ``estimator``.
+
+    Returns
+    -------
+    str or None
+        Message listing the names that the model's own ``set_params``
+        ignores, or None when there is none.
+    """
+    prefix, model = resolve_estimator(estimator)
+    if not ignores_nested_set_params(model):
+        return None
+    ignored = [
+        name
+        for name in names
+        if name.startswith(prefix) and "__" in name[len(prefix) :]
+    ]
+    if not ignored:
+        return None
+    model_name = type(model).__name__
+    return (
+        f"OptunaSearchCV cannot apply {ignored}: set_params of {model_name} "
+        "ignores nested parameter names, so these values never reach the "
+        f"estimators inside {model_name}. Search with yikit.models.Objective "
+        "instead, which applies them to a copy of the model."
+    )
+
+
+class ParamDistributions(dict):  # a dict that OptunaSearchCV keeps as is
+    """Distributions of the search space to pass to ``OptunaSearchCV``.
+
+    A dict from parameter names to optuna distributions, built from the
+    same search space table as ``Objective``: for the same estimator and the
+    same number of features, it holds the same names and the same
+    distributions as the trials of ``Objective``. It is passed as it is as
+    ``param_distributions`` of ``OptunaSearchCV`` of optuna-integration,
+    and keeps its contents and type through ``copy.deepcopy`` and
+    ``sklearn.base.clone``.
+
+    The table knows ``LGBMRegressor`` of LightGBM, ``GBDTRegressor`` of
+    yikit, ``RandomForestRegressor``, ``SVR``, ``LinearSVR``,
+    ``MLPRegressor``, ``NGBRegressor`` of ngboost, ``PLSRegression``,
+    ``Ridge``, ``Lasso`` and ``ElasticNet`` (and their subclasses). The
+    last step of a ``Pipeline`` and the ``regressor`` of a
+    ``TransformedTargetRegressor`` are followed, so a nested model gets
+    prefixed names such as ``regressor__svr__C``, which ``OptunaSearchCV``
+    passes to ``set_params`` of the estimator. Only searched parameters are
+    included: fixed values, such as ``n_jobs``, ``random_state`` or the
+    values of ``RecommendedParams``, are set on the estimator itself, whose
+    other parameters ``OptunaSearchCV`` keeps.
+
+    ``set_params`` of ``NGBRegressor`` (ngboost 0.4.0 or later) ignores
+    nested names such as ``Base__max_depth``, so ``OptunaSearchCV`` cannot
+    apply them. A ``UserWarning`` lists such names; ``Objective`` applies
+    them.
+
+    Parameters
+    ----------
+    estimator : object
+        scikit-learn compatible estimator instance to search, e.g.
+        ``sklearn.svm.SVR()`` or a ``Pipeline`` whose last step is one. It
+        is not modified.
+    custom_params : Mapping, callable or None, default=None
+        Mapping from parameter names to optuna distributions, e.g.
+        ``{"C": FloatDistribution(0.1, 10.0, log=True)}``, or a function
+        that takes an optuna trial and returns such a mapping. The function
+        is called once with ``optuna.trial.FixedTrial({})``, so it must
+        return distributions instead of suggesting values (a function that
+        suggests values, as ``custom_params`` of ``Objective`` does, raises
+        the error of ``FixedTrial``). A non-empty mapping is used instead of
+        the search space table, and its names are used as they are (no
+        prefix is added). None or an empty mapping means that the table is
+        used.
+    n_features : int or None, default=None
+        Number of features of the data passed to ``estimator`` (the
+        outermost one when nested). Keyword-only. When given, the upper
+        bound of the parameters limited by the data, ``n_components`` of
+        ``PLSRegression``, becomes ``min(10, n_features)``. When None, the
+        bound of the table (10) is kept, and ``OptunaSearchCV`` records the
+        trials that exceed the number of features as failed and goes on
+        with the search.
+
+    Attributes
+    ----------
+    estimator : object
+        The estimator passed by the user.
+    custom_params : Mapping, callable or None
+        The ``custom_params`` passed by the user.
+    n_features : int or None
+        The ``n_features`` passed by the user.
+
+    Raises
+    ------
+    NotImplementedError
+        If the table has no search space for the (resolved) model and
+        ``custom_params`` gives no distribution.
+    TypeError
+        If ``custom_params``, or what its function returns, is not a
+        mapping, or if one of its values is not an optuna distribution.
+        The ``fixed_params`` and ``random_state`` arguments of yikit
+        0.4.0-rc.0 were removed, and passing them raises a ``TypeError``
+        too.
+    ValueError
+        If ``n_features`` is smaller than 1, or if a ``Pipeline`` on the
+        way has no steps.
+
+    Warns
+    -----
+    UserWarning
+        If the resolved model ignores nested names in its own
+        ``set_params`` (``NGBRegressor`` of ngboost 0.4.0 or later) and the
+        distributions hold such names, e.g. ``Base__max_depth``.
+
+    See Also
+    --------
+    Objective : Objective function of optuna that searches the same table.
+
+    Examples
+    --------
+    >>> from sklearn.datasets import make_regression
+    >>> from sklearn.linear_model import ElasticNet
+    >>> from yikit.models import ParamDistributions
+    >>> try:
+    ...     from optuna_integration import OptunaSearchCV
+    ... except ImportError:  # old optuna that bundles the integration
+    ...     from optuna.integration import OptunaSearchCV
+    >>> X, y = make_regression(n_samples=50, n_features=5, random_state=334)
+    >>> estimator = ElasticNet()
+    >>> param_distributions = ParamDistributions(
+    ...     estimator, n_features=X.shape[1]
+    ... )
+    >>> sorted(param_distributions)
+    ['alpha', 'l1_ratio']
+    >>> search = OptunaSearchCV(
+    ...     estimator,
+    ...     param_distributions=param_distributions,
+    ...     n_trials=10,
+    ...     random_state=334,
+    ... ).fit(X, y)
+    >>> sorted(search.best_params_)
+    ['alpha', 'l1_ratio']
+
+    ``Ridge`` and ``Lasso`` are searched in the same way (they replace the
+    removed ``LinearModelRegressor``):
+
+    >>> from sklearn.linear_model import Lasso, Ridge
+    >>> sorted(ParamDistributions(Ridge()))
+    ['alpha']
+    >>> sorted(ParamDistributions(Lasso()))
+    ['alpha']
+
+    An ``SVR`` scaled by a ``Pipeline`` and a ``TransformedTargetRegressor``
+    (which replace the removed ``SupportVectorRegressor``) gets prefixed
+    names. The ``gamma`` that ``SupportVectorRegressor`` used is set on the
+    ``SVR`` itself, and ``OptunaSearchCV`` keeps it:
+
+    >>> from sklearn.compose import TransformedTargetRegressor
+    >>> from sklearn.pipeline import make_pipeline
+    >>> from sklearn.preprocessing import StandardScaler
+    >>> from sklearn.svm import SVR
+    >>> estimator = TransformedTargetRegressor(
+    ...     regressor=make_pipeline(StandardScaler(), SVR(gamma="auto")),
+    ...     transformer=StandardScaler(),
+    ... )
+    >>> param_distributions = ParamDistributions(
+    ...     estimator, n_features=X.shape[1]
+    ... )
+    >>> sorted(param_distributions)
+    ['regressor__svr__C', 'regressor__svr__epsilon']
+    >>> search = OptunaSearchCV(
+    ...     estimator,
+    ...     param_distributions=param_distributions,
+    ...     n_trials=5,
+    ...     random_state=334,
+    ... ).fit(X, y)
+    >>> sorted(search.best_params_)
+    ['regressor__svr__C', 'regressor__svr__epsilon']
+    >>> search.best_estimator_.regressor_.named_steps["svr"].gamma
+    'auto'
+
+    The upper bound of ``n_components`` of ``PLSRegression`` follows
+    ``n_features``, and ``custom_params`` replaces the table:
+
+    >>> from optuna.distributions import FloatDistribution
+    >>> from sklearn.cross_decomposition import PLSRegression
+    >>> ParamDistributions(PLSRegression())["n_components"].high
+    10
+    >>> ParamDistributions(PLSRegression(), n_features=3)["n_components"].high
+    3
+    >>> sorted(
+    ...     ParamDistributions(
+    ...         SVR(), {"C": FloatDistribution(0.1, 10.0, log=True)}
+    ...     )
+    ... )
+    ['C']
+    """
+
+    def __init__(
+        self,
+        estimator: Any,
+        custom_params: (
+            Mapping[str, BaseDistribution]
+            | Callable[
+                [optuna.trial.BaseTrial], Mapping[str, BaseDistribution]
+            ]
+            | None
+        ) = None,
+        *,
+        n_features: int | None = None,
+    ) -> None:
+        search_space = get_search_space(estimator, n_features=n_features)
+        custom = _custom_distributions(custom_params)
+        distributions: dict[str, BaseDistribution]
+        if custom:
+            distributions = custom
+        elif search_space is not None:
+            distributions = search_space
+        else:
+            raise NotImplementedError(
+                _no_search_space_message(
+                    estimator, _PARAM_DISTRIBUTIONS_CUSTOM_PARAMS
+                )
+            )
+        super().__init__(distributions)
+        self.estimator = estimator
+        self.custom_params = custom_params
+        self.n_features = n_features
+
+        message = _set_params_warning(estimator, self)
+        if message is not None:
+            warnings.warn(message, UserWarning, stacklevel=2)
+
+    def __repr__(self) -> str:
+        """Return the arguments that built the distributions."""
+        return (
+            f"{type(self).__name__}({self.estimator!r}, "
+            f"custom_params={self.custom_params!r}, "
+            f"n_features={self.n_features!r})"
+        )

@@ -1,30 +1,34 @@
 from __future__ import annotations
 
+import copy
 import math
+import warnings
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import optuna
 import pytest
-from optuna.distributions import IntDistribution
+from optuna.distributions import FloatDistribution, IntDistribution
 from optuna.trial import TrialState
+from sklearn.base import BaseEstimator, clone
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.datasets import make_regression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.exceptions import FitFailedWarning, NotFittedError
 from sklearn.feature_selection import SelectKBest, f_regression
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import ElasticNet, Lasso, Ridge
 from sklearn.model_selection import KFold
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import QuantileTransformer, StandardScaler
-from sklearn.svm import SVR
+from sklearn.svm import SVR, LinearSVR
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
-from yikit.models import Objective, ParamDistributions, _optuna
+from yikit.models import Objective, ParamDistributions, _optuna, _search_space
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -40,9 +44,11 @@ SEED = 334
 N_SAMPLES = 40
 N_FEATURES = 3
 
-#: Expected values of ``test_optuna_search_cv``.
-BEST_SCORE = -65.6
-ABS_TOL = 0.2
+#: Expected values of ``test_optuna_search_cv``. The tolerance covers the
+#: differences of the random forests between scikit-learn versions.
+OPTUNA_SEARCH_CV_BEST_SCORE = -65.64
+OPTUNA_SEARCH_CV_ABS_TOL = 0.2
+OPTUNA_SEARCH_CV_BEST_TRIAL_NUMBER = 3
 
 #: Expected values of ``test_create_study``. The tolerance covers the
 #: differences of the random forests between scikit-learn versions (about
@@ -138,11 +144,9 @@ def test_optuna_search_cv(X_regression, y_regression):
     x = X_regression
     y = y_regression
 
-    param_distributions = ParamDistributions(
-        RandomForestRegressor(random_state=334), random_state=334
-    )
+    estimator = RandomForestRegressor(random_state=334, n_jobs=-1)
+    param_distributions = ParamDistributions(estimator)
 
-    estimator = RandomForestRegressor(random_state=334)
     ocv = OptunaSearchCV(
         estimator,
         param_distributions=param_distributions,
@@ -151,8 +155,15 @@ def test_optuna_search_cv(X_regression, y_regression):
         random_state=334,
     )
     ocv.fit(x, y)
-    assert math.isclose(ocv.best_score_, BEST_SCORE, abs_tol=ABS_TOL)
-    assert ocv.study_.best_trial.number == 3
+    assert math.isclose(
+        ocv.best_score_,
+        OPTUNA_SEARCH_CV_BEST_SCORE,
+        abs_tol=OPTUNA_SEARCH_CV_ABS_TOL,
+    )
+    assert ocv.study_.best_trial.number == OPTUNA_SEARCH_CV_BEST_TRIAL_NUMBER
+    # OptunaSearchCV keeps the parameters that are not searched.
+    assert ocv.best_estimator_.random_state == 334
+    assert ocv.best_estimator_.n_jobs == -1
 
 
 def test_model_random_state_is_drawn_after_the_sampler_seed(small_data):
@@ -880,3 +891,409 @@ def test_fixed_estimator_inside_a_fixed_estimator_wins(
 )
 def test_fixed_name_covers_only_its_own_path(name, expected):
     assert _optuna._is_covered(name, ["regressor"]) is expected
+
+
+# --- ParamDistributions ---------------------------------------------------
+
+
+def _make_gbdt(**params: Any) -> Any:
+    pytest.importorskip("lightgbm")
+    from yikit.models._gbdt import GBDTRegressor
+
+    return GBDTRegressor(**params)
+
+
+#: Factories of one model of each type of the search space table. The id of
+#: each factory is the name of the type.
+REGISTERED_MODELS = [
+    pytest.param(SVR, id="SVR"),
+    pytest.param(LinearSVR, id="LinearSVR"),
+    pytest.param(RandomForestRegressor, id="RandomForestRegressor"),
+    pytest.param(MLPRegressor, id="MLPRegressor"),
+    pytest.param(PLSRegression, id="PLSRegression"),
+    pytest.param(Ridge, id="Ridge"),
+    pytest.param(Lasso, id="Lasso"),
+    pytest.param(ElasticNet, id="ElasticNet"),
+    pytest.param(_make_lightgbm, id="LGBMRegressor"),
+    pytest.param(_make_gbdt, id="GBDTRegressor"),
+    pytest.param(_make_ngboost, id="NGBRegressor"),
+]
+
+#: Factories of registered models nested in meta-estimators.
+NESTED_MODELS = [
+    pytest.param(
+        lambda: TransformedTargetRegressor(
+            regressor=make_pipeline(StandardScaler(), SVR())
+        ),
+        id="TransformedTargetRegressor-Pipeline-SVR",
+    ),
+    pytest.param(
+        lambda: make_pipeline(StandardScaler(), PLSRegression()),
+        id="Pipeline-PLSRegression",
+    ),
+    pytest.param(
+        lambda: TransformedTargetRegressor(regressor=_make_ngboost()),
+        id="TransformedTargetRegressor-NGBRegressor",
+    ),
+]
+
+#: Start of the warning about the names that ``OptunaSearchCV`` cannot set.
+SET_PARAMS_WARNING = "OptunaSearchCV cannot apply"
+
+
+def test_parity_covers_every_registered_type():
+    registered = {
+        model_type.__name__
+        for model_types, _, _ in _search_space._SEARCH_SPACES
+        for model_type in (
+            model_types if isinstance(model_types, tuple) else (model_types,)
+        )
+    }
+
+    assert registered <= {param.id for param in REGISTERED_MODELS}
+
+
+@pytest.mark.filterwarnings(f"ignore:{SET_PARAMS_WARNING}:UserWarning")
+@pytest.mark.parametrize(
+    "make_estimator", [*REGISTERED_MODELS, *NESTED_MODELS]
+)
+def test_param_distributions_match_objective(
+    make_estimator, monkeypatch, small_data
+):
+    X, y = small_data
+    _patch_cross_validate(monkeypatch)
+    estimator = make_estimator()
+
+    objective = Objective(estimator, X, y, random_state=SEED)
+    study = _optimize(objective, n_trials=1)
+    param_distributions = ParamDistributions(estimator, n_features=X.shape[1])
+
+    assert isinstance(param_distributions, dict)
+    distributions = study.trials[0].distributions
+    assert distributions == dict(param_distributions)
+    assert list(distributions) == list(param_distributions)
+
+
+def test_param_distributions_attributes():
+    estimator = PLSRegression()
+
+    def custom_params(trial: optuna.trial.BaseTrial) -> dict[str, Any]:
+        return {}
+
+    param_distributions = ParamDistributions(
+        estimator, custom_params, n_features=N_FEATURES
+    )
+
+    assert param_distributions == {
+        "n_components": IntDistribution(1, N_FEATURES)
+    }
+    assert param_distributions.estimator is estimator
+    assert param_distributions.custom_params is custom_params
+    assert param_distributions.n_features == N_FEATURES
+    for removed in ("rng", "random_state", "fixed_params", "distributions"):
+        assert not hasattr(param_distributions, removed)
+    text = repr(param_distributions)
+    assert text.startswith("ParamDistributions(PLSRegression()")
+    assert f"custom_params={custom_params!r}" in text
+    assert f"n_features={N_FEATURES}" in text
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        pytest.param({"fixed_params": {}}, id="fixed_params"),
+        pytest.param({"random_state": SEED}, id="random_state"),
+    ],
+)
+def test_removed_arguments_raise_type_error(kwargs):
+    (name,) = kwargs
+    with pytest.raises(TypeError, match=name):
+        ParamDistributions(SVR(), **kwargs)
+
+
+def test_third_positional_argument_raises_type_error():
+    # The third positional argument used to be fixed_params, and n_features
+    # is keyword-only.
+    with pytest.raises(TypeError, match="positional"):
+        ParamDistributions(PLSRegression(), None, N_FEATURES)
+
+
+@pytest.mark.parametrize(
+    ("n_features", "expected_high"),
+    [(None, 10), (1, 1), (N_FEATURES, N_FEATURES), (10, 10), (20, 10)],
+)
+def test_n_features_bounds_pls(n_features, expected_high):
+    expected = {"n_components": IntDistribution(1, expected_high)}
+
+    assert (
+        ParamDistributions(PLSRegression(), n_features=n_features) == expected
+    )
+    assert ParamDistributions(
+        make_pipeline(StandardScaler(), PLSRegression()),
+        n_features=n_features,
+    ) == {
+        f"plsregression__{name}": distribution
+        for name, distribution in expected.items()
+    }
+
+
+def test_n_features_defaults_to_the_bound_of_the_table():
+    assert ParamDistributions(PLSRegression()) == {
+        "n_components": IntDistribution(1, 10)
+    }
+
+
+#: Distributions given as ``custom_params`` of a RandomForestRegressor.
+CUSTOM_DISTRIBUTIONS = {
+    "max_features": FloatDistribution(0.1, 1.0),
+    "max_depth": IntDistribution(2, 8),
+}
+
+
+@pytest.mark.parametrize(
+    "as_function", [False, True], ids=["dict", "function"]
+)
+def test_custom_params_replace_the_table(as_function):
+    calls: list[Any] = []
+
+    def custom_params(trial: optuna.trial.BaseTrial) -> dict[str, Any]:
+        calls.append(trial)
+        return CUSTOM_DISTRIBUTIONS
+
+    param_distributions = ParamDistributions(
+        RandomForestRegressor(),
+        custom_params if as_function else CUSTOM_DISTRIBUTIONS,
+    )
+
+    assert param_distributions == CUSTOM_DISTRIBUTIONS
+    assert list(param_distributions) == list(CUSTOM_DISTRIBUTIONS)
+    if as_function:
+        assert len(calls) == 1
+        assert isinstance(calls[0], optuna.trial.FixedTrial)
+
+
+def test_custom_params_names_are_used_as_given():
+    custom_params = {"svr__C": FloatDistribution(0.5, 2.0)}
+
+    param_distributions = ParamDistributions(
+        TransformedTargetRegressor(
+            regressor=make_pipeline(StandardScaler(), SVR())
+        ),
+        custom_params,
+    )
+
+    assert param_distributions == custom_params
+
+
+@pytest.mark.parametrize(
+    "custom_params",
+    [
+        pytest.param(None, id="None"),
+        pytest.param({}, id="empty-dict"),
+        pytest.param(lambda trial: {}, id="old-default"),
+    ],
+)
+def test_empty_custom_params_use_the_table(custom_params):
+    estimator = make_pipeline(StandardScaler(), SVR())
+
+    assert ParamDistributions(
+        estimator, custom_params
+    ) == _search_space.get_search_space(estimator)
+
+
+@pytest.mark.parametrize(
+    "custom_params",
+    [
+        pytest.param({"C": 1.0}, id="dict-of-values"),
+        pytest.param(lambda trial: {"C": 1.0}, id="function-of-values"),
+        pytest.param(
+            lambda trial: [("C", FloatDistribution(0.1, 1.0))],
+            id="function-returning-a-list",
+        ),
+        pytest.param([("C", FloatDistribution(0.1, 1.0))], id="list"),
+    ],
+)
+def test_invalid_custom_params_raise_type_error(custom_params):
+    with pytest.raises(TypeError, match="custom_params"):
+        ParamDistributions(SVR(), custom_params)
+
+
+def test_type_error_names_the_values_that_are_not_distributions():
+    custom_params = {
+        "C": FloatDistribution(0.1, 1.0),
+        "epsilon": 0.1,
+        "gamma": "auto",
+    }
+
+    with pytest.raises(TypeError) as error:
+        ParamDistributions(SVR(), custom_params)
+
+    message = str(error.value)
+    assert "'epsilon' (float)" in message
+    assert "'gamma' (str)" in message
+    assert "'C'" not in message
+
+
+class _CustomParamsError(Exception):
+    """Error raised by a ``custom_params`` function of a test."""
+
+
+def test_errors_of_custom_params_function_are_not_swallowed():
+    def failing(trial: optuna.trial.BaseTrial) -> dict[str, Any]:
+        raise _CustomParamsError("raised by custom_params")
+
+    def suggesting(trial: optuna.trial.BaseTrial) -> dict[str, Any]:
+        # A function for Objective suggests values, which FixedTrial({})
+        # cannot do.
+        return {"n_neighbors": trial.suggest_int("n_neighbors", 1, 5)}
+
+    with pytest.raises(_CustomParamsError, match="raised by custom_params"):
+        ParamDistributions(KNeighborsRegressor(), failing)
+    with pytest.raises(ValueError, match="n_neighbors"):
+        ParamDistributions(KNeighborsRegressor(), suggesting)
+
+
+@pytest.mark.parametrize(
+    "estimator",
+    [
+        KNeighborsRegressor(),
+        make_pipeline(StandardScaler(), KNeighborsRegressor()),
+    ],
+)
+@pytest.mark.parametrize(
+    "custom_params",
+    [
+        pytest.param(None, id="None"),
+        pytest.param({}, id="empty-dict"),
+        pytest.param(lambda trial: {}, id="old-default"),
+    ],
+)
+def test_param_distributions_of_unregistered_model_raise(
+    estimator, custom_params
+):
+    with pytest.raises(
+        NotImplementedError, match=r"KNeighborsRegressor.*custom_params"
+    ):
+        ParamDistributions(estimator, custom_params)
+
+
+def test_param_distributions_of_unregistered_model_with_custom_params():
+    custom_params = {"n_neighbors": IntDistribution(1, 5)}
+
+    assert (
+        ParamDistributions(KNeighborsRegressor(), custom_params)
+        == custom_params
+    )
+
+
+def _ngboost_set_params_ignores_nested_names() -> bool:
+    ngboost = pytest.importorskip("ngboost")
+    return ngboost.NGBRegressor.set_params is not BaseEstimator.set_params
+
+
+def _user_warnings(records: list[warnings.WarningMessage]) -> list[str]:
+    return [
+        str(record.message)
+        for record in records
+        if record.category is UserWarning
+    ]
+
+
+@pytest.mark.parametrize(
+    ("wrap", "prefix"),
+    [
+        pytest.param(lambda model: model, "", id="NGBRegressor"),
+        pytest.param(
+            lambda model: TransformedTargetRegressor(
+                regressor=make_pipeline(StandardScaler(), model)
+            ),
+            "regressor__ngbregressor__",
+            id="nested",
+        ),
+    ],
+)
+def test_ngboost_nested_names_warn(wrap, prefix):
+    ignores_nested_names = _ngboost_set_params_ignores_nested_names()
+    estimator = wrap(_make_ngboost())
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        param_distributions = ParamDistributions(estimator)
+
+    nested_names = [f"{prefix}Base__max_depth", f"{prefix}Base__criterion"]
+    assert set(nested_names) <= set(param_distributions)
+    messages = _user_warnings(records)
+    if not ignores_nested_names:
+        # ngboost before 0.4.0 applies nested names in set_params.
+        assert messages == []
+        return
+    assert len(messages) == 1
+    (message,) = messages
+    assert message.startswith(SET_PARAMS_WARNING)
+    assert "NGBRegressor" in message
+    assert "Objective" in message
+    for name in nested_names:
+        assert repr(name) in message
+    # The names that set_params of NGBRegressor applies are not listed.
+    assert repr(f"{prefix}n_estimators") not in message
+    assert repr(f"{prefix}minibatch_frac") not in message
+
+
+def test_ngboost_warning_follows_custom_params():
+    if not _ngboost_set_params_ignores_nested_names():
+        pytest.skip("set_params of this ngboost applies nested names")
+
+    estimator = _make_ngboost()
+    custom_params = {"n_estimators": IntDistribution(10, 100)}
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        ParamDistributions(estimator, custom_params)
+
+    assert _user_warnings(records) == []
+    with pytest.warns(UserWarning, match=r"'Base__max_depth'"):
+        ParamDistributions(
+            _make_ngboost(), {"Base__max_depth": IntDistribution(2, 10)}
+        )
+
+
+@pytest.mark.parametrize(
+    "estimator",
+    [
+        SVR(),
+        RandomForestRegressor(),
+        TransformedTargetRegressor(
+            regressor=make_pipeline(StandardScaler(), SVR())
+        ),
+    ],
+)
+def test_no_warning_for_models_that_apply_nested_names(estimator):
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        ParamDistributions(estimator)
+
+    assert _user_warnings(records) == []
+
+
+def test_param_distributions_survive_deepcopy_and_clone():
+    estimator = make_pipeline(StandardScaler(), PLSRegression())
+    param_distributions = ParamDistributions(estimator, n_features=N_FEATURES)
+
+    copied = copy.deepcopy(param_distributions)
+
+    assert type(copied) is ParamDistributions
+    assert copied is not param_distributions
+    assert copied == param_distributions
+    assert copied.n_features == N_FEATURES
+    assert copied.custom_params is None
+    assert repr(copied) == repr(param_distributions)
+
+    search = clone(
+        OptunaSearchCV(estimator, param_distributions=param_distributions)
+    )
+    assert type(search.param_distributions) is ParamDistributions
+    assert search.param_distributions == param_distributions
+
+
+def test_removed_wrappers_are_not_imported_by_optuna_module():
+    for name in ("LinearModelRegressor", "SupportVectorRegressor", "NoneType"):
+        assert not hasattr(_optuna, name)
