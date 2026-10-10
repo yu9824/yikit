@@ -163,11 +163,67 @@ def _import_search_regressor() -> tuple[Any, Any]:
     -------
     tuple
         ``(ParamDistributions, OptunaSearchRegressor)``.
+
+    Raises
+    ------
+    ImportError
+        If optuna, optuna-integration (``OptunaSearchCV``) or the modules of
+        yikit that use them cannot be imported. It tells the user to install
+        them or to pass ``opt=False``, and is chained from the original
+        error.
     """
-    from yikit.models._optuna import ParamDistributions
-    from yikit.models._search_cv import OptunaSearchRegressor
+    try:
+        from yikit.models._optuna import ParamDistributions
+        from yikit.models._search_cv import OptunaSearchRegressor
+    except ImportError as exc:
+        raise ImportError(
+            "EnsembleRegressor with opt=True tunes the models with "
+            "OptunaSearchCV, which needs optuna and optuna-integration: "
+            "install them (e.g. `pip install optuna optuna-integration`), or "
+            "pass opt=False to combine the models without tuning them. "
+            f"The import failed with {type(exc).__name__}: {exc}"
+        ) from exc
 
     return ParamDistributions, OptunaSearchRegressor
+
+
+def _search_space(
+    param_distributions: Any, name: str, estimator: Any, n_features: int
+) -> Any:
+    """Return ``param_distributions(estimator, n_features=n_features)``.
+
+    Parameters
+    ----------
+    param_distributions : type
+        ``yikit.models.ParamDistributions``.
+    name : str
+        Name of ``estimator`` in the ensemble.
+    estimator : object
+        Model to tune.
+    n_features : int
+        Number of columns of the training data.
+
+    Returns
+    -------
+    ParamDistributions
+        The search space of ``estimator``.
+
+    Raises
+    ------
+    NotImplementedError
+        If no search space is registered for ``estimator``, with its name
+        and type added to the message of ``ParamDistributions``, from whose
+        error it is chained.
+    """
+    try:
+        return param_distributions(estimator, n_features=n_features)
+    except NotImplementedError as exc:
+        raise NotImplementedError(
+            f"The estimator {name!r} ({type(estimator).__name__}) cannot be "
+            f"tuned with opt=True: {exc} EnsembleRegressor does not take "
+            "custom_params; remove the model from estimators or pass "
+            "opt=False."
+        ) from exc
 
 
 def _build_ensemble(
@@ -253,15 +309,15 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         jobs in parallel here, set ``n_jobs=1`` on each model; otherwise
         keep None and let the models run in parallel. The ``n_jobs`` of
         ``OptunaSearchCV`` is not set, so the trials of the tuning run one
-        after another. With ``"stacking"`` and ``"blending"``, each model
-        is tuned ``cv + 1`` times (in each fold of ``cv`` and on all the
-        data, see ``opt``), and this ``n_jobs`` runs these folds in
-        parallel.
+        after another. With ``"stacking"`` and ``"blending"``, this
+        ``n_jobs`` also runs in parallel the splits of ``cv``, in each of
+        which the models are fitted (and tuned, see ``opt``) again.
     random_state : int, RandomState instance or None, default=None
         Seeds the models and the tuning. ``fit`` first draws one integer
         from it, ``model_random_state_``, and sets it on every
-        ``random_state`` parameter left as None in each model and in the
-        estimators nested in it (the steps of a ``Pipeline``, the
+        ``random_state`` parameter left unspecified (None, or the global
+        ``RandomState`` that ngboost stores in its place) in each model and
+        in the estimators nested in it (the steps of a ``Pipeline``, the
         ``regressor`` of a ``TransformedTargetRegressor``, the ``Base`` of
         ngboost's ``NGBRegressor``, ...), the same rule as
         ``yikit.models.Objective``. The ``random_state`` values given in
@@ -285,10 +341,13 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         model with the best parameters on its training data. It needs
         optuna and optuna-integration; with ``opt=False`` they are not
         imported. With ``"stacking"`` and ``"blending"``, each model is
-        tuned ``cv + 1`` times (in each fold, on the training part of the
-        fold only, and on all the data), so it is fitted about ``n_trials *
-        cv * (cv + 1)`` times (3000 times with the defaults); with
-        ``"average"`` it is tuned once (``n_trials * cv`` fits).
+        tuned ``n_splits + 1`` times (``cv + 1`` for an int ``cv``), where
+        ``n_splits`` is the number of splits of ``cv``: in each split, on
+        its training part only, and on all the data. Each tuning runs
+        ``n_trials`` trials of ``n_splits`` fits, so the model is fitted
+        about ``n_trials * n_splits * (n_splits + 1)`` times (3000 times
+        with the defaults); with ``"average"`` it is tuned once
+        (``n_trials * n_splits`` fits).
     n_trials : int, default=100
         Number of trials of the tuning of each model. Not used when
         ``opt=False``.
@@ -312,7 +371,8 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         ``"stacking"`` and ``"blending"``; None with ``"average"``.
     model_random_state_ : int
         The integer drawn from ``random_state`` and set on the
-        ``random_state`` parameters left as None in the models.
+        ``random_state`` parameters left unspecified (None, or the global
+        ``RandomState`` that ngboost stores in its place) in the models.
     n_features_in_ : int
         Number of features seen during ``fit``.
     feature_names_in_ : ndarray of shape (n_features_in_,)
@@ -399,6 +459,13 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
             If ``method`` is not one of ``"average"``, ``"stacking"`` and
             ``"blending"``, if ``estimators`` is empty, or if one of the
             models is not a regressor.
+        ImportError
+            If ``opt=True`` and optuna or optuna-integration cannot be
+            imported. It tells the user to install them or to pass
+            ``opt=False``.
+        NotImplementedError
+            If ``opt=True`` and ``ParamDistributions`` has no search space
+            for one of the models. It names the model and its type.
         """
         if self.method not in METHODS:
             raise ValueError(
@@ -428,7 +495,9 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
                     name,
                     search_regressor(
                         model,
-                        param_distributions(model, n_features=n_features),
+                        _search_space(
+                            param_distributions, name, model, n_features
+                        ),
                         n_trials=self.n_trials,
                         cv=self.cv,
                         scoring=self.scoring,

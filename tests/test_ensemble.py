@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import subprocess
 import sys
 import textwrap
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -23,6 +25,7 @@ from sklearn.ensemble import (
 )
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
+from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import QuantileTransformer, StandardScaler
@@ -33,10 +36,14 @@ from sklearn.utils.validation import check_is_fitted
 
 from yikit.models import EnsembleRegressor
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 SEED = 334
 N_SAMPLES = 60
 N_FEATURES = 4
 CV = 3
+N_TRIALS = 2
 METHODS = ("average", "stacking", "blending")
 
 #: ``feature_names_in_`` exists from scikit-learn 1.0.
@@ -137,6 +144,81 @@ def _skip_without_search_cv() -> None:
         import yikit.models._search_cv  # noqa: F401
     except ImportError:
         pytest.skip("OptunaSearchCV (optuna-integration) is not installed")
+
+
+def _tuning_classes() -> tuple[type, type, type]:
+    """Return the classes of the tuning, or skip when they are unavailable.
+
+    Returns
+    -------
+    tuple of type
+        ``OptunaSearchCV`` of optuna-integration, ``OptunaSearchRegressor``
+        (which ``EnsembleRegressor`` wraps each model in) and
+        ``ParamDistributions``.
+    """
+    _skip_without_search_cv()
+    try:
+        from optuna_integration import OptunaSearchCV
+    except ImportError:  # old optuna that still bundles the integration
+        from optuna.integration import OptunaSearchCV
+
+    from yikit.models._optuna import ParamDistributions
+    from yikit.models._search_cv import OptunaSearchRegressor
+
+    return OptunaSearchCV, OptunaSearchRegressor, ParamDistributions
+
+
+class _RecordsHandler(logging.Handler):
+    """Logging handler that keeps the records it receives."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.NOTSET)
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+@pytest.fixture
+def optuna_records() -> Iterator[list[logging.LogRecord]]:
+    """Collect the records that reach the root logger of optuna.
+
+    optuna does not propagate its records to the root logger (so ``caplog``
+    does not see them); its loggers (``optuna.*``) all pass their records
+    to the handlers of the ``optuna`` logger.
+    """
+    handler = _RecordsHandler()
+    logger = logging.getLogger("optuna")
+    logger.addHandler(handler)
+    try:
+        yield handler.records
+    finally:
+        logger.removeHandler(handler)
+
+
+def _block_imports(
+    monkeypatch: pytest.MonkeyPatch,
+    blocked: tuple[str, ...],
+    reimported: tuple[str, ...],
+) -> None:
+    """Make the modules ``blocked`` fail to import during the test.
+
+    The modules ``reimported`` are removed from ``sys.modules``, so that the
+    next import runs them again (and fails on a blocked module).
+    ``monkeypatch`` puts back ``sys.modules`` and the modules of the tuning
+    as attributes of ``yikit.models`` (which a successful import would
+    replace) after the test.
+    """
+    package = sys.modules["yikit.models"]
+    for attribute in ("_optuna", "_search_cv"):
+        if hasattr(package, attribute):
+            monkeypatch.setattr(
+                package, attribute, getattr(package, attribute)
+            )
+    for name in reimported:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    for name in blocked:
+        monkeypatch.setitem(sys.modules, name, None)
 
 
 class _NoFeatureCountRegressor(RegressorMixin, BaseEstimator):
@@ -674,6 +756,242 @@ def test_model_random_state_is_drawn_before_the_seeds_of_the_tuning():
     assert models[0].random_state is None
 
 
+# --- Tuning ------------------------------------------------------------------
+
+
+def _tuned_models() -> list[BaseEstimator]:
+    """Return new models that have a search space, one of them nested.
+
+    EnsembleRegressor names them ``"ridge"``, ``"pipeline"`` and ``"svr"``.
+    """
+    return [Ridge(), make_pipeline(StandardScaler(), Ridge()), SVR()]
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_tuned_models_are_optuna_search_cv(method):
+    search_cv, search_regressor, param_distributions = _tuning_classes()
+    models = _tuned_models()
+    ensemble = EnsembleRegressor(
+        estimators=models,
+        method=method,
+        cv=CV,
+        random_state=SEED,
+        n_trials=N_TRIALS,
+    ).fit(X, y)
+
+    assert list(ensemble.named_estimators_) == ["ridge", "pipeline", "svr"]
+    for model, search, named in zip(
+        models, ensemble.estimators_, ensemble.named_estimators_.values()
+    ):
+        assert type(search) is search_regressor
+        assert isinstance(search, search_cv)
+        assert named is search
+        # The search space of the model for the columns of X.
+        expected = param_distributions(model, n_features=N_FEATURES)
+        assert dict(search.param_distributions) == dict(expected)
+        assert search.param_distributions.n_features == N_FEATURES
+        assert len(search.study_.trials) == N_TRIALS
+        assert set(search.best_params_) == set(expected)
+        # The model refitted with the best parameters.
+        best_estimator_params = search.best_estimator_.get_params()
+        for name, value in search.best_params_.items():
+            assert best_estimator_params[name] == value
+    # A nested model gets the names prefixed with its step.
+    assert set(ensemble.named_estimators_["pipeline"].best_params_) == {
+        "ridge__alpha"
+    }
+    assert ensemble.n_features_in_ == N_FEATURES
+    assert_allclose(ensemble.predict(X), ensemble.estimator_.predict(X))
+
+
+def test_n_trials_defaults_to_100():
+    ensemble = EnsembleRegressor()
+
+    assert ensemble.n_trials == 100
+    assert ensemble.get_params()["n_trials"] == 100
+
+
+@pytest.mark.parametrize(
+    "scoring_params, expected_scoring",
+    [({}, "neg_mean_squared_error"), ({"scoring": "r2"}, "r2")],
+    ids=["default", "r2"],
+)
+def test_cv_scoring_and_n_trials_are_passed_to_each_search(
+    scoring_params, expected_scoring
+):
+    _tuning_classes()
+    cv = KFold(n_splits=CV, shuffle=True, random_state=0)
+    ensemble = EnsembleRegressor(
+        estimators=[Ridge(), SVR()],
+        method="average",
+        cv=cv,
+        random_state=SEED,
+        n_trials=N_TRIALS,
+        **scoring_params,
+    ).fit(X, y)
+
+    # The searches that EnsembleRegressor gave to VotingRegressor.
+    for _, search in ensemble.estimator_.estimators:
+        assert search.cv is cv
+    # The fitted copies of the searches.
+    for search in ensemble.estimators_:
+        params = search.get_params(deep=False)
+        assert params["scoring"] == expected_scoring
+        assert params["n_trials"] == N_TRIALS
+        assert params["verbose"] == 0
+        assert len(search.study_.trials) == N_TRIALS
+        # Each trial is scored with ``scoring`` on the splits of ``cv``.
+        for trial in search.study_.trials:
+            assert sorted(
+                key for key in trial.user_attrs if key.endswith("_test_score")
+            ) == [
+                "mean_test_score",
+                *[f"split{i}_test_score" for i in range(CV)],
+                "std_test_score",
+            ]
+        best_model = clone(search.estimator).set_params(**search.best_params_)
+        assert search.study_.best_value == pytest.approx(
+            cross_val_score(
+                best_model, X, y, cv=cv, scoring=expected_scoring
+            ).mean()
+        )
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_stacking_tunes_on_the_training_part_of_each_split(
+    method, monkeypatch
+):
+    _, search_regressor, _ = _tuning_classes()
+    row_numbers = {row.tobytes(): i for i, row in enumerate(X)}
+    fitted_rows: list[tuple[int, ...]] = []
+    original_fit = search_regressor.fit
+
+    def recording_fit(self, X_fit, y_fit=None, groups=None, **fit_params):
+        fitted_rows.append(
+            tuple(row_numbers[row.tobytes()] for row in np.asarray(X_fit))
+        )
+        return original_fit(self, X_fit, y_fit, groups=groups, **fit_params)
+
+    monkeypatch.setattr(search_regressor, "fit", recording_fit)
+    EnsembleRegressor(
+        estimators=[Ridge()],
+        method=method,
+        cv=CV,
+        random_state=SEED,
+        n_trials=N_TRIALS,
+    ).fit(X, y)
+
+    all_rows = tuple(range(N_SAMPLES))
+    if method == "average":
+        assert fitted_rows == [all_rows]
+        return
+    # Tuned on the training part of each split of cv (never on its test
+    # part), and once on all the data.
+    split_rows = [tuple(train) for train, _ in KFold(n_splits=CV).split(X)]
+    assert sorted(fitted_rows) == sorted([*split_rows, all_rows])
+    assert sorted(map(len, fitted_rows)) == [
+        N_SAMPLES * (CV - 1) // CV
+    ] * CV + [N_SAMPLES]
+
+
+@pytest.mark.parametrize("verbose, hidden", [(0, True), (1, False)])
+def test_verbose_0_hides_the_trial_logs_of_optuna(
+    verbose, hidden, optuna_records
+):
+    _tuning_classes()
+    import optuna
+
+    previous = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.INFO)
+    try:
+        EnsembleRegressor(
+            estimators=[Ridge()],
+            method="stacking",
+            cv=CV,
+            random_state=SEED,
+            verbose=verbose,
+            n_trials=N_TRIALS,
+        ).fit(X, y)
+
+        info_messages = [
+            record.getMessage()
+            for record in optuna_records
+            if record.levelno < logging.WARNING
+        ]
+        assert optuna.logging.get_verbosity() == optuna.logging.INFO
+    finally:
+        optuna.logging.set_verbosity(previous)
+
+    if hidden:
+        assert info_messages == []
+    else:  # the trial logs reach the handler when they are not hidden
+        assert any("Trial" in message for message in info_messages)
+
+
+@pytest.mark.parametrize("method", ["average", "stacking"])
+def test_same_random_state_gives_the_same_tuning(method):
+    _tuning_classes()
+
+    def fit(random_state: int) -> EnsembleRegressor:
+        return EnsembleRegressor(
+            estimators=[Ridge(), SVR()],
+            method=method,
+            cv=CV,
+            random_state=random_state,
+            n_trials=N_TRIALS,
+        ).fit(X, y)
+
+    def best_params(ensemble: EnsembleRegressor) -> list[dict[str, object]]:
+        return [search.best_params_ for search in ensemble.estimators_]
+
+    first, second, other = fit(SEED), fit(SEED), fit(SEED + 1)
+
+    for ensemble in (first, second):
+        seeds = [search.random_state for search in ensemble.estimators_]
+        assert all(type(seed) is int for seed in seeds)
+    assert [search.random_state for search in first.estimators_] == [
+        search.random_state for search in second.estimators_
+    ]
+    assert best_params(first) == best_params(second)
+    assert_array_equal(first.predict(X), second.predict(X))
+    assert best_params(other) != best_params(first)
+
+
+@pytest.mark.parametrize(
+    "estimator, name, type_name",
+    [
+        (KNeighborsRegressor(), "kneighborsregressor", "KNeighborsRegressor"),
+        (("knn", KNeighborsRegressor()), "knn", "KNeighborsRegressor"),
+        (
+            ("pipe", make_pipeline(StandardScaler(), KNeighborsRegressor())),
+            "pipe",
+            "Pipeline",
+        ),
+    ],
+    ids=["unnamed", "named", "pipeline"],
+)
+def test_model_without_search_space_raises_not_implemented_error(
+    estimator, name, type_name
+):
+    _tuning_classes()
+    ensemble = EnsembleRegressor(
+        estimators=[Ridge(), estimator], cv=CV, n_trials=N_TRIALS
+    )
+
+    with pytest.raises(
+        NotImplementedError, match=f"'{name}' \\({type_name}\\)"
+    ) as excinfo:
+        ensemble.fit(X, y)
+
+    # Chained from the error of ParamDistributions, whose message is kept.
+    cause = excinfo.value.__cause__
+    assert isinstance(cause, NotImplementedError)
+    assert "KNeighborsRegressor" in str(cause)
+    assert str(cause) in str(excinfo.value)
+    assert "opt=False" in str(excinfo.value)
+    assert not hasattr(ensemble, "estimator_")
+
+
 # --- Errors ------------------------------------------------------------------
 
 
@@ -776,3 +1094,43 @@ def test_tuning_modules_are_imported_only_when_tuning(optuna):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "[]"
+
+
+@pytest.mark.parametrize(
+    "blocked, reimported",
+    [
+        (
+            ("optuna_integration", "optuna.integration"),
+            ("yikit.models._search_cv",),
+        ),
+        (("yikit.models._optuna",), ()),
+        (("optuna",), ("yikit.models._optuna", "yikit.models._search_cv")),
+    ],
+    ids=["optuna-integration", "yikit.models._optuna", "optuna"],
+)
+def test_tuning_without_its_modules_raises_import_error(
+    monkeypatch, blocked, reimported
+):
+    _tuning_classes()
+    _block_imports(monkeypatch, blocked, reimported)
+    ensemble = EnsembleRegressor(
+        estimators=[Ridge()], method="average", n_trials=N_TRIALS
+    )
+
+    with pytest.raises(ImportError, match="opt=False") as excinfo:
+        ensemble.fit(X, y)
+
+    message = str(excinfo.value)
+    assert "optuna" in message
+    assert "optuna-integration" in message
+    # Chained from the error of the import that failed.
+    cause = excinfo.value.__cause__
+    assert isinstance(cause, ImportError)
+    assert cause.name in blocked
+    assert not hasattr(ensemble, "estimator_")
+    # Without the tuning, the ensemble does not need these modules.
+    for method in METHODS:
+        fitted = EnsembleRegressor(
+            estimators=[Ridge()], method=method, cv=CV, opt=False
+        ).fit(X, y)
+        assert fitted.predict(X).shape == (N_SAMPLES,)

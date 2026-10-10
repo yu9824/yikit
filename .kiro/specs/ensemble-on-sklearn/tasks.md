@@ -20,7 +20,7 @@
   - _Boundary: OptunaSearchRegressor_
   - _Requirements: 2.4, 2.8, 7.3_
 
-- [ ] 3. EnsembleRegressor を scikit-learn のアンサンブルの上に作り直す
+- [x] 3. EnsembleRegressor を scikit-learn のアンサンブルの上に作り直す
 - [x] 3.1 引数・検査・組み立て・学習後の属性を作り、古い実装を置き換える
   - 引数を design のとおりにする（`boruta` をなくし、`n_trials` を足し、`n_jobs` の既定を None にする）。`__init__` は属性に入れるだけにする
   - `fit` で `method`・空の `estimators`・回帰モデルでないものを検査し、名前と型を示す ValueError にする。モデルだけの並びには `make_pipeline` と同じ規則で名前を付け、`(名前, モデル)` の組はそのまま使う
@@ -40,7 +40,7 @@
   - 完了の状態: 上のテストが `tests/test_ensemble.py` で通る
   - _Requirements: 2.5, 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 3.3 調整の振る舞いと、調整にまつわる誤りを確かめる
+- [x] 3.3 調整の振る舞いと、調整にまつわる誤りを確かめる
   - 調整に使う import（optuna、`yikit.models._optuna`、2 のモジュール）のどれかに失敗したときは、optuna と optuna-integration を入れるか `opt=False` にするよう案内する ImportError を、元の例外につないで出す
   - `ParamDistributions` の NotImplementedError は、モデルの名前と型を加えた NotImplementedError にして、元の例外につないで出す
   - テスト（optuna-integration がなければ飛ばす。`n_trials=2`、`cv=3` 程度）: `estimators_` の各要素が `OptunaSearchCV` で、`study_` の試行が `n_trials` 個、`best_params_` の名前が `ParamDistributions` と同じ。`n_trials` の既定が 100、`scoring` と `cv` が調整に渡る。stacking で、調整付きのモデルの `fit` が cv 回（分割の学習データの大きさ）と1回（全データ）呼ばれる。optuna-integration の import を失敗させたときと `yikit.models._optuna` の import を失敗させたときの ImportError と、どちらでも `opt=False` なら学習できること。調整の種が整数として各 `OptunaSearchCV` の `random_state` に入り、同じ `random_state` で2回学習すると同じ `best_params_` になること。`KNeighborsRegressor` と `opt=True` の NotImplementedError。`verbose=0` の調整で optuna の INFO のログが出ない
