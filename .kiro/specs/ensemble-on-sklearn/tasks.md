@@ -21,7 +21,7 @@
   - _Requirements: 2.4, 2.8, 7.3_
 
 - [ ] 3. EnsembleRegressor を scikit-learn のアンサンブルの上に作り直す
-- [ ] 3.1 引数・検査・組み立て・学習後の属性を作り、古い実装を置き換える
+- [x] 3.1 引数・検査・組み立て・学習後の属性を作り、古い実装を置き換える
   - 引数を design のとおりにする（`boruta` をなくし、`n_trials` を足し、`n_jobs` の既定を None にする）。`__init__` は属性に入れるだけにする
   - `fit` で `method`・空の `estimators`・回帰モデルでないものを検査し、名前と型を示す ValueError にする。モデルだけの並びには `make_pipeline` と同じ規則で名前を付け、`(名前, モデル)` の組はそのまま使う
   - `method` に応じて VotingRegressor か StackingRegressor（stacking は `LinearRegression()`、blending は `LinearRegression(positive=True, fit_intercept=False)`、`cv` を渡す）を組み立て、`n_jobs`・`verbose` を渡し、X と y を変換せずに学習する。`opt=True` のときは各モデルを 2 のクラスと `ParamDistributions`（X の列の数）で包む。調整に使う import（optuna、`yikit.models._optuna`、2 のモジュール）は、すべて `opt=True` のときだけ `fit` の中で行う（optuna のない環境でも `import yikit.models` を壊さないため）
