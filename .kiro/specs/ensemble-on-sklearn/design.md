@@ -32,7 +32,7 @@
 ### Allowed Dependencies
 - scikit-learn（>=0.24.1）の公開 API: `VotingRegressor`、`StackingRegressor`、`LinearRegression`、`clone`、`is_regressor`、`check_random_state`、`check_is_fitted`
 - yikit: `yikit.models._optuna.ParamDistributions`、`yikit.models._params.apply_params`・`find_unspecified_random_states`、`yikit.helpers.is_installed`
-- optional: optuna-integration の `OptunaSearchCV`（なければ `optuna.integration` から。`_search_cv.py` だけが import し、`_ensemble.py` は `opt=True` のときに `fit` の中で `_search_cv` を import する）、optuna の `logging`
+- optional: optuna-integration の `OptunaSearchCV`（なければ `optuna.integration` から。`_search_cv.py` だけが import する）、optuna の `logging`。`_ensemble.py` は `_optuna` と `_search_cv` を、`opt=True` のときに `fit` の中で import する
 - 依存の向き: `_ensemble` → `_search_cv` → optuna-integration。`_ensemble` → `_optuna`・`_params`。逆向きの import はしない。`_ensemble` は feature_selection を import しない（Boruta は利用者が Pipeline で渡す）
 
 ### Revalidation Triggers
@@ -86,6 +86,7 @@ src/yikit/feature_selection/
 └── _wrapper.py       # 変更: BorutaPy の perc の解決を _fit に移し、perc_ を持つ
 tests/
 ├── test_ensemble.py  # 新規: EnsembleRegressor のテスト
+├── test_search_cv.py # 新規: OptunaSearchRegressor のテスト
 └── test_boruta.py    # 追記: BorutaPy の fit_transform と perc_ のテスト
 ```
 
@@ -202,7 +203,7 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
 - `n_jobs` の既定は None。docstring で「並列数は層ごとに掛け算になる。外側で並列にするときは各モデルを `n_jobs=1` に」と案内する（1.7）
 
 **Implementation Notes**
-- Integration: optuna-integration の import は `_import_search_regressor()` にまとめ、`_search_cv` の import に失敗したら「optuna-integration を入れるか `opt=False` にする」と案内する ImportError を元の例外につないで出す（2.6）
+- Integration: 調整に使う import（optuna、`yikit.models._optuna` の `ParamDistributions`、`_search_cv`）は `_import_search_regressor()` にまとめ、`opt=True` のときだけ `fit` の中で呼ぶ（optuna のない環境でも `import yikit.models` を壊さない）。どれかの import に失敗したら「optuna と optuna-integration を入れるか `opt=False` にする」と案内する ImportError を元の例外につないで出す（2.6）
 - Validation: 予測の一致（1.1–1.3）は、`opt=False`、各モデルの `random_state` を明示した場合に、直接作った sklearn のアンサンブルとの `assert_allclose` で確かめる
 - Risks: stacking と blending の調整は (cv+1) 回行われる。docstring に計算量の目安を書く
 
@@ -248,7 +249,7 @@ class OptunaSearchRegressor(OptunaSearchCV):
 | `method` が不正 | ValueError（使える値を示す） | `EnsembleRegressor.fit` |
 | `estimators` が空 | ValueError | `EnsembleRegressor.fit` |
 | 回帰モデルでないもの | ValueError（名前と型） | `EnsembleRegressor.fit` |
-| `opt=True` で optuna-integration がない | ImportError（入れるか `opt=False`。元の例外をつなぐ） | `EnsembleRegressor.fit` |
+| `opt=True` で optuna か optuna-integration がない（調整に使う import の失敗） | ImportError（入れるか `opt=False`。元の例外をつなぐ） | `EnsembleRegressor.fit` |
 | `opt=True` で範囲のないモデル | NotImplementedError（名前と型。元の例外をつなぐ） | `EnsembleRegressor.fit` |
 | 学習前の `predict` | NotFittedError | `EnsembleRegressor.predict` |
 | `boruta=` を渡す | TypeError（Python の引数の検査） | `EnsembleRegressor.__init__` |
