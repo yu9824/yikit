@@ -83,7 +83,7 @@
   - 完了の状態: `RecommendedParams(SVR())` が `{"gamma": "auto"}` と等しく、上のテストが通る
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.6, 10.6_
 
-- [ ] 4. 公開する名前と利用側の付け替え
+- [x] 4. 公開する名前と利用側の付け替え
   - `yikit.models` から LinearModelRegressor と SupportVectorRegressor をなくし、その2つのモジュールを削除する。optuna があるときに RecommendedParams を公開する
   - EnsembleRegressor の、探索の後のモデルを作る1か所を、Objective の最良のモデルを返す処理に置き換える。それ以外は変えない
   - テスト: `from yikit.models import LinearModelRegressor` と `SupportVectorRegressor` が ImportError、`from yikit.models import RecommendedParams` が通る

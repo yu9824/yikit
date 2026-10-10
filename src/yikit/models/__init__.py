@@ -1,8 +1,8 @@
-"""Machine learning model wrappers and ensemble methods.
+"""Machine learning models and hyperparameter optimization utilities.
 
-This module provides scikit-learn compatible regressors including ensemble methods,
-linear models, support vector machines, gradient boosting, neural networks, and
-hyperparameter optimization utilities.
+This module provides scikit-learn compatible regressors (an ensemble of
+regressors and, when lightgbm is installed, a gradient boosting regressor)
+and, when optuna is installed, utilities for hyperparameter optimization.
 """
 
 from __future__ import annotations
@@ -10,19 +10,15 @@ from __future__ import annotations
 from yikit.helpers import is_installed
 
 from ._ensemble import EnsembleRegressor
-from ._linear import LinearModelRegressor
-from ._svm import SupportVectorRegressor
 
 __all__ = [
     "EnsembleRegressor",
-    "LinearModelRegressor",
-    "SupportVectorRegressor",
 ]
 
 if is_installed("optuna"):
-    from ._optuna import Objective, ParamDistributions
+    from ._optuna import Objective, ParamDistributions, RecommendedParams
 
-    __all__ += ["Objective", "ParamDistributions"]
+    __all__ += ["Objective", "ParamDistributions", "RecommendedParams"]
 
 if is_installed("lightgbm"):
     from ._gbdt import GBDTRegressor  # noqa: F401

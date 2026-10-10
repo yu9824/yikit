@@ -958,6 +958,7 @@ class RecommendedParams(dict):  # a dict to unpack into set_params
     Examples
     --------
     >>> from sklearn.svm import SVR
+    >>> from yikit.models import RecommendedParams
     >>> RecommendedParams(SVR())
     RecommendedParams({'gamma': 'auto'})
     >>> RecommendedParams(SVR()) == {"gamma": "auto"}
