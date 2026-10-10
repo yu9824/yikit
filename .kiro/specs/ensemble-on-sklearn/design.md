@@ -146,7 +146,7 @@ sequenceDiagram
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | EnsembleRegressor | models | 引数から sklearn のアンサンブルを組み立てて委ねる | 1, 2.1–2.7, 3, 4.1, 4.4, 5, 6 | VotingRegressor/StackingRegressor (P0), ParamDistributions (P0), EstimatorParams (P0) | Service, State |
-| OptunaSearchRegressor | models | `OptunaSearchCV` に回帰モデルの印を付け、ログを抑える | 2.1, 2.4, 2.8, 5.3 | optuna-integration (P0) | Service |
+| OptunaSearchRegressor | models | `OptunaSearchCV` に回帰モデルの印を付け、ログを抑える | 2.1, 2.4, 2.8, 5.3, 5.4 | optuna-integration (P0) | Service |
 | BorutaPy（変更） | feature_selection | `perc="auto"` をどの経路でも解決し、`perc_` に持つ | 4.2, 4.3 | boruta (P0) | Service |
 
 ### models
@@ -212,12 +212,14 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
 | Field | Detail |
 |-------|--------|
 | Intent | `OptunaSearchCV` を scikit-learn のアンサンブルが回帰モデルとして受け付けるようにし、`verbose=0` で optuna のログを抑える |
-| Requirements | 2.1, 2.4, 2.8, 5.3 |
+| Requirements | 2.1, 2.4, 2.8, 5.3, 5.4 |
 
 **Responsibilities & Constraints**
 - `OptunaSearchCV` を継承する（optuna-integration から。なければ `optuna.integration` から import）。`__init__` は上書きしない
 - クラス属性 `_estimator_type = "regressor"`（scikit-learn 1.6 未満の `is_regressor`）と、`__sklearn_tags__` の上書き（`super().__sklearn_tags__()` の `estimator_type` を "regressor" にする。1.6 以上でだけ呼ばれる）
-- `fit`: `verbose == 0` なら、`optuna.logging.get_verbosity()` を覚えて WARNING にし、`super().fit(...)` の後に try/finally で戻す（2.8）。`verbose > 0` ならそのまま
+- `fit(X, y=None, groups=None, **fit_params)`（親と同じ形）: `verbose <= 0` なら optuna のログの水準を `max(元の水準, WARNING)` にし、try/finally で戻す（2.8）。同じプロセスで並行して学習する探索は、モジュールに1つのロックと数で数え、最初に入った探索が元の水準を覚え、最後に出た探索が戻す（スレッドで並列にしても戻るように）。`verbose > 0` なら水準を変えない
+- `predict(X, **kwargs)`: `super().predict(X, **kwargs)` を返す普通のメソッド。optuna 3.0〜3.6 に同梱の integration と optuna-integration 4.0.0 以下は `predict` を property として定義するので、学習前の `hasattr(search, "predict")` が False になり、StackingRegressor が拒む。依存の下限（optuna>=3.0）で動かすために定義し直す
+- `n_features_in_`・`feature_names_in_`: `best_estimator_` から読む読み取り専用の property（5.4）。`OptunaSearchCV` はどちらも持たないので、これがないと、探索を入れた Voting/Stacking も学習後にこれらを持たない。学習前・`refit=False`・最良のモデルが持たないときは AttributeError（`hasattr` は False）
 - モジュールの直下に定義する（学習したアンサンブルを pickle できるように）。`yikit.models` からは公開しない
 
 ##### Service Interface
@@ -225,7 +227,12 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
 class OptunaSearchRegressor(OptunaSearchCV):
     _estimator_type = "regressor"
     def __sklearn_tags__(self) -> Any: ...
-    def fit(self, X: Any, y: Any = None, **fit_params: Any) -> OptunaSearchRegressor: ...
+    def fit(self, X: Any, y: Any = None, groups: Any = None, **fit_params: Any) -> OptunaSearchRegressor: ...
+    def predict(self, X: Any, **kwargs: Any) -> Any: ...
+    @property
+    def n_features_in_(self) -> int: ...
+    @property
+    def feature_names_in_(self) -> Any: ...
 ```
 
 ### feature_selection

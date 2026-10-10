@@ -11,7 +11,7 @@
   - _Boundary: BorutaPy_
   - _Requirements: 4.2, 4.3, 7.3, 7.4_
 
-- [ ] 2. (P) OptunaSearchCV をアンサンブルが回帰モデルとして受け付けるようにする
+- [x] 2. (P) OptunaSearchCV をアンサンブルが回帰モデルとして受け付けるようにする
   - 新しいモジュールに、`OptunaSearchCV` を継承し、回帰モデルの印（`_estimator_type` と `__sklearn_tags__`）だけを足したクラスを作る。`__init__` は上書きせず、モジュールの直下に置く（pickle のため）。`OptunaSearchCV` は optuna-integration から、なければ `optuna.integration` から import する
   - `verbose=0` のときは `fit` の間だけ optuna のログを WARNING にし、終わったら（例外のときも）元に戻す
   - 英語の numpy 形式の docstring を付ける
@@ -73,3 +73,4 @@
 - テストの小さなデータは各テストファイルの中に置く。`tests/conftest.py` は変えない
 - GBDTRegressor は gbdt-fix（PR #32）がマージされるまで LightGBM 4 で学習できないので、このテストでは使わない
 - タスク1（BorutaPy の perc）: `_fit` で `perc_` を決め、`self.perc` は `_fit` の間だけ差し替えて finally で戻す。boruta の `_transform` は DataFrame に対応しない（`X[:, mask]`）ので、タスク4で直す
+- タスク2: OptunaSearchRegressor は回帰モデルの印に加えて、普通のメソッドの `predict`（古い optuna の property 対策）、`best_estimator_` から読む `n_features_in_`・`feature_names_in_`、親と同じ `fit(X, y=None, groups=None, **fit_params)`、参照を数えるログの抑制を持つ。タスク3では、`opt=True` でもアンサンブルの `n_features_in_`・`feature_names_in_` をそのまま写せる
