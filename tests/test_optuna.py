@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
+import pickle
 import warnings
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,7 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
 from yikit.models import Objective, ParamDistributions, _optuna, _search_space
+from yikit.models._optuna import RecommendedParams
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -1297,3 +1299,217 @@ def test_param_distributions_survive_deepcopy_and_clone():
 def test_removed_wrappers_are_not_imported_by_optuna_module():
     for name in ("LinearModelRegressor", "SupportVectorRegressor", "NoneType"):
         assert not hasattr(_optuna, name)
+
+
+# --- RecommendedParams ------------------------------------------------------
+
+
+class _SubSVR(SVR):
+    """Subclass of SVR, which the recommended values table also matches."""
+
+
+def _nested_svr() -> TransformedTargetRegressor:
+    return TransformedTargetRegressor(
+        regressor=make_pipeline(StandardScaler(), SVR()),
+        transformer=StandardScaler(),
+    )
+
+
+@pytest.mark.parametrize(
+    ("make_estimator", "expected"),
+    [
+        (SVR, {"gamma": "auto"}),
+        (lambda: SVR(kernel="linear", gamma=0.1), {"gamma": "auto"}),
+        (_SubSVR, {"gamma": "auto"}),
+        (
+            lambda: make_pipeline(StandardScaler(), SVR()),
+            {"svr__gamma": "auto"},
+        ),
+        (
+            lambda: TransformedTargetRegressor(regressor=SVR()),
+            {"regressor__gamma": "auto"},
+        ),
+        (_nested_svr, {"regressor__svr__gamma": "auto"}),
+    ],
+    ids=["svr", "svr-given-gamma", "subclass", "pipeline", "ttr", "nested"],
+)
+def test_recommended_params_of_svr(make_estimator, expected):
+    estimator = make_estimator()
+    params_before = estimator.get_params()
+
+    recommended = RecommendedParams(estimator)
+
+    assert isinstance(recommended, dict)
+    assert recommended == expected
+    assert recommended.estimator is estimator
+    # The values are only returned, never set on the estimator.
+    assert estimator.get_params() == params_before
+
+
+@pytest.mark.parametrize(
+    "make_estimator",
+    [
+        RandomForestRegressor,
+        KNeighborsRegressor,
+        Ridge,
+        LinearSVR,
+        lambda: make_pipeline(StandardScaler(), RandomForestRegressor()),
+        lambda: TransformedTargetRegressor(regressor=KNeighborsRegressor()),
+        TransformedTargetRegressor,
+    ],
+    ids=[
+        "random-forest",
+        "kneighbors",
+        "ridge",
+        "linear-svr",
+        "pipeline-random-forest",
+        "ttr-kneighbors",
+        "ttr-none",
+    ],
+)
+def test_recommended_params_of_other_models_are_empty(make_estimator):
+    estimator = make_estimator()
+
+    recommended = RecommendedParams(estimator)
+
+    assert type(recommended) is RecommendedParams
+    assert recommended == {}
+    assert recommended.estimator is estimator
+
+
+def test_recommended_params_behave_as_a_plain_dict():
+    recommended = RecommendedParams(SVR())
+
+    assert recommended == {"gamma": "auto"}
+    assert {"gamma": "auto"} == recommended
+    assert recommended != {"gamma": "scale"}
+    assert {**recommended} == {"gamma": "auto"}
+    assert dict(recommended) == {"gamma": "auto"}
+    assert repr(recommended) == "RecommendedParams({'gamma': 'auto'})"
+    assert repr(RecommendedParams(Ridge())) == "RecommendedParams({})"
+
+
+def test_recommended_params_are_new_each_time():
+    recommended = RecommendedParams(SVR())
+    recommended["gamma"] = 0.1
+    recommended["C"] = 10.0
+
+    assert RecommendedParams(SVR()) == {"gamma": "auto"}
+
+
+@pytest.mark.parametrize(
+    "copy_function",
+    [copy.deepcopy, lambda obj: pickle.loads(pickle.dumps(obj))],
+    ids=["deepcopy", "pickle"],
+)
+def test_recommended_params_survive_deepcopy_and_pickle(copy_function):
+    recommended = RecommendedParams(_nested_svr())
+
+    copied = copy_function(recommended)
+
+    assert type(copied) is RecommendedParams
+    assert copied is not recommended
+    assert copied == recommended == {"regressor__svr__gamma": "auto"}
+    assert type(copied.estimator) is TransformedTargetRegressor
+    assert copied.estimator is not recommended.estimator
+    assert repr(copied) == repr(recommended)
+
+
+@pytest.mark.parametrize(
+    "make_estimator", [SVR, _SubSVR, _nested_svr], ids=["svr", "sub", "nested"]
+)
+def test_recommended_params_can_be_passed_to_set_params(make_estimator):
+    estimator = make_estimator()
+    recommended = RecommendedParams(estimator)
+
+    returned = estimator.set_params(**recommended)
+
+    assert returned is estimator
+    params = estimator.get_params()
+    assert recommended
+    for name, value in recommended.items():
+        assert params[name] == value == "auto"
+
+
+@pytest.mark.parametrize(
+    ("make_estimator", "name"),
+    [(SVR, "gamma"), (_nested_svr, "regressor__svr__gamma")],
+    ids=["svr", "nested"],
+)
+def test_objective_uses_recommended_params_as_fixed_params(
+    make_estimator, name, monkeypatch, small_data
+):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+    estimator = make_estimator()
+
+    objective = Objective(
+        estimator,
+        X,
+        y,
+        fixed_params=RecommendedParams(estimator),
+        random_state=SEED,
+    )
+    study = _optimize(objective, n_trials=3)
+
+    assert objective.fixed_params == {name: "auto"}
+    assert objective.param_distributions is not None
+    assert name not in objective.param_distributions
+    assert all(name not in trial.params for trial in study.trials)
+    assert objective.get_best_params(study)[name] == "auto"
+    best_estimator = objective.get_best_estimator(study)
+    assert len(evaluated) == 3
+    for model in [*evaluated, best_estimator]:
+        assert model.get_params()[name] == "auto"
+    # The estimator passed by the user keeps its own gamma.
+    assert estimator.get_params()[name] == "scale"
+
+
+@pytest.mark.parametrize(
+    ("make_estimator", "name", "gamma"),
+    [
+        (SVR, "gamma", "scale"),
+        (lambda: SVR(gamma=0.1), "gamma", 0.1),
+        (_nested_svr, "regressor__svr__gamma", "scale"),
+    ],
+    ids=["svr", "svr-given-gamma", "nested"],
+)
+def test_objective_keeps_gamma_without_recommended_params(
+    make_estimator, name, gamma, monkeypatch, small_data
+):
+    X, y = small_data
+    evaluated = _patch_cross_validate(monkeypatch)
+
+    objective = Objective(make_estimator(), X, y, random_state=SEED)
+    study = _optimize(objective, n_trials=3)
+
+    assert objective.fixed_params == {}
+    assert name not in objective.get_best_params(study)
+    best_estimator = objective.get_best_estimator(study)
+    assert len(evaluated) == 3
+    for model in [*evaluated, best_estimator]:
+        assert model.get_params()[name] == gamma
+
+
+def test_objective_and_param_distributions_do_not_use_recommended_params(
+    monkeypatch, small_data
+):
+    X, y = small_data
+    _patch_cross_validate(monkeypatch)
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("the recommended values must not be looked up")
+
+    monkeypatch.setattr(_optuna, "RecommendedParams", fail)
+    monkeypatch.setattr(_optuna, "get_recommended_params", fail)
+    monkeypatch.setattr(_search_space, "get_recommended_params", fail)
+    estimator = _nested_svr()
+
+    objective = Objective(estimator, X, y, random_state=SEED)
+    study = _optimize(objective, n_trials=2)
+    objective.get_best_params(study)
+    best_estimator = objective.get_best_estimator(study)
+    param_distributions = ParamDistributions(estimator, n_features=N_FEATURES)
+
+    assert best_estimator.regressor.named_steps["svr"].gamma == "scale"
+    assert "regressor__svr__gamma" not in param_distributions

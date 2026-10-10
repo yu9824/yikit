@@ -7,7 +7,9 @@ estimators nested in ``Pipeline`` and ``TransformedTargetRegressor``) and
 sets the parameters with ``yikit.models._params.apply_params``, so the
 parameters of the estimator passed by the user are kept.
 ``ParamDistributions`` holds the distributions of the same table, to pass
-to ``OptunaSearchCV`` of optuna-integration.
+to ``OptunaSearchCV`` of optuna-integration. ``RecommendedParams`` holds
+the values that yikit recommends to fix, which are set only when the user
+passes them.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ from yikit.models._params import (
     find_unspecified_random_states,
 )
 from yikit.models._search_space import (
+    get_recommended_params,
     get_search_space,
     ignores_nested_set_params,
     resolve_estimator,
@@ -900,3 +903,119 @@ class ParamDistributions(dict):  # a dict that OptunaSearchCV keeps as is
             f"custom_params={self.custom_params!r}, "
             f"n_features={self.n_features!r})"
         )
+
+
+class RecommendedParams(dict):  # a dict to unpack into set_params
+    """Values that yikit recommends to fix for an estimator, as a dict.
+
+    A dict from parameter names to the values that yikit recommends for
+    ``estimator``. The model is found in the same way as for the search
+    space of ``Objective`` and ``ParamDistributions``: the last step of a
+    ``Pipeline`` and the ``regressor`` of a ``TransformedTargetRegressor``
+    are followed, and the names get the same prefix, such as
+    ``regressor__svr__gamma``. It is empty, without an error, when yikit
+    recommends nothing for the model, including models without a search
+    space.
+
+    The values are opt-in. ``Objective`` and ``ParamDistributions`` never
+    set them by themselves, and this class does not modify ``estimator``.
+    Pass them yourself, as ``fixed_params`` of ``Objective`` or to
+    ``set_params`` of the estimator (``OptunaSearchCV`` keeps the
+    parameters of the estimator that it does not search). The table starts
+    small: it only holds ``gamma="auto"`` for ``SVR`` (and its subclasses),
+    the value that the removed ``SupportVectorRegressor`` used, and may get
+    more rows in later versions.
+
+    As a plain dict, it can be unpacked with ``**``, compares equal to a
+    dict with the same items, and keeps its contents and type through
+    ``copy.deepcopy`` and ``pickle``. Each instance holds new copies of the
+    values, so changing it does not change the table.
+
+    Parameters
+    ----------
+    estimator : object
+        scikit-learn compatible estimator instance to look up, e.g.
+        ``sklearn.svm.SVR()`` or a ``Pipeline`` whose last step is one. It
+        is not modified.
+
+    Attributes
+    ----------
+    estimator : object
+        The estimator passed by the user.
+
+    Raises
+    ------
+    ValueError
+        If a ``Pipeline`` on the way has no steps.
+
+    See Also
+    --------
+    Objective : Objective function of optuna that takes them as
+        ``fixed_params``.
+    ParamDistributions : Distributions of the search space to pass to
+        ``OptunaSearchCV``.
+
+    Examples
+    --------
+    >>> from sklearn.svm import SVR
+    >>> RecommendedParams(SVR())
+    RecommendedParams({'gamma': 'auto'})
+    >>> RecommendedParams(SVR()) == {"gamma": "auto"}
+    True
+    >>> from sklearn.ensemble import RandomForestRegressor
+    >>> RecommendedParams(RandomForestRegressor())
+    RecommendedParams({})
+
+    A nested ``SVR`` gets prefixed names:
+
+    >>> from sklearn.compose import TransformedTargetRegressor
+    >>> from sklearn.pipeline import make_pipeline
+    >>> from sklearn.preprocessing import StandardScaler
+    >>> estimator = TransformedTargetRegressor(
+    ...     regressor=make_pipeline(StandardScaler(), SVR()),
+    ...     transformer=StandardScaler(),
+    ... )
+    >>> RecommendedParams(estimator) == {"regressor__svr__gamma": "auto"}
+    True
+
+    Set the values on the estimator, e.g. before passing it to
+    ``OptunaSearchCV`` with ``ParamDistributions``:
+
+    >>> estimator = estimator.set_params(**RecommendedParams(estimator))
+    >>> estimator.regressor.named_steps["svr"].gamma
+    'auto'
+
+    Or fix them in every trial of ``Objective``, which leaves the passed
+    estimator as it is:
+
+    >>> import optuna
+    >>> from sklearn.datasets import make_regression
+    >>> from yikit.models import Objective
+    >>> X, y = make_regression(n_samples=50, n_features=5, random_state=334)
+    >>> estimator = SVR()
+    >>> objective = Objective(
+    ...     estimator,
+    ...     X,
+    ...     y,
+    ...     fixed_params=RecommendedParams(estimator),
+    ...     random_state=334,
+    ... )
+    >>> sorted(objective.param_distributions)
+    ['C', 'epsilon']
+    >>> study = optuna.create_study(
+    ...     direction="maximize", sampler=objective.sampler
+    ... )
+    >>> study.optimize(objective, n_trials=5)
+    >>> objective.get_best_estimator(study).gamma
+    'auto'
+    >>> estimator.gamma
+    'scale'
+    """
+
+    def __init__(self, estimator: Any) -> None:
+        super().__init__(get_recommended_params(estimator))
+        self.estimator = estimator
+
+    def __repr__(self) -> str:
+        """Return the recommended values as ``RecommendedParams({...})``."""
+        return f"{type(self).__name__}({super().__repr__()})"

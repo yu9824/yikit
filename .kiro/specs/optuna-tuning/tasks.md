@@ -41,7 +41,7 @@
   - _Boundary: EstimatorParams_
   - _Requirements: 2.1, 2.2, 2.6, 10.4, 10.6_
 
-- [ ] 3. 利用の窓口
+- [x] 3. 利用の窓口
 - [x] 3.1 Objective を、表と引数の処理を使う形に作り直す
   - 作るとき: TPESampler の種を今と同じ順番で引いた後に、未指定の `random_state` に入れる整数を1回だけ引いて公開する。探索範囲は渡された X の列の数で作り、`fixed_params` の名前を除く
   - 範囲がなく `custom_params` もないときは、作るときに型の名前と `custom_params` の案内を含む NotImplementedError にする。`fixed_params` と未指定の `random_state` の名前は作るときに一度当てて、誤りを ValueError にする
@@ -75,7 +75,7 @@
   - 完了の状態: `OptunaSearchCV(est, param_distributions=ParamDistributions(est))` がそのまま動き、上のテストと `test_optuna_search_cv` が通る
   - _Requirements: 4.6, 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 8.2, 10.2, 10.6_
 
-- [ ] 3.4 RecommendedParams を作る
+- [x] 3.4 RecommendedParams を作る
   - dict を継承し、渡したモデルに対する推奨値の問い合わせの結果を詰める
   - Objective と ParamDistributions が RecommendedParams を参照しないことを保つ
   - 英語の numpy 形式の docstring を付ける
