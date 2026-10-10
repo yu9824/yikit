@@ -47,7 +47,7 @@
   - 完了の状態: 上のテストが `tests/test_ensemble.py` で通る
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.6, 2.7, 2.8, 3.3, 5.3, 7.3_
 
-- [ ] 4. Boruta を前段に置いた Pipeline をアンサンブルで使えることを確かめ、使い方を示す
+- [x] 4. Boruta を前段に置いた Pipeline をアンサンブルで使えることを確かめ、使い方を示す
   - boruta 0.4.3 の変換（`_transform`）は `return_df=False` のとき `X[:, mask]` を使うので、DataFrame を入れた Pipeline が失敗する（タスク1のレビューで判明。作り直した EnsembleRegressor は入力を配列に変えずに渡すので、DataFrame で使うと必ず当たる）。yikit の BorutaPy で、`return_df=False` のときは DataFrame を配列にしてから変換するよう、最小限に直す
   - テスト: `Pipeline([("boruta", BorutaPy(..., max_iter 小、max_shuf 小、verbose=0、n_jobs=1、random_state 整数)), ("ridge", Ridge())])` を3つのまとめ方で学習・予測でき（ndarray と DataFrame の両方）、`opt=True` では `best_params_` の名前が `ridge__alpha` になる（boruta と optuna-integration がなければ飛ばす）
   - EnsembleRegressor の docstring の Examples に、BorutaPy を前段に置いた Pipeline と調整の使い方を示す（doctest で通るか、重い例は `# doctest: +SKIP`）
@@ -75,3 +75,4 @@
 - タスク1（BorutaPy の perc）: `_fit` で `perc_` を決め、`self.perc` は `_fit` の間だけ差し替えて finally で戻す。boruta の `_transform` は DataFrame に対応しない（`X[:, mask]`）ので、タスク4で直す
 - タスク2: OptunaSearchRegressor は回帰モデルの印に加えて、普通のメソッドの `predict`（古い optuna の property 対策）、`best_estimator_` から読む `n_features_in_`・`feature_names_in_`、親と同じ `fit(X, y=None, groups=None, **fit_params)`、参照を数えるログの抑制を持つ。タスク3では、`opt=True` でもアンサンブルの `n_features_in_`・`feature_names_in_` をそのまま写せる
 - タスク3.2のレビューで判明: scikit-learn 1.6 以上では `is_regressor(NGBRegressor())` が False（ngboost 0.5.8 は `_estimator_type` をインスタンスの属性にしか持たず、tags もない。0.3.6 は持たない）。EnsembleRegressor も sklearn のアンサンブルも素の NGBRegressor を拒む。回避策は `TransformedTargetRegressor(regressor=NGBRegressor(...))` で包むこと（`opt=True` では `regressor__Base__*` が効かない警告が出る）。タスク4の docstring に書く
+- タスク4のレビューで判明: 列名を記録するモデルが1つもないとき（BorutaPy から始まる Pipeline だけのときなど）、DataFrame で学習しても EnsembleRegressor に `feature_names_in_` が付かない（中の Voting/Stacking が持たないため）。要件 5.4 の文言とずれるので、全体の検証で、`n_features_in_` と同じく X の列名（すべて文字列のとき）から入れる形に直す

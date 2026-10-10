@@ -391,9 +391,21 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
     Notes
     -----
     yikit 0.4.0 removed the ``boruta`` parameter and the ``results_``
-    attribute. To select features, pass the models in pipelines that select
-    them first. To measure the scores of the ensemble, cross-validate it
-    (e.g. with ``sklearn.model_selection.cross_validate``).
+    attribute. To select features, pass each model in a ``Pipeline`` whose
+    first step selects them, such as ``yikit.feature_selection.BorutaPy``
+    (see Examples). To measure the scores of the ensemble, cross-validate
+    it (e.g. with ``sklearn.model_selection.cross_validate``).
+
+    ``NGBRegressor`` of ngboost is not recognized as a regressor by
+    scikit-learn >= 1.6, nor by any scikit-learn with ngboost 0.3.x, so
+    ``fit`` rejects it (as ``VotingRegressor`` and ``StackingRegressor``
+    do). Wrap it as
+    ``TransformedTargetRegressor(regressor=NGBRegressor(...))``. With
+    ``opt=True``, ``OptunaSearchCV`` cannot tune the parameters of its
+    ``Base`` (``regressor__Base__max_depth``, ...), because ``set_params``
+    of ngboost 0.4.0 or later ignores nested names: ``ParamDistributions``
+    warns about them, and their values are still sampled and listed in
+    ``best_params_`` but have no effect.
 
     Examples
     --------
@@ -414,6 +426,72 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
     True
     >>> ensemble.predict(X[:3]).shape
     (3,)
+
+    Select the features of a model with ``BorutaPy`` of yikit (it needs
+    boruta) as the first step of a ``Pipeline``. This replaces the
+    ``boruta`` parameter, which yikit 0.4.0 removed, and lets each model
+    have its own selection, fitted on the same data as the model (on the
+    training part of each split of ``cv`` too). ``perc="auto"`` works in a
+    ``Pipeline``. The small ``n_estimators``, ``max_iter`` and ``max_shuf``
+    only keep this example fast:
+
+    >>> from sklearn.ensemble import RandomForestRegressor
+    >>> from sklearn.pipeline import Pipeline
+    >>> from yikit.feature_selection import BorutaPy
+    >>> selector = BorutaPy(
+    ...     RandomForestRegressor(max_depth=5, n_jobs=1, random_state=334),
+    ...     n_estimators=20,
+    ...     max_iter=20,
+    ...     max_shuf=100,
+    ...     verbose=0,
+    ...     random_state=334,
+    ... )
+    >>> boruta_ridge = Pipeline([("boruta", selector), ("ridge", Ridge())])
+    >>> ensemble = EnsembleRegressor(
+    ...     estimators=[("boruta_ridge", boruta_ridge), SVR()],
+    ...     cv=3,
+    ...     opt=False,
+    ... ).fit(X, y)
+    >>> fitted = ensemble.named_estimators_["boruta_ridge"]
+    >>> fitted.named_steps["boruta"].support_.shape  # mask of the 4 features
+    (4,)
+    >>> ensemble.predict(X[:3]).shape
+    (3,)
+
+    With ``opt=True`` (the default; it needs optuna and
+    optuna-integration), each model is tuned with ``n_trials`` trials
+    before the models are combined. ``estimators_`` holds the fitted
+    ``OptunaSearchCV``, and the parameters of a model in a ``Pipeline`` are
+    prefixed with the name of its step:
+
+    >>> from sklearn.pipeline import make_pipeline
+    >>> from sklearn.preprocessing import StandardScaler
+    >>> ensemble = EnsembleRegressor(
+    ...     estimators=[Ridge(), make_pipeline(StandardScaler(), SVR())],
+    ...     cv=3,
+    ...     n_trials=5,
+    ...     random_state=334,
+    ... ).fit(X, y)
+    >>> search = ensemble.named_estimators_["pipeline"]
+    >>> sorted(search.best_params_)
+    ['svr__C', 'svr__epsilon']
+    >>> len(search.study_.trials)
+    5
+
+    A ``Pipeline`` of ``BorutaPy`` is tuned in the same way, on the
+    parameters of its regressor only (``BorutaPy`` has no search space).
+    The selection then runs in every fit of the tuning, which makes it
+    slow:
+
+    >>> ensemble = EnsembleRegressor(
+    ...     estimators=[("boruta_ridge", boruta_ridge), SVR()],
+    ...     cv=3,
+    ...     n_trials=5,
+    ...     random_state=334,
+    ... ).fit(X, y)  # doctest: +SKIP
+    >>> search = ensemble.named_estimators_["boruta_ridge"]  # doctest: +SKIP
+    >>> sorted(search.best_params_)  # doctest: +SKIP
+    ['ridge__alpha']
     """
 
     def __init__(

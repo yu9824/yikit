@@ -3,6 +3,7 @@ from __future__ import annotations
 import numbers
 
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.datasets import make_regression
@@ -161,6 +162,62 @@ def test_boruta_with_auto_perc_fits_and_predicts_in_a_pipeline():
     assert boruta.get_params()["perc"] == "auto"
     assert 0 < boruta.perc_ <= 100
     assert pipeline.named_steps["ridge"].n_features_in_ == boruta.n_features_
+
+
+def _small_dataframe() -> pd.DataFrame:
+    """Return ``X_SMALL`` as a DataFrame with string column names."""
+    return pd.DataFrame(
+        X_SMALL, columns=[f"x{i}" for i in range(X_SMALL.shape[1])]
+    )
+
+
+@pytest.mark.parametrize("weak", [False, True])
+def test_transform_of_a_dataframe_returns_the_selected_columns_as_array(
+    weak,
+):
+    # boruta 0.4.3 indexes X with ``X[:, mask]`` when ``return_df=False``,
+    # which a DataFrame does not support.
+    X_df = _small_dataframe()
+    expected = _make_selector().fit(X_SMALL, y_SMALL).transform(X_SMALL, weak)
+
+    selector = _make_selector()
+    X_fit_transformed = selector.fit_transform(X_df, y_SMALL, weak=weak)
+    X_transformed = selector.transform(X_df, weak=weak)
+
+    for X_selected in (X_fit_transformed, X_transformed):
+        assert type(X_selected) is np.ndarray
+        np.testing.assert_array_equal(X_selected, expected)
+
+
+def test_return_df_keeps_the_selected_columns_of_a_dataframe():
+    X_df = _small_dataframe()
+    selector = _make_selector()
+
+    X_fit_transformed = selector.fit_transform(X_df, y_SMALL, return_df=True)
+    X_transformed = selector.transform(X_df, return_df=True)
+
+    expected = X_df.loc[:, selector.support_]
+    assert selector.support_.any()
+    for X_selected in (X_fit_transformed, X_transformed):
+        assert isinstance(X_selected, pd.DataFrame)
+        pd.testing.assert_frame_equal(X_selected, expected)
+
+
+def test_boruta_fits_and_predicts_in_a_pipeline_on_a_dataframe():
+    X_df = _small_dataframe()
+    expected = (
+        Pipeline([("boruta", _make_selector()), ("ridge", Ridge())])
+        .fit(X_SMALL, y_SMALL)
+        .predict(X_SMALL)
+    )
+    pipeline = Pipeline([("boruta", _make_selector()), ("ridge", Ridge())])
+
+    y_pred = pipeline.fit(X_df, y_SMALL).predict(X_df)
+
+    boruta = pipeline.named_steps["boruta"]
+    assert boruta.get_params()["perc"] == "auto"
+    assert pipeline.named_steps["ridge"].n_features_in_ == boruta.n_features_
+    np.testing.assert_allclose(y_pred, expected)
 
 
 def test_clone_of_a_fitted_selector_keeps_auto_perc():

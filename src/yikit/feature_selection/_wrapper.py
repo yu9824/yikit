@@ -287,6 +287,40 @@ class BorutaPy(boruta.BorutaPy):
         finally:
             self.perc = perc
 
+    def _transform(self, X, weak=False, return_df=False):
+        """Reduce ``X`` to the selected features, also for a DataFrame.
+
+        boruta calls this method from both ``transform`` and
+        ``fit_transform``. Without ``return_df``, boruta selects the columns
+        with ``X[:, mask]``, which a :class:`pandas.DataFrame` does not
+        support, so a DataFrame is converted to a NumPy array first (as
+        ``fit`` does). This is what a :class:`~sklearn.pipeline.Pipeline`
+        fitted on a DataFrame calls. With ``return_df=True``, ``X`` is
+        passed to boruta as it is and the selected columns of the DataFrame
+        are returned.
+
+        Parameters
+        ----------
+        X : array-like, shape = [n_samples, n_features]
+            The input samples.
+        weak : bool, default=False
+            If True, the tentative features are also selected.
+        return_df : bool, default=False
+            If True and ``X`` is a DataFrame, return a DataFrame.
+
+        Returns
+        -------
+        X : array-like, shape = [n_samples, n_features_]
+            ``X`` reduced to the selected features: a NumPy array for a
+            DataFrame without ``return_df``, otherwise the type of boruta.
+        """
+        if return_df:
+            return super()._transform(X, weak, return_df)
+        if hasattr(X, "iloc"):  # pandas.DataFrame
+            X = np.asarray(X)
+        # Without return_df, which boruta < 0.4 does not take.
+        return super()._transform(X, weak)
+
     def get_support(self, weak: bool = False) -> np.ndarray:
         """Get a mask, or integer index, of the features selected.
 

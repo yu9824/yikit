@@ -992,6 +992,102 @@ def test_model_without_search_space_raises_not_implemented_error(
     assert not hasattr(ensemble, "estimator_")
 
 
+# --- Feature selection with BorutaPy -----------------------------------------
+
+
+def _boruta_pipeline() -> Pipeline:
+    """Return Ridge after the selection of BorutaPy, or skip without boruta.
+
+    BorutaPy keeps ``perc="auto"`` and is made fast and deterministic.
+    EnsembleRegressor names the pipeline ``"pipeline"``.
+    """
+    pytest.importorskip("boruta")
+    from yikit.feature_selection import BorutaPy
+
+    selector = BorutaPy(
+        RandomForestRegressor(n_estimators=10, n_jobs=1, random_state=SEED),
+        n_estimators=10,
+        max_iter=20,
+        max_shuf=20,
+        verbose=0,
+        n_jobs=1,
+        random_state=SEED,
+    )
+    return Pipeline([("boruta", selector), ("ridge", Ridge())])
+
+
+def _assert_selected_and_unchanged(fitted: Pipeline, passed: Pipeline) -> None:
+    """Check the fitted copy of a Boruta pipeline and the passed pipeline."""
+    fitted_boruta = fitted.named_steps["boruta"]
+    assert fitted is not passed
+    assert fitted_boruta.support_.any()
+    assert (
+        fitted.named_steps["ridge"].n_features_in_ == fitted_boruta.n_features_
+    )
+    assert fitted_boruta.get_params()["perc"] == "auto"
+    assert 0 < fitted_boruta.perc_ <= 100
+    # The passed BorutaPy is not fitted and keeps perc="auto".
+    passed_boruta = passed.named_steps["boruta"]
+    assert passed_boruta.get_params()["perc"] == "auto"
+    assert not hasattr(passed_boruta, "support_")
+    assert not hasattr(passed_boruta, "perc_")
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_boruta_pipeline_fits_and_predicts_on_arrays_and_dataframes(method):
+    pipeline = _boruta_pipeline()
+
+    predictions = []
+    for X_fit in (X, pd.DataFrame(X, columns=COLUMNS)):
+        ensemble = EnsembleRegressor(
+            estimators=[pipeline],
+            method=method,
+            cv=CV,
+            random_state=SEED,
+            opt=False,
+        ).fit(X_fit, y)
+
+        _assert_selected_and_unchanged(
+            ensemble.named_estimators_["pipeline"], pipeline
+        )
+        assert ensemble.n_features_in_ == N_FEATURES
+        predictions.append(ensemble.predict(X_fit))
+
+    assert predictions[0].shape == (N_SAMPLES,)
+    assert np.isfinite(predictions[0]).all()
+    # A DataFrame selects the same columns as the array of its values.
+    assert_allclose(predictions[1], predictions[0])
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_boruta_pipeline_is_tuned_on_the_parameters_of_its_regressor(method):
+    _tuning_classes()
+    from optuna.trial import TrialState
+
+    pipeline = _boruta_pipeline()
+    X_df = pd.DataFrame(X, columns=COLUMNS)
+    ensemble = EnsembleRegressor(
+        estimators=[pipeline],
+        method=method,
+        cv=CV,
+        random_state=SEED,
+        n_trials=N_TRIALS,
+    ).fit(X_df, y)
+
+    search = ensemble.named_estimators_["pipeline"]
+    # The search space of Ridge, prefixed with the name of its step.
+    assert set(search.best_params_) == {"ridge__alpha"}
+    # BorutaPy selected features in every split of every trial.
+    assert len(search.study_.trials) == N_TRIALS
+    assert {trial.state for trial in search.study_.trials} == {
+        TrialState.COMPLETE
+    }
+    _assert_selected_and_unchanged(search.best_estimator_, pipeline)
+    y_pred = ensemble.predict(X_df)
+    assert y_pred.shape == (N_SAMPLES,)
+    assert np.isfinite(y_pred).all()
+
+
 # --- Errors ------------------------------------------------------------------
 
 
