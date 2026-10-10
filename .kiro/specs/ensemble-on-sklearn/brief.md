@@ -7,7 +7,8 @@ yikit の利用者が複数の回帰モデルをまとめて使いたいとき�
 - `src/yikit/models/_ensemble.py` の `EnsembleRegressor`。引数は `estimators`、`method`（blending・average・stacking）、`cv`、`n_jobs`、`random_state`、`scoring`、`verbose`、`boruta`、`opt`
 - `fit` は外側の交差検証の分割ごとに、Boruta で特徴量を選び（`boruta=True`）、`Objective` で各モデルを 100 試行で調整し（`opt=True`）、学習・予測・スコア・重要度を `results_` に記録する。`predict` は、各分割で作ったモデルの予測を平均してから、まとめ方を通す
 - blending は、学習に使っていないデータでの予測（OOF 予測）に対する重みを optuna で決める。stacking は `LinearRegression` を使う
-- 不具合: `np.bool` を使っていて NumPy 1.24 以上で落ちる（`wip/0.4.0-draft` で修正済み）。最後のモデルを `objective.model(**fixed_params_, **best_params)` で作り直すので、渡したモデルの引数が消え、NGBRegressor では失敗する
+- 不具合: `np.bool` を使っていて NumPy 1.24〜1.26 で落ちる（2.0 以降は再び存在する。`wip/0.4.0-draft` で修正済み）。非公開の `sklearn.model_selection._validation._score` を使っていて、scikit-learn 1.4 以上では `score_params` の引数が足りず、`fit` が必ず失敗する（2026-10-09 に scikit-learn 1.9.1 で確認）
+- 最後のモデルを `objective.model(**fixed_params_, **best_params)` で作り直していたので、渡したモデルの引数が消え、NGBRegressor では失敗した。optuna-tuning で `objective.get_best_estimator(study)` に直す（optuna-tuning が直すのはこの部分だけ）
 - テストはない
 
 ## Desired Outcome
@@ -45,6 +46,10 @@ EnsembleRegressor を、引数から sklearn の VotingRegressor・StackingRegre
 - **Adjacent**: optuna-tuning（その spec の間は、EnsembleRegressor を壊さない最小限の変更だけが入る）
 
 ## Constraints
+- optuna-tuning で分かった `OptunaSearchCV(model, ParamDistributions(model))` の制約:
+  - NGBRegressor の `Base__*` は OptunaSearchCV では効かない（ngboost 0.4.0 以降の `set_params` が入れ子の名前を無視する。`ParamDistributions` が UserWarning を出す）
+  - `ParamDistributions` には `random_state` の規則がない。モデルの `random_state` が None のままだと探索は再現しないので、各モデルに明示してもらうか、作るときに入れる
+  - Boruta を前に置いた Pipeline では、PLS の `n_components` の上限が選ばれた特徴量の数を超えうる（その試行は FAIL として記録され、探索は続く）
 - scikit-learn 0.24.1 にある API だけを使う（StackingRegressor は 0.22、`LinearRegression(positive=...)` は 0.24 から）。Python 3.8 でも動く書き方
 - `optuna-integration` は optional。入っていないときは、調整を使わない形で動く
 - 要件を作るときに決めること:

@@ -44,11 +44,11 @@ yikit 0.4.0 を出すための残りの作業です。0.4.0-rc.0 はすでに Py
 - なし。初期化だけしていた `objective-respect-estimator-params` は `optuna-tuning` に吸収し、ディレクトリを削除した（背景と、加えるテストの一覧は `optuna-tuning` の brief に引き継いだ）
 
 ## Direct Implementation Candidates
-- [ ] gbdt-fix -- GBDTRegressor の修正。LightGBM 3 と 4 の両方で動く callback 方式の early stopping、`X_train` で学習する、`**kwargs` をやめる、LightGBM 4.7 で非推奨になった `eval_set` への対応、テストと英語の docstring。修正の範囲が1つのクラスに収まるので spec にしない。Dependencies: dev-foundation
+- [ ] gbdt-fix -- GBDTRegressor の修正。LightGBM 3 と 4 の両方で動く callback 方式の early stopping、`X_train` で学習する、`**kwargs` をやめる、LightGBM 4.7 で非推奨になった `eval_set` への対応、テストと英語の docstring。optuna-tuning の探索範囲の表の GBDTRegressor の行の引数で学習できることもテストする（optuna-tuning のテストは GBDTRegressor を学習させない）。`**kwargs` をやめた後も、表の5つの名前（`n_estimators`・`min_child_weight`・`colsample_bytree`・`subsample`・`num_leaves`）はコンストラクタの引数に残す（`apply_params` が名前を検査するため）。修正の範囲が1つのクラスに収まるので spec にしない。Dependencies: dev-foundation
 - [ ] release-0.4.0 -- examples の更新（作り直した EnsembleRegressor と探索範囲に合わせる。`wip/0.4.0-draft` の simulate の例を参考にする）、CHANGELOG.md の作成、版番号を 0.4.0-rc.1 にしてタグ、確認の後に 0.4.0、licond への版番号の連絡。リリースの作業なので spec にしない。Dependencies: すべての spec と gbdt-fix
 
 ## Specs (dependency order)
-- [ ] dev-foundation -- 開発環境と CI（pytest を Python 3.8〜3.14 で。ruff・mypy は手元で実行）、依存の下限と extra の見直し、dependabot、Python 3.8 でも動く型の書き方への全体の書き換え、画像を比べるテストの安定化。Dependencies: none
+- [x] dev-foundation -- 開発環境と CI（pytest を Python 3.8〜3.14 で。ruff・mypy は手元で実行）、依存の下限と extra の見直し、dependabot、Python 3.8 でも動く型の書き方への全体の書き換え、画像を比べるテストの安定化。Dependencies: none
 - [ ] module-quality -- モデル以外のモジュール（helpers・logging・metrics・feature_selection・visualize）の英語の docstring とテスト。Dependencies: dev-foundation
 - [ ] optuna-tuning -- 探索範囲の共通ファイル、入れ子の解決、RecommendedParams、モデルの追加と削除、`Objective` が利用者の引数を上書きしない扱い。Dependencies: dev-foundation
 - [ ] ensemble-on-sklearn -- EnsembleRegressor を sklearn の Voting・Stacking で作り直す。Dependencies: optuna-tuning

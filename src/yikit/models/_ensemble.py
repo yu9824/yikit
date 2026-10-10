@@ -252,9 +252,7 @@ class EnsembleRegressor(BaseEstimator, RegressorMixin):
                     study.optimize(objective, n_trials=100, n_jobs=1)
 
                     # 最適化後のモデル
-                    _best_estimator_ = objective.model(
-                        **objective.fixed_params_, **study.best_params
-                    )
+                    _best_estimator_ = objective.get_best_estimator(study)
                 else:  # optunaしない場合でもresultsに組み込まれるので変数を定義しておく．
                     study = None
                     _best_estimator_ = clone(estimator)
