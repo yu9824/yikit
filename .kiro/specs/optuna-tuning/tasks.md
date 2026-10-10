@@ -92,14 +92,14 @@
   - _Depends: 3.1, 3.4_
   - _Requirements: 8.1, 9.1, 9.2_
 
-- [ ] 5. 検証
+- [x] 5. 検証
 - [x] 5.1 OptunaSearchCV との組み合わせを確かめ、全体の検査を通す
   - PLSRegression・LinearSVR・Ridge・Lasso・ElasticNet と、`TransformedTargetRegressor(Pipeline(StandardScaler, SVR))` を、ParamDistributions を渡した OptunaSearchCV で数試行探索するテストを書く。`best_params_` の名前に前置きが付き、最良のモデルで予測できることを確かめる
   - 同じモデルを Objective で数試行探索できることも確かめる
   - 完了の状態: 手元で `pytest`、`ruff check src tests`、`ruff format --check src tests`、`mypy` がすべて通る
   - _Requirements: 10.3, 10.4_
 
-- [ ] 5.2 作業ブランチで CI を実行し、全版で通ることを確かめる
+- [x] 5.2 作業ブランチで CI を実行し、全版で通ることを確かめる
   - 作業ブランチを push し、CI を手動で実行して、Python 3.8〜3.14 の7つの版の結果を確かめる
   - 版による失敗が出たら、原因（依存の版の違い、Python 3.8 の書き方など）を直す。振る舞いを変える必要があるときは作者に相談する
   - 完了の状態: 作業ブランチでの CI の実行で、7つの版のテストがすべて成功する
