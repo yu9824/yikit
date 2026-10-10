@@ -28,7 +28,7 @@ yikit で複数の回帰モデルをまとめて使う利用者のために、En
 4. When `predict` を呼んだとき, the EnsembleRegressor shall 学習データ全体で学習し直したモデルの予測をまとめて返す（各分割で作ったモデルの予測の平均は使わない）
 5. When モデルが1つだけのとき, the EnsembleRegressor shall どのまとめ方でも学習と予測ができる
 6. The EnsembleRegressor shall `estimators` として、モデルの並びと、`(名前, モデル)` の組の並びの両方を受け付ける。モデルだけの並びには、`make_pipeline` と同じ規則（型の名前の小文字、重なれば番号付き）で名前を付ける
-7. The EnsembleRegressor shall `n_jobs` と `verbose` を、中の VotingRegressor・StackingRegressor に渡す（`n_jobs` の既定は今と同じ -1）
+7. The EnsembleRegressor shall `n_jobs` と `verbose` を、中の VotingRegressor・StackingRegressor に渡す。`n_jobs` の既定は `None`（1）にし、並列は各モデルの `n_jobs` で決める（外側で並列にするときは各モデルを `n_jobs=1` にするよう docstring で案内する。並列数は層ごとに掛け算になるため）
 
 ### Requirement 2: 調整
 **Objective:** As yikit の利用者, I want 各モデルの引数を optuna で調整してからまとめられること, so that 範囲を自分で書かずに、調整したモデルのアンサンブルを作れる
