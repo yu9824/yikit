@@ -56,7 +56,7 @@
   - _Requirements: 4.1, 7.4_
 
 - [ ] 5. 検証
-- [ ] 5.1 全体の検査を通す
+- [x] 5.1 全体の検査を通す
   - 手元で `pytest`、`ruff check src tests`、`ruff format --check src tests`、`mypy`、変えたモジュールの doctest を通す
   - 完了の状態: すべてエラーなく終わる
   - _Requirements: 7.2_
