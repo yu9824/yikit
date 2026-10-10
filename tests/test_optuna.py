@@ -1611,3 +1611,142 @@ def test_ensemble_builds_the_tuned_estimator_with_get_best_estimator():
         and node.value.id == "objective"
     }
     assert used_attributes.isdisjoint({"model", "fixed_params_", "rng"})
+
+
+# --- Real searches with OptunaSearchCV and Objective -------------------------
+
+#: Data and settings of the searches that really fit the models. With the
+#: sampler of the current optuna, five trials of an unbounded
+#: ``n_components`` draw a value above the 5 features; the bound itself is
+#: checked by ``test_n_features_bounds_pls``.
+SEARCH_N_SAMPLES = 50
+SEARCH_N_FEATURES = 5
+SEARCH_N_TRIALS = 5
+SEARCH_CV = 3
+
+#: Models searched for real, with the names expected to be searched and
+#: parameters given to the model that are not searched. ``max_iter`` is
+#: given so that the solvers converge.
+SEARCHED_MODELS = [
+    pytest.param(
+        lambda: PLSRegression(scale=False),
+        {"n_components"},
+        {"scale": False},
+        id="PLSRegression",
+    ),
+    pytest.param(
+        lambda: LinearSVR(max_iter=100_000, random_state=SEED),
+        {"C", "epsilon"},
+        {"max_iter": 100_000, "random_state": SEED},
+        id="LinearSVR",
+    ),
+    pytest.param(
+        lambda: Ridge(fit_intercept=False),
+        {"alpha"},
+        {"fit_intercept": False},
+        id="Ridge",
+    ),
+    pytest.param(
+        lambda: Lasso(max_iter=10_000),
+        {"alpha"},
+        {"max_iter": 10_000},
+        id="Lasso",
+    ),
+    pytest.param(
+        lambda: ElasticNet(max_iter=10_000),
+        {"alpha", "l1_ratio"},
+        {"max_iter": 10_000},
+        id="ElasticNet",
+    ),
+    pytest.param(
+        lambda: TransformedTargetRegressor(
+            regressor=make_pipeline(StandardScaler(), SVR(gamma="auto"))
+        ),
+        {"regressor__svr__C", "regressor__svr__epsilon"},
+        {"regressor__svr__gamma": "auto"},
+        id="TransformedTargetRegressor-Pipeline-SVR",
+    ),
+]
+
+
+@pytest.fixture(scope="module")
+def search_data() -> tuple[np.ndarray, np.ndarray]:
+    X, y = make_regression(
+        n_samples=SEARCH_N_SAMPLES,
+        n_features=SEARCH_N_FEATURES,
+        noise=1.0,
+        random_state=SEED,
+    )
+    return X, y
+
+
+def _assert_predicts(estimator: Any, X: np.ndarray) -> None:
+    predictions = np.asarray(estimator.predict(X))
+    # PLSRegression before scikit-learn 1.3 returns one column for a 1-D y.
+    assert predictions.shape in {(len(X),), (len(X), 1)}
+    assert np.all(np.isfinite(predictions))
+
+
+@pytest.mark.parametrize(
+    ("make_estimator", "searched", "kept"), SEARCHED_MODELS
+)
+def test_optuna_search_cv_searches_param_distributions(
+    make_estimator, searched, kept, search_data
+):
+    X, y = search_data
+    estimator = make_estimator()
+    param_distributions = ParamDistributions(estimator, n_features=X.shape[1])
+    assert set(param_distributions) == searched
+
+    search = OptunaSearchCV(
+        estimator,
+        param_distributions=param_distributions,
+        cv=SEARCH_CV,
+        n_trials=SEARCH_N_TRIALS,
+        random_state=SEED,
+    ).fit(X, y)
+
+    trials = search.study_.trials
+    assert [trial.state for trial in trials] == [
+        TrialState.COMPLETE
+    ] * SEARCH_N_TRIALS
+    assert all(
+        trial.distributions == dict(param_distributions) for trial in trials
+    )
+    assert set(search.best_params_) == searched
+    best_estimator = search.best_estimator_
+    params = best_estimator.get_params()
+    for name, value in {**search.best_params_, **kept}.items():
+        assert params[name] == value
+    _assert_predicts(best_estimator, X)
+
+
+@pytest.mark.parametrize(
+    ("make_estimator", "searched", "kept"), SEARCHED_MODELS
+)
+def test_objective_searches_the_same_models(
+    make_estimator, searched, kept, search_data
+):
+    X, y = search_data
+    estimator = make_estimator()
+
+    objective = Objective(estimator, X, y, cv=SEARCH_CV, random_state=SEED)
+    study = _optimize(objective, n_trials=SEARCH_N_TRIALS)
+
+    assert [trial.state for trial in study.trials] == [
+        TrialState.COMPLETE
+    ] * SEARCH_N_TRIALS
+    assert set(study.best_params) == searched
+    # Only the random_state parameters left as None get the drawn integer.
+    unspecified_random_states = {
+        name: objective.model_random_state
+        for name, value in estimator.get_params().items()
+        if name.endswith("random_state") and value is None
+    }
+    best_params = objective.get_best_params(study)
+    assert best_params == {**study.best_params, **unspecified_random_states}
+    best_estimator = objective.get_best_estimator(study)
+    params = best_estimator.get_params()
+    for name, value in {**best_params, **kept}.items():
+        assert params[name] == value
+    _assert_predicts(best_estimator.fit(X, y), X)

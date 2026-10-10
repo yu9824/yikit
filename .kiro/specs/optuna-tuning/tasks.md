@@ -93,7 +93,7 @@
   - _Requirements: 8.1, 9.1, 9.2_
 
 - [ ] 5. 検証
-- [ ] 5.1 OptunaSearchCV との組み合わせを確かめ、全体の検査を通す
+- [x] 5.1 OptunaSearchCV との組み合わせを確かめ、全体の検査を通す
   - PLSRegression・LinearSVR・Ridge・Lasso・ElasticNet と、`TransformedTargetRegressor(Pipeline(StandardScaler, SVR))` を、ParamDistributions を渡した OptunaSearchCV で数試行探索するテストを書く。`best_params_` の名前に前置きが付き、最良のモデルで予測できることを確かめる
   - 同じモデルを Objective で数試行探索できることも確かめる
   - 完了の状態: 手元で `pytest`、`ruff check src tests`、`ruff format --check src tests`、`mypy` がすべて通る
