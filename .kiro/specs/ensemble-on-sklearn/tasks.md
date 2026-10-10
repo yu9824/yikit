@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. BorutaPy を Pipeline の中でも perc="auto" のまま使えるようにする
+- [x] 1. BorutaPy を Pipeline の中でも perc="auto" のまま使えるようにする
   - `perc` の自動決定と進捗バーの用意を、`fit` から boruta の `_fit` の上書きへ移し、`fit` と `fit_transform` が同じ経路を通るようにする
   - 解決した値を学習後の属性 `perc_` に持ち、boruta が読む `self.perc` には `_fit` の間だけ解決した値を入れて、終わったら（例外のときも）元に戻す
   - 数値の `perc` を渡したときは、その値を `perc_` に入れる
@@ -48,7 +48,8 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.6, 2.7, 2.8, 3.3, 5.3, 7.3_
 
 - [ ] 4. Boruta を前段に置いた Pipeline をアンサンブルで使えることを確かめ、使い方を示す
-  - テスト: `Pipeline([("boruta", BorutaPy(..., max_iter 小、max_shuf 小、verbose=0、n_jobs=1、random_state 整数)), ("ridge", Ridge())])` を3つのまとめ方で学習・予測でき、`opt=True` では `best_params_` の名前が `ridge__alpha` になる（boruta と optuna-integration がなければ飛ばす）
+  - boruta 0.4.3 の変換（`_transform`）は `return_df=False` のとき `X[:, mask]` を使うので、DataFrame を入れた Pipeline が失敗する（タスク1のレビューで判明。作り直した EnsembleRegressor は入力を配列に変えずに渡すので、DataFrame で使うと必ず当たる）。yikit の BorutaPy で、`return_df=False` のときは DataFrame を配列にしてから変換するよう、最小限に直す
+  - テスト: `Pipeline([("boruta", BorutaPy(..., max_iter 小、max_shuf 小、verbose=0、n_jobs=1、random_state 整数)), ("ridge", Ridge())])` を3つのまとめ方で学習・予測でき（ndarray と DataFrame の両方）、`opt=True` では `best_params_` の名前が `ridge__alpha` になる（boruta と optuna-integration がなければ飛ばす）
   - EnsembleRegressor の docstring の Examples に、BorutaPy を前段に置いた Pipeline と調整の使い方を示す（doctest で通るか、重い例は `# doctest: +SKIP`）
   - 完了の状態: 上のテストと EnsembleRegressor の doctest が通る
   - _Depends: 1, 3.3_
@@ -71,3 +72,4 @@
 - boruta 0.4.3 の `fit_transform` は `self._fit` を直接呼ぶ（yikit の `fit` を通らない）
 - テストの小さなデータは各テストファイルの中に置く。`tests/conftest.py` は変えない
 - GBDTRegressor は gbdt-fix（PR #32）がマージされるまで LightGBM 4 で学習できないので、このテストでは使わない
+- タスク1（BorutaPy の perc）: `_fit` で `perc_` を決め、`self.perc` は `_fit` の間だけ差し替えて finally で戻す。boruta の `_transform` は DataFrame に対応しない（`X[:, mask]`）ので、タスク4で直す

@@ -112,13 +112,20 @@ class BorutaPy(boruta.BorutaPy):
             If 'auto' this is determined automatically based on the size of the
             dataset. The other parameters of the used estimators need to be set
             with initialisation.
-        perc : int | 'auto', default = 'auto'
+        perc : int, float or 'auto', default = 'auto'
             Instead of the max we use the percentile defined by the user, to pick
             our threshold for comparison between shadow and real features. The max
             tend to be too stringent. This provides a finer control over this. The
             lower perc is the more false positives will be picked as relevant but
             also the less relevant features will be left out. The usual trade-off.
-            The default is essentially the vanilla Boruta corresponding to the max.
+            If 'auto', the percentile is calculated from the data in every
+            fit, through both ``fit`` and ``fit_transform`` (and therefore
+            inside a :class:`~sklearn.pipeline.Pipeline`), as
+            ``100 * (1 - r_ccmax_)``, where ``r_ccmax_`` is the largest
+            Pearson correlation between randomly shuffled features and the
+            target (see ``max_shuf``). The resolved value is stored in
+            ``perc_``; this parameter is never overwritten, so
+            ``get_params`` and ``clone`` keep 'auto'.
         alpha : float, default = 0.05
             Level at which the corrected p-values will get rejected in both
             correction steps.
@@ -160,6 +167,9 @@ class BorutaPy(boruta.BorutaPy):
             rank 2.
         importance_history_ : array-like, shape [n_features, n_iters]
             The calculated importance values for each feature across all iterations.
+        perc_ : int or float
+            The percentile used in the last fit: the value calculated from
+            the data when ``perc='auto'``, otherwise ``perc`` itself.
         Examples
         --------
 
@@ -219,21 +229,63 @@ class BorutaPy(boruta.BorutaPy):
         https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
 
         Fits the Boruta feature selection with the provided estimator.
+
+        ``perc='auto'`` is resolved in ``_fit``, the same path that
+        ``fit_transform`` takes. The resolved value is stored in ``perc_``
+        and the ``perc`` parameter is left unchanged.
+
         Parameters
         ----------
         X : array-like, shape = [n_samples, n_features]
             The training input samples.
         y : array-like, shape = [n_samples]
             The target values.
+
+        Returns
+        -------
+        self : BorutaPy
+            The fitted selector.
+        """
+        return self._fit(X, y)
+
+    def _fit(self, X, y):
+        """Resolve ``perc`` and run the Boruta feature selection of boruta.
+
+        boruta calls this method from both ``fit`` and ``fit_transform``, so
+        ``perc='auto'`` is resolved on both paths, including inside a
+        :class:`~sklearn.pipeline.Pipeline`. The resolved percentile is
+        stored in ``perc_``. boruta reads ``self.perc`` directly, so it holds
+        ``perc_`` only while boruta's ``_fit`` runs; the original value (for
+        example ``'auto'``) is restored afterwards, also when an error is
+        raised.
+
+        Parameters
+        ----------
+        X : array-like, shape = [n_samples, n_features]
+            The training input samples.
+        y : array-like, shape = [n_samples]
+            The target values.
+
+        Returns
+        -------
+        self : BorutaPy
+            The fitted selector.
         """
         X, y = check_X_y(X, y)
         if self.perc == "auto":
-            self.perc = self._calc_auto_perc(X, y)
+            self.perc_ = self._calc_auto_perc(X, y)
+        else:
+            self.perc_ = self.perc
 
         if self._use_tqdm:
             self._pbar = tqdm(total=self.max_iter, desc="BorutaPy")
 
-        return self._fit(X, y)
+        perc = self.perc
+        self.perc = self.perc_
+        try:
+            return super()._fit(X, y)
+        finally:
+            self.perc = perc
 
     def get_support(self, weak: bool = False) -> np.ndarray:
         """Get a mask, or integer index, of the features selected.
