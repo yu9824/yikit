@@ -255,10 +255,10 @@ def ignores_nested_set_params(model: Any) -> bool:
 **Responsibilities & Constraints**
 - `apply_params(estimator, params)`:
   1. `clone(estimator)` を作る
-  2. 引数を、`__` を含まない名前と、先頭の名前ごとにまとめた入れ子の名前に分ける
-  3. 入れ子の名前は、写しの `get_params(deep=True)` から先頭の名前の値（中のモデル）を取り、再帰的に `apply_params` して、その先頭の名前の値として扱う
-  4. コンストラクタの引数（`__init__` の引数。`**kwargs` を持つクラスではすべての名前）にあたる名前は、`type(est)(**{**est.get_params(deep=False), **値})` で作り直して入れる。それ以外で `get_params(deep=True)` にある名前（`Pipeline` の段の名前）は `set_params` で入れる
-  5. どちらにもない名前は、モデルの型と名前を示す ValueError にする（ngboost の `set_params` は何でも受け付けてしまうため、自分で検査する）
+  2. 引数を、`__` を含まない名前と、先頭の名前ごとにまとめた入れ子の名前に分ける。渡された値は `clone(value, safe=False)` で写してから入れる（呼び出し側とも、名前どうしでも物を共有しない）
+  3. `__` を含まない名前を先に入れる（sklearn の `set_params` と同じ順番）。コンストラクタの引数（`__init__` の引数。`**kwargs` を持つクラスではすべての名前）にあたる名前は、`type(est)(**{**est.get_params(deep=False), **値})` で作り直して入れ、`clone` が引き継ぐ引数以外の状態（`_sklearn_output_config`・`_metadata_request`・`_skl_callbacks`。写しのインスタンスにあるものだけ）を作り直したモデルへ移す。それ以外で `get_params(deep=True)` にある名前（`Pipeline` の段の名前）は `set_params` で入れる
+  4. 入れ子の名前は、3 の結果の `get_params(deep=True)` から先頭の名前の値（中のモデル）を取り、再帰的に `apply_params` して、その先頭の名前の値として 3 と同じ方法で入れる。先頭の名前の値が estimator でなければ ValueError にする
+  5. どこにも当てはまらない名前は、モデルの型と名前を示す ValueError にする（ngboost の `set_params` は何でも受け付けてしまうため、自分で検査する）
 - `find_unspecified_random_states(estimator)`: `get_params(deep=True)` の名前のうち、`random_state` か `__random_state` で終わるもので、値が None か `check_random_state(None)` と同一（NumPy の大域の RandomState）のものを返す。値が estimator で、その中の名前が `get_params(deep=True)` に出ていないもの（ngboost の `Base`）は、自分で再帰してたどる
 - 元のモデルは変えない。返すモデルは、元のモデルと RandomState や中のモデルを共有しない（`clone` の deepcopy による）
 
@@ -385,7 +385,7 @@ class ParamDistributions(dict):
 | Intent | yikit の推奨の固定値を、前置き付きの dict として返す |
 | Requirements | 7.1–7.6 |
 
-- dict を継承し、`__init__(self, estimator: Any) -> None` で `get_recommended_params(estimator)` を詰める。当たらなければ空（7.4）
+- dict を継承し、`__init__(self, estimator: Any) -> None` で `get_recommended_params(estimator)` を詰め、渡したモデルを `estimator` 属性に持つ。当たらなければ空（7.4）。`repr` は中身を示す（`RecommendedParams({'gamma': 'auto'})`）
 - `Objective(..., fixed_params=RecommendedParams(est))` と `est.set_params(**RecommendedParams(est))` のどちらにもそのまま渡せる（7.3）
 - `Objective` と `ParamDistributions` は `RecommendedParams` を参照しない（7.6）
 
@@ -407,7 +407,10 @@ class ParamDistributions(dict):
 ### Error Categories and Responses
 | 状況 | 出すもの | 場所 |
 |------|---------|------|
-| 範囲がなく `custom_params` もない | NotImplementedError（型の名前と `custom_params` の案内） | `Objective.__init__`、`ParamDistributions.__init__`、試行（`custom_params` が空を返したとき） |
+| 範囲がなく `custom_params` もない | NotImplementedError（型の名前と `custom_params` の案内。`TransformedTargetRegressor(regressor=None)` では型の名前が NoneType になる） | `Objective.__init__`、`ParamDistributions.__init__`、試行（`custom_params` が空を返したとき） |
+| `n_features` が 1 未満 | ValueError | `get_search_space`、`ParamDistributions.__init__` |
+| 段のない `Pipeline` | ValueError（探索するモデルが見つからない） | `resolve_estimator` を使うすべての入口 |
+| `ParamDistributions` の `custom_params` が辞書でも関数でもない、または関数が辞書以外を返す | TypeError | `ParamDistributions.__init__` |
 | `fixed_params` などの名前がモデルにない | ValueError（型と名前） | `apply_params`（`Objective.__init__` で一度確かめる） |
 | `ParamDistributions` の `custom_params` が分布でない値を返す | TypeError | `ParamDistributions.__init__` |
 | `ParamDistributions` に `fixed_params`・`random_state` を渡す | TypeError（Python の引数の検査） | `ParamDistributions.__init__` |

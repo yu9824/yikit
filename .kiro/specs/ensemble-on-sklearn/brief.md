@@ -46,6 +46,10 @@ EnsembleRegressor を、引数から sklearn の VotingRegressor・StackingRegre
 - **Adjacent**: optuna-tuning（その spec の間は、EnsembleRegressor を壊さない最小限の変更だけが入る）
 
 ## Constraints
+- optuna-tuning で分かった `OptunaSearchCV(model, ParamDistributions(model))` の制約:
+  - NGBRegressor の `Base__*` は OptunaSearchCV では効かない（ngboost 0.4.0 以降の `set_params` が入れ子の名前を無視する。`ParamDistributions` が UserWarning を出す）
+  - `ParamDistributions` には `random_state` の規則がない。モデルの `random_state` が None のままだと探索は再現しないので、各モデルに明示してもらうか、作るときに入れる
+  - Boruta を前に置いた Pipeline では、PLS の `n_components` の上限が選ばれた特徴量の数を超えうる（その試行は FAIL として記録され、探索は続く）
 - scikit-learn 0.24.1 にある API だけを使う（StackingRegressor は 0.22、`LinearRegression(positive=...)` は 0.24 から）。Python 3.8 でも動く書き方
 - `optuna-integration` は optional。入っていないときは、調整を使わない形で動く
 - 要件を作るときに決めること:
