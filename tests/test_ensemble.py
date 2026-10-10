@@ -12,8 +12,9 @@ import pandas as pd
 import pytest
 import sklearn
 from joblib import parallel_backend
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 from sklearn.base import BaseEstimator, RegressorMixin, clone
+from sklearn.compose import TransformedTargetRegressor
 from sklearn.datasets import make_regression
 from sklearn.ensemble import (
     RandomForestRegressor,
@@ -22,9 +23,13 @@ from sklearn.ensemble import (
 )
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.pipeline import Pipeline, make_pipeline
+from sklearn.preprocessing import QuantileTransformer, StandardScaler
 from sklearn.svm import SVR
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.utils import check_random_state
+from sklearn.utils.validation import check_is_fitted
 
 from yikit.models import EnsembleRegressor
 
@@ -76,6 +81,62 @@ def _sklearn_ensemble(method: str) -> BaseEstimator:
         final_estimator=LinearRegression(positive=True, fit_intercept=False),
         cv=CV,
     )
+
+
+def _random_models() -> list[BaseEstimator]:
+    """Return new models with given and unspecified ``random_state``.
+
+    EnsembleRegressor names them ``"randomforestregressor-1"``,
+    ``"randomforestregressor-2"``, ``"pipeline"`` and ``"svr"``.
+    """
+    return [
+        RandomForestRegressor(n_estimators=10, n_jobs=1, random_state=7),
+        RandomForestRegressor(n_estimators=10, max_depth=3),
+        make_pipeline(
+            QuantileTransformer(n_quantiles=10),
+            RandomForestRegressor(n_estimators=10, min_samples_leaf=2),
+        ),
+        SVR(C=2.0),
+    ]
+
+
+#: The names of ``_random_models`` that the ``random_state`` rule sets.
+_UNSPECIFIED_RANDOM_STATES = (
+    (),
+    ("random_state",),
+    (
+        "quantiletransformer__random_state",
+        "randomforestregressor__random_state",
+    ),
+    (),
+)
+
+
+def _holds_estimator(value: object) -> bool:
+    """Return whether ``value`` is an estimator or a sequence holding one."""
+    if hasattr(value, "get_params") and not isinstance(value, type):
+        return True
+    return isinstance(value, (list, tuple)) and any(
+        _holds_estimator(item) for item in value
+    )
+
+
+def _plain_params(estimator: BaseEstimator) -> dict[str, object]:
+    """Return the deep parameters of ``estimator`` that hold no estimator."""
+    return {
+        name: value
+        for name, value in estimator.get_params(deep=True).items()
+        if not _holds_estimator(value)
+    }
+
+
+def _skip_without_search_cv() -> None:
+    """Skip the test when the tuning (optuna-integration) is unavailable."""
+    pytest.importorskip("optuna")
+    try:
+        import yikit.models._search_cv  # noqa: F401
+    except ImportError:
+        pytest.skip("OptunaSearchCV (optuna-integration) is not installed")
 
 
 class _NoFeatureCountRegressor(RegressorMixin, BaseEstimator):
@@ -403,6 +464,214 @@ def test_get_params_set_params_and_clone_keep_the_parameters():
     assert ensemble.set_params(method="average", n_trials=3) is ensemble
     assert ensemble.method == "average"
     assert ensemble.n_trials == 3
+
+
+# --- Parameters of the models and the random_state rule ----------------------
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_given_n_jobs_and_random_state_of_a_model_are_kept(method):
+    ensemble = EnsembleRegressor(
+        estimators=[
+            RandomForestRegressor(n_estimators=10, n_jobs=1, random_state=7)
+        ],
+        method=method,
+        cv=CV,
+        random_state=SEED,
+        opt=False,
+    ).fit(X, y)
+
+    for fitted in (
+        ensemble.estimators_[0],
+        ensemble.named_estimators_["randomforestregressor"],
+    ):
+        assert fitted.n_jobs == 1
+        assert fitted.random_state == 7
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_unspecified_random_states_get_model_random_state(method):
+    ensemble = EnsembleRegressor(
+        estimators=_random_models(),
+        method=method,
+        cv=CV,
+        random_state=SEED,
+        opt=False,
+    ).fit(X, y)
+    seed = ensemble.model_random_state_
+
+    assert type(seed) is int
+    named = ensemble.named_estimators_
+    assert list(named) == [
+        "randomforestregressor-1",
+        "randomforestregressor-2",
+        "pipeline",
+        "svr",
+    ]
+    assert named["randomforestregressor-1"].random_state == 7
+    assert named["randomforestregressor-2"].random_state == seed
+    pipeline_steps = named["pipeline"].named_steps
+    assert pipeline_steps["quantiletransformer"].random_state == seed
+    assert pipeline_steps["randomforestregressor"].random_state == seed
+    assert "random_state" not in named["svr"].get_params()
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_other_parameters_are_the_given_ones(method):
+    models = _random_models()
+    ensemble = EnsembleRegressor(
+        estimators=models, method=method, cv=CV, random_state=SEED, opt=False
+    ).fit(X, y)
+
+    for model, fitted, names in zip(
+        models, ensemble.estimators_, _UNSPECIFIED_RANDOM_STATES
+    ):
+        expected = {
+            **_plain_params(model),
+            **{name: ensemble.model_random_state_ for name in names},
+        }
+        assert _plain_params(fitted) == expected
+
+
+def test_models_without_random_state_are_used_as_given():
+    models = [
+        SVR(C=2.0),
+        KNeighborsRegressor(n_neighbors=3),
+        LinearRegression(fit_intercept=False),
+    ]
+    ensemble = EnsembleRegressor(
+        estimators=models, method="average", random_state=SEED, opt=False
+    ).fit(X, y)
+
+    for model, fitted in zip(models, ensemble.estimators_):
+        assert fitted.get_params() == model.get_params()
+    expected = VotingRegressor(
+        [(type(model).__name__.lower(), clone(model)) for model in models]
+    ).fit(X, y)
+    assert_allclose(ensemble.predict(X), expected.predict(X))
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_same_random_state_gives_the_same_predictions(method):
+    models = [
+        RandomForestRegressor(n_estimators=10),
+        make_pipeline(
+            QuantileTransformer(n_quantiles=10),
+            RandomForestRegressor(n_estimators=10),
+        ),
+    ]
+
+    def fit(random_state: int) -> EnsembleRegressor:
+        return EnsembleRegressor(
+            estimators=models,
+            method=method,
+            cv=CV,
+            random_state=random_state,
+            opt=False,
+        ).fit(X, y)
+
+    first, second, other = fit(SEED), fit(SEED), fit(SEED + 1)
+
+    assert first.model_random_state_ == second.model_random_state_
+    assert_array_equal(first.predict(X), second.predict(X))
+    assert other.model_random_state_ != first.model_random_state_
+    assert not np.allclose(other.predict(X), first.predict(X))
+
+
+@pytest.mark.parametrize("random_state_type", [int, np.random.RandomState])
+def test_model_random_state_is_the_first_integer_drawn(random_state_type):
+    expected = int(check_random_state(SEED).randint(2**31 - 1))
+    ensemble = EnsembleRegressor(
+        estimators=[RandomForestRegressor(n_estimators=10)],
+        method="average",
+        random_state=random_state_type(SEED),
+        opt=False,
+    ).fit(X, y)
+
+    assert ensemble.model_random_state_ == expected
+    assert ensemble.estimators_[0].random_state == expected
+
+
+def test_given_models_are_not_changed():
+    models = _random_models()
+    given = list(models)
+    params_before = [model.get_params(deep=True) for model in models]
+    ensemble = EnsembleRegressor(
+        estimators=models,
+        method="stacking",
+        cv=CV,
+        random_state=SEED,
+        opt=False,
+    )
+    ensemble.fit(X, y)
+
+    assert ensemble.estimators is models
+    assert all(model is before for model, before in zip(models, given))
+    # The nested estimators are the same objects with the same parameters.
+    assert [model.get_params(deep=True) for model in models] == params_before
+    assert models[1].random_state is None
+    for _, step in models[2].steps:
+        assert step.random_state is None
+    for fitted, model in zip(ensemble.estimators_, models):
+        assert fitted is not model
+    for unfitted in (models[0], models[1], *models[2].named_steps.values()):
+        with pytest.raises(NotFittedError):
+            check_is_fitted(unfitted)
+
+
+def test_random_states_of_ngboost_are_set_on_a_copy():
+    ngboost = pytest.importorskip("ngboost")
+    base = DecisionTreeRegressor(max_depth=3)
+    ngb = ngboost.NGBRegressor(Base=base, n_estimators=20, verbose=False)
+    # ngboost may put the global RandomState of NumPy in place of None.
+    random_state_before = ngb.random_state
+    # NGBRegressor of ngboost >= 0.5 lacks the tags of a regressor that
+    # scikit-learn >= 1.6 reads, so it is passed inside a regressor.
+    model = TransformedTargetRegressor(regressor=ngb)
+    ensemble = EnsembleRegressor(
+        estimators=[model], method="average", random_state=SEED, opt=False
+    ).fit(X, y)
+    seed = ensemble.model_random_state_
+
+    # The copy given to VotingRegressor (which clones it before fitting).
+    prepared = ensemble.estimator_.estimators[0][1].regressor
+    assert prepared is not ngb
+    assert prepared.Base is not base
+    assert prepared.Base.random_state == seed
+    assert_array_equal(
+        check_random_state(prepared.random_state).get_state()[1],
+        np.random.RandomState(seed).get_state()[1],
+    )
+    assert ensemble.estimators_[0].regressor_.Base.random_state == seed
+    assert model.regressor is ngb
+    assert ngb.random_state is random_state_before
+    assert ngb.Base is base
+    assert base.random_state is None
+
+
+def test_model_random_state_is_drawn_before_the_seeds_of_the_tuning():
+    _skip_without_search_cv()
+    models = [Ridge(), SVR()]
+    ensemble = EnsembleRegressor(
+        estimators=models,
+        method="average",
+        cv=CV,
+        random_state=SEED,
+        n_trials=1,
+    ).fit(X, y)
+    rng = check_random_state(SEED)
+    expected_model_random_state = int(rng.randint(2**31 - 1))
+    expected_seeds = [int(rng.randint(2**31 - 1)) for _ in models]
+
+    assert ensemble.model_random_state_ == expected_model_random_state
+    searches = ensemble.estimators_
+    assert [search.random_state for search in searches] == expected_seeds
+    assert all(type(search.random_state) is int for search in searches)
+    # The rule is applied to the model tuned in each search.
+    ridge, svr = (search.estimator for search in searches)
+    assert ridge.random_state == ensemble.model_random_state_
+    assert svr.get_params() == models[1].get_params()
+    assert models[0].random_state is None
 
 
 # --- Errors ------------------------------------------------------------------

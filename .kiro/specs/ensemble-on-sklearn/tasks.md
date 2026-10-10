@@ -33,7 +33,7 @@
   - _Depends: 2_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 4.4, 5.1, 5.2, 5.4, 5.5, 5.6, 6.1, 6.2, 6.3, 6.4, 7.4_
 
-- [ ] 3.2 渡したモデルの引数を保ち、random_state の規則を当てる
+- [x] 3.2 渡したモデルの引数を保ち、random_state の規則を当てる
   - `fit` で `random_state` から整数を1つ引き（`model_random_state_` に持つ）、各モデルの未指定の `random_state`（入れ子を含む、元のモデルで判定）に `apply_params` で入れた写しを使う。続けてモデルごとに調整の種を引く
   - 渡したモデルのオブジェクトは変えない
   - テスト: `RandomForestRegressor(n_jobs=1, random_state=7)` の `n_jobs`・`random_state` が `estimators_` でも同じ、`random_state=None` のモデル（入れ子の Pipeline の中を含む）に `model_random_state_` が入る、同じ `random_state` で2回学習すると同じ予測、渡したモデルの `get_params` が学習の前後で同じ、`opt=False` では規則以外の引数が渡したまま
@@ -74,3 +74,4 @@
 - GBDTRegressor は gbdt-fix（PR #32）がマージされるまで LightGBM 4 で学習できないので、このテストでは使わない
 - タスク1（BorutaPy の perc）: `_fit` で `perc_` を決め、`self.perc` は `_fit` の間だけ差し替えて finally で戻す。boruta の `_transform` は DataFrame に対応しない（`X[:, mask]`）ので、タスク4で直す
 - タスク2: OptunaSearchRegressor は回帰モデルの印に加えて、普通のメソッドの `predict`（古い optuna の property 対策）、`best_estimator_` から読む `n_features_in_`・`feature_names_in_`、親と同じ `fit(X, y=None, groups=None, **fit_params)`、参照を数えるログの抑制を持つ。タスク3では、`opt=True` でもアンサンブルの `n_features_in_`・`feature_names_in_` をそのまま写せる
+- タスク3.2のレビューで判明: scikit-learn 1.6 以上では `is_regressor(NGBRegressor())` が False（ngboost 0.5.8 は `_estimator_type` をインスタンスの属性にしか持たず、tags もない。0.3.6 は持たない）。EnsembleRegressor も sklearn のアンサンブルも素の NGBRegressor を拒む。回避策は `TransformedTargetRegressor(regressor=NGBRegressor(...))` で包むこと（`opt=True` では `regressor__Base__*` が効かない警告が出る）。タスク4の docstring に書く

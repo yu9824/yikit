@@ -14,7 +14,7 @@ from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from sklearn.base import BaseEstimator, RegressorMixin, clone, is_regressor
+from sklearn.base import BaseEstimator, RegressorMixin, is_regressor
 from sklearn.ensemble import (
     RandomForestRegressor,
     StackingRegressor,
@@ -23,6 +23,8 @@ from sklearn.ensemble import (
 from sklearn.linear_model import LinearRegression
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
+
+from yikit.models._params import apply_params, find_unspecified_random_states
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
@@ -106,6 +108,37 @@ def _check_regressor(name: str, estimator: Any) -> None:
         raise ValueError(message)
 
 
+def _with_random_states(estimator: Any, model_random_state: int) -> Any:
+    """Return an unfitted copy of ``estimator`` with the ``random_state`` rule.
+
+    Every unspecified ``random_state`` of ``estimator`` and of the
+    estimators nested in it (None, or the global ``RandomState`` of NumPy
+    that ngboost puts in place of None) is set to ``model_random_state``,
+    as in ``yikit.models.Objective``. The other parameters are kept.
+
+    Parameters
+    ----------
+    estimator : object
+        Model passed by the user. It is inspected as it is (a copy could
+        not tell the global ``RandomState`` from one given by the user) and
+        is not modified.
+    model_random_state : int
+        Integer set on the unspecified ``random_state`` parameters.
+
+    Returns
+    -------
+    object
+        Unfitted copy of ``estimator`` that shares no estimator or
+        ``RandomState`` with it.
+    """
+    return apply_params(
+        estimator,
+        dict.fromkeys(
+            find_unspecified_random_states(estimator), model_random_state
+        ),
+    )
+
+
 def _n_features(X: Any) -> int:
     """Return the number of columns of ``X``.
 
@@ -180,14 +213,17 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
     ----------
     estimators : sequence of estimators or of (str, estimator) tuples, \
             default=(RandomForestRegressor(),)
-        Regressors to combine. Each one is cloned, so the given objects are
-        not changed. A ``(name, estimator)`` pair keeps its name. A model
-        without a name is named after its class in lower case, and the
-        models that share a name get ``-1``, ``-2``, ... in their order (as
-        in ``sklearn.pipeline.make_pipeline``), e.g. ``[Ridge(), SVR(),
-        Ridge()]`` gives ``"ridge-1"``, ``"svr"`` and ``"ridge-2"``. A
-        ``Pipeline`` whose last step is a regressor is accepted, e.g. to
-        select the features of a model with
+        Regressors to combine. The given objects are not changed: ``fit``
+        works on copies, on which it applies the ``random_state`` rule (see
+        ``random_state``). The other parameters of the copies, such as
+        ``n_jobs``, are the given ones, except those that the tuning
+        searches when ``opt=True``. A ``(name, estimator)`` pair keeps its
+        name. A model without a name is named after its class in lower
+        case, and the models that share a name get ``-1``, ``-2``, ... in
+        their order (as in ``sklearn.pipeline.make_pipeline``), e.g.
+        ``[Ridge(), SVR(), Ridge()]`` gives ``"ridge-1"``, ``"svr"`` and
+        ``"ridge-2"``. A ``Pipeline`` whose last step is a regressor is
+        accepted, e.g. to select the features of a model with
         ``yikit.feature_selection.BorutaPy`` before it.
     method : {"blending", "average", "stacking"}, default="blending"
         How to combine the models.
@@ -212,15 +248,28 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         Number of jobs of ``VotingRegressor`` or ``StackingRegressor``,
         which fit the models (and the folds) in parallel. None means 1
         unless in a ``joblib.parallel_backend`` context. The models keep
-        their own ``n_jobs``, so the numbers of jobs multiply between the
-        layers (this one, the tuning, and each model). To run the jobs in
-        parallel here, set ``n_jobs=1`` on each model; otherwise keep None
-        and let the models run in parallel.
+        their own ``n_jobs``, so the number of jobs running at once is up
+        to this ``n_jobs`` times the ``n_jobs`` of each model. To run the
+        jobs in parallel here, set ``n_jobs=1`` on each model; otherwise
+        keep None and let the models run in parallel. The ``n_jobs`` of
+        ``OptunaSearchCV`` is not set, so the trials of the tuning run one
+        after another. With ``"stacking"`` and ``"blending"``, each model
+        is tuned ``cv + 1`` times (in each fold of ``cv`` and on all the
+        data, see ``opt``), and this ``n_jobs`` runs these folds in
+        parallel.
     random_state : int, RandomState instance or None, default=None
-        Seeds the tuning: an integer drawn from it for each model is the
-        ``random_state`` of its ``OptunaSearchCV`` (the seed of the
-        sampler). Pass an int for reproducible tuning. The models keep
-        their own ``random_state``.
+        Seeds the models and the tuning. ``fit`` first draws one integer
+        from it, ``model_random_state_``, and sets it on every
+        ``random_state`` parameter left as None in each model and in the
+        estimators nested in it (the steps of a ``Pipeline``, the
+        ``regressor`` of a ``TransformedTargetRegressor``, the ``Base`` of
+        ngboost's ``NGBRegressor``, ...), the same rule as
+        ``yikit.models.Objective``. The ``random_state`` values given in
+        the models are kept, and models without a ``random_state``
+        parameter (such as ``SVR``) get none. With ``opt=True``, it then
+        draws one integer for each model, in the order of ``estimators``,
+        as the ``random_state`` of its ``OptunaSearchCV`` (the seed of the
+        sampler). Pass an int for reproducible results.
     scoring : str, callable or None, default="neg_mean_squared_error"
         Score that the tuning maximizes (the ``scoring`` of
         ``OptunaSearchCV``). Not used when ``opt=False``.
@@ -261,6 +310,9 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
     weights_ : ndarray of shape (n_estimators,) or None
         The weights of the models (``final_estimator_.coef_``) with
         ``"stacking"`` and ``"blending"``; None with ``"average"``.
+    model_random_state_ : int
+        The integer drawn from ``random_state`` and set on the
+        ``random_state`` parameters left as None in the models.
     n_features_in_ : int
         Number of features seen during ``fit``.
     feature_names_in_ : ndarray of shape (n_features_in_,)
@@ -362,8 +414,11 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
             _check_regressor(name, estimator)
 
         rng = check_random_state(self.random_state)
+        # Drawn first, before the seeds of the tuning (one for each model).
+        model_random_state = int(rng.randint(2**31 - 1))
         models = [
-            (name, clone(estimator)) for name, estimator in named_estimators
+            (name, _with_random_states(estimator, model_random_state))
+            for name, estimator in named_estimators
         ]
         if self.opt:
             param_distributions, search_regressor = _import_search_regressor()
@@ -392,6 +447,7 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         for attribute in _OPTIONAL_FITTED_ATTRIBUTES:
             if hasattr(self, attribute):  # left by a previous fit
                 delattr(self, attribute)
+        self.model_random_state_ = model_random_state
         self.estimator_ = ensemble
         self.estimators_ = ensemble.estimators_
         self.named_estimators_ = ensemble.named_estimators_
