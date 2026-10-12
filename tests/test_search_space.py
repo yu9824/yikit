@@ -394,7 +394,7 @@ def test_lightgbm_row_fits_at_its_bounds(small_data):
     space = get_search_space(lightgbm.LGBMRegressor())
     assert space is not None
 
-    # GBDTRegressor shares this row but is not fitted here (see gbdt-fix).
+    # GBDTRegressor shares this row; tests/test_gbdt.py fits it.
     for params in _boundary_params(space):
         model = lightgbm.LGBMRegressor(
             random_state=SEED, n_jobs=1, verbose=-1, **params
