@@ -43,7 +43,7 @@
   - _Depends: 1.1_
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 7.1, 7.3_
 
-- [ ] 5. (P) BorutaPy を scikit-learn の決まりに合わせる
+- [x] 5. (P) BorutaPy を scikit-learn の決まりに合わせる
   - `__init__` は引数を入れるだけにする。`_use_tqdm`・`_use_logging` は `_fit` の初めに決める
   - `_fit` で `random_state` から RandomState を作り、boruta の `_fit` の間だけ `self.random_state` と `self.perc` を差し替えて、try/finally で元に戻し、開いた進捗バーを閉じる（ensemble-on-sklearn の `perc` の扱いは保つ）
   - `perc="auto"` のシャッフルの種を先に引いてワーカーに渡し、`n_jobs` によらず同じ `perc_` にする
@@ -116,3 +116,4 @@
 - logging（2）: 既定のハンドラは `import yikit` では付かず、最初の `get_root_logger()`（`yikit.feature_selection` の import が呼ぶ）で付く。止め方の案内は `get_root_logger()` を通す形にした（それより前に `logging.getLogger("yikit")` に入れた水準は上書きされるため）。CHANGELOG に書く: `catch_default_handler` が入る前の状態に戻すこと、同じインスタンスに入れ子で入れること、入る前に抜けると RuntimeError、既定のハンドラがないときの例外が AssertionError から RuntimeError に変わったこと
 - metrics（3）: `log_likelihood` は `ngboost.manifold.manifold(LogScore, Dist)` を予測したパラメータ（`pred_dist(X)._params`、`NGBoost.score` と同じ）に当てて計算する。打ち切り付きの分布（LogNormal・Exponential）は ngboost が包んだ `DistWithUncensoredScore` を名前で見分けて LogScore で包み直す（ngboost の `__getstate__` と同じ見分け方）。ngboost 0.3.6 は LogNormal を CRPScore で学習できない。NormalFixedVar は ngboost 自身の `score` と同じく落ちる（upstream）
 - FilterSelector（4）: 削除の順番は旧実装と同じ（つながる組が最も多い特徴量から、同数なら番号の小さいほう）。CHANGELOG に書く: `corr_` の一定の列を含む組が NaN（または丸めによる意味のない値）から r=0.0・p=1.0 になったこと、`|r| > r` の負の組に実際の p 値が入ること（以前は p=1.0）
+- BorutaPy（5）: 既存の `test_boruta` の期待値は変わらなかった（`perc_` は 79.58 から 81.00 に変わるが `support_`・`ranking_` は同じ）。範囲の中で足したこと: 数値の `perc` で学習すると前の `r_ccmax_`・`pears_` を消す、閉じた進捗バーを消して学習した BorutaPy を pickle できるようにした（以前は tqdm があり verbose>=1 だと TypeError。CHANGELOG に書く）。7 で直す docstring: `perc_` の型は「float or int」、`_transform`・`get_support`・`_print_results` の古い書き方（`array-like, shape = [...]`）
