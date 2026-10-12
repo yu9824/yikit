@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import ast
 import copy
 import importlib
-import inspect
 import math
 import pickle
 import re
-import textwrap
 import warnings
 from typing import TYPE_CHECKING, Any
 
@@ -36,7 +33,6 @@ from sklearn.utils.validation import check_is_fitted
 
 import yikit.models
 from yikit.models import (
-    EnsembleRegressor,
     Objective,
     ParamDistributions,
     RecommendedParams,
@@ -1527,7 +1523,7 @@ def test_objective_and_param_distributions_do_not_use_recommended_params(
     assert "regressor__svr__gamma" not in param_distributions
 
 
-# --- Public names of yikit.models and EnsembleRegressor ----------------------
+# --- Public names of yikit.models -------------------------------------------
 
 
 def test_linear_model_regressor_is_not_provided():
@@ -1568,49 +1564,6 @@ def test_optuna_classes_are_public():
         assert name in yikit.models.__all__
     for name in yikit.models.__all__:
         assert hasattr(yikit.models, name)
-
-
-def test_ensemble_builds_the_tuned_estimator_with_get_best_estimator():
-    # EnsembleRegressor cannot be fitted on scikit-learn >= 1.4 (fixed by
-    # ensemble-on-sklearn), so the source of ``fit`` is checked instead.
-    tree = ast.parse(textwrap.dedent(inspect.getsource(EnsembleRegressor.fit)))
-
-    calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "get_best_estimator"
-    ]
-    assert len(calls) == 1
-    (call,) = calls
-    assert isinstance(call.func, ast.Attribute)
-    assert isinstance(call.func.value, ast.Name)
-    assert call.func.value.id == "objective"
-    assert len(call.args) == 1
-    assert isinstance(call.args[0], ast.Name)
-    assert call.args[0].id == "study"
-    assert call.keywords == []
-
-    # It is assigned to the name of the estimator fitted afterwards.
-    assignments = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign) and node.value is call
-    ]
-    assert len(assignments) == 1
-    (target,) = assignments[0].targets
-    assert isinstance(target, ast.Name)
-    assert target.id == "_best_estimator_"
-
-    used_attributes = {
-        node.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Attribute)
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "objective"
-    }
-    assert used_attributes.isdisjoint({"model", "fixed_params_", "rng"})
 
 
 # --- Real searches with OptunaSearchCV and Objective -------------------------

@@ -28,6 +28,8 @@ if is_installed("optuna"):
 ```
 実装のモジュールの中で別の optional な依存を使うときも、`is_installed()` で分岐し、なければ `NoneType` などの代わりを入れて `isinstance` が失敗しないようにする
 
+常に公開するクラスが、一部の機能でだけ optional な依存を使うときは、その依存を使うモジュールを関数の中で import する（例: `EnsembleRegressor` は `opt=True` のときだけ、`fit` の中で `_optuna` と `_search_cv` を import する）。import に失敗したら、入れ方か使わない設定を案内する ImportError を、元の例外につないで出す
+
 ### 基盤のサブパッケージ
 **Location**: `src/yikit/helpers/`、`src/yikit/logging/`
 **Purpose**: 他のサブパッケージから使われる共通の道具（`is_installed`、`tqdm_joblib`、ロガーの取得など）。これらは他の機能のサブパッケージに依存しない
@@ -76,10 +78,10 @@ from yikit.models._gbdt import GBDTRegressor
   - `helpers`・`logging`: 他に依存しない（基盤）
   - `metrics`・`feature_selection`: 基盤だけに依存する
   - `visualize`: `metrics` と基盤に依存する
-  - `models`: `feature_selection`・`metrics` と基盤に依存する（例: アンサンブルが Boruta を使う）
+  - `models`: 基盤だけに依存する（特徴量の選択は、利用者が `feature_selection` の `BorutaPy` を Pipeline の前段に置いて組み合わせる）
 - 公開する名前は `__all__` に載せたものだけ。`_` で始まるモジュールの中身は内部用で、版をまたいで変わりうる
 - 複数のモデルにまたがる設定（探索範囲、推奨値など）は1つのモジュールにまとめ、それを使う側（`Objective`、`ParamDistributions` など）は同じ定義を参照する
 
 ---
 _Document patterns, not file trees. New files following patterns shouldn't require updates_
-_updated_at: 2026-10-09_
+_updated_at: 2026-10-12_
