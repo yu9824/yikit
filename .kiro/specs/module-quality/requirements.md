@@ -6,11 +6,11 @@ yikit を使う人（作者、licond など）は、モデル以外のモジュ�
 この spec では、5つのサブパッケージの公開 API に英語の numpy 形式の docstring とテストを揃え、見つかった小さな不具合を直す。機能の追加はしない（例外は、中身のない `SummarizePI.get_data` を実装すること）。詳細は `brief.md` を参照。
 
 ## Introduction
-yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱い、図の関数が落ちていた入力、`SummarizePI.get_data` の中身で、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
+yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱い、図の関数が落ちていた入力、`SummarizePI.get_data` の中身、`tqdm_joblib` の逐次実行での進捗、`yikit.metrics.root_mean_squared_error` の削除で、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
 
 ## Boundary Context
 - **In scope**: `yikit.helpers`・`yikit.logging`・`yikit.metrics`・`yikit.feature_selection`・`yikit.visualize` の公開 API（各 `__init__.py` の `__all__` にある名前）の docstring・テスト・小さな不具合の修正。これらのモジュールの日本語のコメントと、`tests/conftest.py` の日本語の docstring の英語化。テストが optional の依存なしでも収集できること
-- **Out of scope**: `yikit.models` の各クラス（optuna-tuning・ensemble-on-sklearn・gbdt-fix で扱った）。ロガーの振る舞いの変更（import で既定のハンドラを付けることなど。変えるなら 1.0.0）。公開していない関数（`calc_vip`、`is_correct_dist` など）。docs のサイトの構成（Sphinx の設定、手で書くページ）。新しい機能（`SummarizePI.get_data` の実装を除く）
+- **Out of scope**: `yikit.models` の各クラス（optuna-tuning・ensemble-on-sklearn・gbdt-fix で扱った）。ロガーの振る舞いの変更（import で既定のハンドラを付けることなど。変えるなら 1.0.0）。公開していない関数（`calc_vip`、`is_correct_dist` など）。docs のサイトの構成（Sphinx の設定、手で書くページ）。新しい機能（`SummarizePI.get_data` の実装と、`tqdm_joblib` の逐次実行への対応を除く）
 - **Adjacent expectations**:
   - `yikit.helpers.is_installed` は models からも使われ、テストでは置き換えられている。名前・引数（文字列1つ）・返り値（bool）を変えない
   - BorutaPy は ensemble-on-sklearn で `perc` の解決と DataFrame の変換を直した。その振る舞いとテストを保つ
@@ -25,7 +25,7 @@ yikit の作者と利用者のために、models 以外の公開 API（helpers�
 1. When 入っているパッケージと入っていないパッケージの名前を `is_installed` に渡したとき, the helpers shall それぞれ True と False を返す（名前・引数・返り値の型は変えない）
 2. When 関数とその引数の名前を `is_argument` に渡したとき, the helpers shall その引数があれば True、なければ False を返す
 3. When `dummy_tqdm` を tqdm の代わりに使ったとき, the helpers shall 渡された iterable をそのまま順にたどり、`update`・`close` などの呼び出しを何もせずに受け付ける
-4. When `tqdm_joblib` の中で joblib の `Parallel` を実行したとき, the helpers shall 終わった作業の数だけ進捗バーを進め、抜けるときに進捗バーを閉じる。逐次実行（`n_jobs=1`）でも、抜けるときには進捗バーが `total` に達している
+4. When `tqdm_joblib` の中で joblib の `Parallel` を実行したとき, the helpers shall `n_jobs` によらず（逐次実行の `n_jobs=1` や `None` を含む）、作業が終わるたびに終わった数だけ進捗バーを進め、抜けるときに進捗バーを閉じる
 5. When `tqdm_joblib` を抜けたとき, the helpers shall joblib に加えた変更を元に戻す（例外のときも）
 
 ### Requirement 2: logging
@@ -39,10 +39,10 @@ yikit の作者と利用者のために、models 以外の公開 API（helpers�
 5. When `get_handler` にハンドラを渡したとき, the logging shall 指定した水準とフォーマッタ（なければ既定のもの）を付けて返す
 
 ### Requirement 3: metrics
-**Objective:** As yikit の利用者, I want 指標の関数が scikit-learn の版によらず同じ値を返すこと, so that 古い環境と新しい環境で結果を比べられる
+**Objective:** As yikit の利用者, I want yikit の指標が、scikit-learn にないものだけになっていること, so that 同じ指標を2つの場所から選ばずに済む
 
 #### Acceptance Criteria
-1. When `root_mean_squared_error` に正解と予測を渡したとき, the metrics shall 平均二乗誤差の平方根を返し、`sample_weight` と `multioutput` を scikit-learn と同じ意味で受け付ける（scikit-learn の版によらない）
+1. The metrics shall `root_mean_squared_error` を提供しない（scikit-learn 1.4 以降の `sklearn.metrics.root_mean_squared_error` を使ってもらう。0.4.0 で削除し、import すると Python の通常の ImportError になる）。yikit の中でこの値を使う箇所（`yyplot` の RMSE）は、scikit-learn 0.24.1 でも動く形で同じ値を計算する
 2. Where ngboost が入っているとき, when `log_likelihood` に学習した NGBRegressor か NGBClassifier を渡したとき, the metrics shall 平均の対数尤度（大きいほど良い値）を返し、それ以外のモデルでは TypeError を出す
 3. The metrics shall `log_likelihood` の docstring を、返す値（負の対数尤度ではなく対数尤度）に合わせる
 
@@ -84,8 +84,8 @@ yikit の作者と利用者のために、models 以外の公開 API（helpers�
 **Objective:** As yikit の作者, I want 対象の公開 API がすべて英語の docstring とテストを持ち、どの版でもテストが通ること, so that API リファレンスが欠けず、変更が壊れていないことを CI で確かめられる
 
 #### Acceptance Criteria
-1. The yikit パッケージ shall 5つのサブパッケージの `__all__` にあるすべての名前に、英語の numpy 形式の docstring（概要、Parameters、Returns か Attributes、必要なら Raises と Examples）を持つ。モジュールの docstring も英語で持つ
+1. The yikit パッケージ shall 5つのサブパッケージの `__all__` にあるすべての名前（`yikit.logging` が再公開する標準ライブラリの定数 `CRITICAL`・`DEBUG` などを除く）に、英語の numpy 形式の docstring（概要、Parameters、Returns か Attributes、必要なら Raises と Examples）を持つ。モジュールの docstring も英語で持つ
 2. The yikit パッケージ shall 対象のモジュールと `tests/conftest.py` の日本語のコメントと docstring を英語にする
 3. The yikit のテスト shall 1〜6 の受け入れ基準を確かめ、5つのサブパッケージの `__all__` のすべての名前を少なくとも1つのテストで使う
-4. Where optional の依存（optuna、lightgbm、ngboost、boruta、tqdm）が入っていない環境のとき, the yikit のテスト shall その依存を使うテストを飛ばし、残りを実行する（テストのファイルが収集の段階で失敗しない）
+4. Where optional の依存（optuna、lightgbm、ngboost、boruta、tqdm）が入っていない環境のとき, the yikit のテスト shall この spec のテストのファイル（helpers・logging・metrics・feature_selection・visualize のもの）で、その依存を使うテストを飛ばし、残りを実行する（ファイルが収集の段階で失敗しない。models のテストのファイルは対象外）
 5. When CI が Python 3.8〜3.14 の各版でテストを実行したとき, the yikit のテスト shall すべて通る

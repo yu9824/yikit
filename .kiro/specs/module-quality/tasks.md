@@ -1,0 +1,114 @@
+# Implementation Plan
+
+- [ ] 1. helpers
+- [ ] 1.1 is_installed・is_argument・dummy_tqdm の docstring とテスト、列名の補助関数を作る
+  - `is_installed`・`is_argument`・`dummy_tqdm` の振る舞いは変えず、英語の numpy 形式の docstring を整える（`is_installed` の名前・引数・返り値は models が使うので変えない）
+  - 非公開の `yikit/helpers/_validation.py` に `feature_names_of(X)` を作る（列名がすべて `str`（`numpy.str_` を除く）で scikit-learn 1.0 以上なら `np.array(columns, dtype=object)`、そうでなければ None）
+  - テスト（新規 `tests/test_helpers.py`）: `is_installed` の True と False、`is_argument`、`dummy_tqdm` が iterable をたどり `update`・`close` を受け付ける、`feature_names_of` の str・int・混在・`numpy.str_`・ndarray
+  - 完了の状態: `tests/test_helpers.py` のこれらのテストが通り、`yikit.helpers` の公開する名前が変わっていない
+  - _Requirements: 1.1, 1.2, 1.3, 7.1, 7.3_
+
+- [ ] 1.2 tqdm_joblib を n_jobs によらず進むように作り直す
+  - `Parallel.__call__` と `Parallel.print_progress` を差し替え、context に入ったスレッドで、追っている呼び出しが走っていない間に始まった `Parallel` だけを追い、終わった作業の数だけ進捗バーを進める（design の Helpers）。抜けるときに（例外のときも）元に戻して進捗バーを閉じる
+  - 差し替えはモジュールに1つのロックと数で管理する（最初に入った context が差し替え、最後に出た context が戻す）。context は、呼び出したスレッドで動く差し替えた `__call__` の中で `Parallel` のインスタンスに結び付け、`print_progress` はインスタンスから引く（並列のとき `print_progress` はコールバック用のスレッドで呼ばれるため。design の Helpers）。モジュールのロックは差し替えと数の増減の間だけ持ち、元の `__call__` の間と `print_progress` の中では取らない（デッドロックを避ける）
+  - docstring を直す（Examples を動く形に、`total` は必須、`silent`、入れ子と別々のスレッドでの同時の利用に対応すること、進捗は context の中で始まった最も外側の `Parallel` の作業を数えること）
+  - テスト: `n_jobs` が None・1・2 で作業が終わるたびに進捗バーが進み total に達する（進捗バーの `update` を記録する）、中で別の `Parallel` を動かしても数が混ざらない、抜けると差し替えが戻る、例外のときも戻る、入れ子の `tqdm_joblib` と、2つのスレッドで同時に使ったときも（threading.Event で順番を決めて）それぞれの進捗が正しく、最後に差し替えが戻る、`silent=True` と tqdm がないときは `dummy_tqdm`
+  - 完了の状態: `tqdm_joblib(total=5)` の中の `Parallel(n_jobs=1)` で進捗バーが 1 ずつ進み、抜けると `Parallel` が元に戻っていて、`tests/test_helpers.py` が通る
+  - _Requirements: 1.4, 1.5, 7.3_
+
+- [ ] 2. (P) logging の docstring とテスト、catch_default_handler の戻し方を直す
+  - ロガーの振る舞い（import で既定のハンドラを付ける、INFO、propagate False）は変えず、docstring に明記する
+  - `catch_default_handler` が抜けるときに、入る前の状態（付いていたか外れていたか）に戻すようにする
+  - `enable_default_handler`・`disable_default_handler` の実行時の `assert` を、明示的な検査と意味のある例外にする
+  - テスト（新規 `tests/test_logging.py`。テストの後にロガーの状態を元に戻す）: `get_root_logger` の設定、`get_child_logger` の yikit の中・`__main__`・それ以外の ValueError、`enable`・`disable` を何度呼んでも重複しない、`catch_default_handler` が両方の状態から元に戻す、`get_handler` の水準とフォーマッタ
+  - 完了の状態: `tests/test_logging.py` が通り、他のテストのログの設定に影響しない
+  - _Boundary: Logging_
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 7.1, 7.3_
+
+- [ ] 3. (P) metrics から root_mean_squared_error を削除する（境界をまたぐ小さな統合）
+  - `yikit/metrics/_common.py` を消し、`yikit.metrics` は ngboost があるときだけ `log_likelihood` を公開する。`log_likelihood` の docstring を対数尤度（大きいほど良い）に直す
+  - `visualize/_yyplot.py` の `root_mean_squared_error` の import を、`np.sqrt(mean_squared_error(...))` で計算する非公開の関数に置き換える（scikit-learn 0.24.1 でも動く。yyplot のそれ以外は 6.1 で扱う）
+  - テスト（新規 `tests/test_metrics.py`）: `from yikit.metrics import root_mean_squared_error` が ImportError、`log_likelihood` が NGBRegressor で `-score` と等しく、他のモデルで TypeError（ngboost がなければ飛ばす）、yyplot の非公開の RMSE の関数の値が平均二乗誤差の平方根と等しい（`test_metrics.py` で直接確かめる）
+  - 完了の状態: src に `root_mean_squared_error` の参照が残らず、tests では ImportError を確かめるテストだけが名前を使い（scikit-learn の scorer の文字列 `neg_root_mean_squared_error` は別）、テストが通る
+  - _Boundary: Metrics, Visualize（yyplot の import の1か所）_
+  - _Requirements: 3.1, 3.2, 3.3, 7.1, 7.3_
+
+- [ ] 4. FilterSelector を直す
+  - 相関の判定を絶対値にし（`|r| > r` かつ `p < alpha`）、再帰の削除を同じ順番のループに書き直す
+  - 学習で `n_features_in_` と、`feature_names_of(X)` があれば `feature_names_in_` を入れる。一定の列は警告を出さずに相関なしとして扱う
+  - クラスの docstring（Parameters・Attributes・Examples）
+  - テスト（`tests/test_filtermethod.py` に追記）: 強い負の相関の列を消す、正の相関だけのデータでは今と同じ列を選ぶ、`get_feature_names_out`（DataFrame と ndarray）、特徴量の数が違う `transform` の ValueError、1000 を超える削除で再帰の上限に当たらない、一定の列で警告なし
+  - 完了の状態: 上のテストと既存の `test_filter_method` が通る
+  - _Boundary: FilterSelector_
+  - _Depends: 1.1_
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 7.1, 7.3_
+
+- [ ] 5. (P) BorutaPy を scikit-learn の決まりに合わせる
+  - `__init__` は引数を入れるだけにする。`_use_tqdm`・`_use_logging` は `_fit` の初めに決める
+  - `_fit` で `random_state` から RandomState を作り、boruta の `_fit` の間だけ `self.random_state` と `self.perc` を差し替えて、try/finally で元に戻し、開いた進捗バーを閉じる（ensemble-on-sklearn の `perc` の扱いは保つ）
+  - `perc="auto"` のシャッフルの種を先に引いてワーカーに渡し、`n_jobs` によらず同じ `perc_` にする
+  - クラスの docstring を numpy 形式で書き直し（`perc_`・`r_ccmax_`・`pears_` などの属性、Examples、References）、誤字を直す
+  - テスト（`tests/test_boruta.py` に追記。小さな `max_iter`・`max_shuf`、`verbose=0`）: 学習の後も `get_params()["random_state"]` が渡した値、同じインスタンスで2回学習して同じ特徴量と `perc_`、`n_jobs` が 1 と 2 で同じ `perc_`、`set_params(verbose=...)` が次の学習で効く、例外のとき進捗バーが閉じて `random_state`・`perc` が戻る
+  - 既存の `test_boruta`（`perc="auto"`、`random_state=334` で `support_` を固定値で確かめる）の期待値が変わったときは、変わった原因が新しい種の扱い（シャッフルの種を先に引くこと）だけであることを確かめてから期待値を作り直し、その理由をテストのコメントに書く
+  - 完了の状態: 上のテストと既存の BorutaPy のテスト（ensemble-on-sklearn のものを含む）が通る
+  - _Boundary: BorutaPy_
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 7.1, 7.3_
+
+- [ ] 6. visualize
+- [ ] 6.1 テストの収集を optional の依存から切り離し、yyplot を直す
+  - `tests/test_visualize.py` の optuna・lightgbm・ngboost の import を、使うテストの中の `pytest.importorskip` にする（ファイルが収集で失敗しない）
+  - `yyplot`: 未知の指標を描く前に ValueError、`ax` を渡したときは `tight_layout` をかけない、ラベルを書いたとおりに表示する、docstring
+  - テスト: 描いた点の値と指標の文字、渡した ax の図の配置が変わらない、未知の指標で何も描かずに ValueError、`$`・`_`・`%` を含むラベル
+  - 完了の状態: optuna・lightgbm・ngboost を見えなくしても `tests/test_visualize.py` が収集でき（それらのテストは飛ばされる）、yyplot のテストが通る
+  - _Depends: 3_
+  - _Requirements: 6.2, 7.3, 7.4_
+
+- [ ] 6.2 フォントの設定と SummarizePI を直す
+  - `set_font` の docstring に全体の設定を変えることを書く。`with_custom_matplotlib_settings` の日本語のコメントを英語にする
+  - `SummarizePI`: クラスの docstring、`get_figure` を `with_custom_matplotlib_settings` で包む、`get_data` が図と同じ値（特徴量ごとの正規化した重要度の平均と標準偏差、大きい順）を DataFrame で返す、日本語のコメントを英語に
+  - テスト: `set_font` が設定を変える、`with_custom_matplotlib_settings` が `restore=True` で戻し `False` で戻さない、`get_figure` の後にフォントの設定が元のまま、`get_data` の値と順番、既存の SummarizePI の図のテスト
+  - 完了の状態: 上のテストが通り、SummarizePI の参照画像との比較が通る（見た目が変わるなら作り直す）
+  - _Requirements: 6.1, 6.6, 6.7, 7.1, 7.2, 7.3_
+
+- [ ] 6.3 get_learning_curve_optuna を直す
+  - 完了した試行だけを使い、完了した試行がない・方向がない・多目的の study では理由を示す ValueError
+  - docstring を整え、`loc` に注釈を付ける
+  - テスト（optuna がなければ飛ばす）: 失敗・枝刈り・実行中の試行を含む study で、完了した試行だけの曲線になる、3つの ValueError、既存の図のテスト
+  - 完了の状態: 上のテストと既存の optuna の図のテストが通る
+  - _Requirements: 6.4, 6.7, 7.1, 7.3_
+
+- [ ] 6.4 get_dist_figure と get_learning_curve_gb を直す
+  - `get_dist_figure`: サンプルが 1・2 個でも落ちない（`squeeze=False`）、`titles` の既定を None、docstring の誤字と書きかけを直す
+  - `get_learning_curve_gb`: `with_custom_matplotlib_settings` で包む、任意の評価データの名前に色を割り当てる（既知の名前は今の色）、評価の記録が空なら ValueError、NGBoost・LightGBM 以外は TypeError、日本語のコメントを英語に
+  - テスト（ngboost・lightgbm がなければ飛ばす）: 分布の図の 1・2 サンプル、LightGBM の既定の名前（"training"・"valid_0"）で図を返す、呼んだ後にフォントの設定が元のまま、空の記録の ValueError、既存の図のテスト
+  - 完了の状態: 上のテストと既存の分布・学習曲線の図のテストが通る（見た目が変わるなら参照画像を作り直す）
+  - _Requirements: 6.1, 6.3, 6.5, 6.7, 7.1, 7.2, 7.3_
+
+- [ ] 7. 英語化と公開 API の網羅を確かめる
+  - `tests/conftest.py` の日本語の docstring とコメント、対象のモジュールに残る日本語のコメントを英語にする。モジュールの docstring のないもの（`_helpers.py`・`_ngboost.py`・`_filter.py`・`_wrapper.py` など）に英語の docstring を付ける
+  - 5つのサブパッケージの `__all__` の名前が、英語の numpy 形式の docstring を持ち、少なくとも1つのテストで使われていることを確かめるテストを足す。規則: `yikit.logging` が再公開する標準ライブラリの定数（`CRITICAL`・`DEBUG`・`ERROR`・`INFO`・`NOTSET`・`WARNING`）は除く。optional の依存がない環境では、そのとき `__all__` にある名前だけを確かめる。docstring は概要の行があり、引数を取るなら Parameters の見出しを持つこと（Returns などの見出しは必須にしない）。テストでの使用は、この spec のテストのファイルに名前が出てくることで確かめる
+  - 完了の状態: 対象のファイルに日本語の文字が残らず（ライセンスの見出しを除く）、網羅のテストが通る
+  - _Depends: 1.2, 2, 3, 4, 5, 6.4_
+  - _Requirements: 7.1, 7.2, 7.3_
+
+- [ ] 8. 検証
+- [ ] 8.1 全体の検査を通す
+  - 手元で `pytest`、`ruff check src tests`、`ruff format --check src tests`、`mypy`、変えたモジュールの doctest を通す
+  - この spec のテストのファイル（test_helpers・test_logging・test_metrics・test_filtermethod・test_boruta・test_visualize）を、optional の依存を見えなくした状態（`sys.modules` に None を入れる、または別のプロセス）で収集できることを確かめる
+  - 完了の状態: すべてエラーなく終わる
+  - _Requirements: 7.3_
+
+- [ ] 8.2 作業ブランチで CI を実行し、全版で通ることを確かめる
+  - 作業ブランチを push し、CI を手動で実行して Python 3.8〜3.14 の7つの版の結果を確かめる。版による失敗は原因を直す
+  - 完了の状態: 7つの版のテストがすべて成功する
+  - _Requirements: 7.4, 7.5_
+
+## Implementation Notes
+- 手元の検査は yikit-dev の環境の実行ファイルを絶対パスで使う（`/Users/yu9824/opt/miniforge3/envs/yikit-dev/bin/{python,pytest,ruff,mypy}`）。`ruff format` は `src tests` に限る
+- joblib の `Parallel.print_progress` は、逐次実行でも並列でも作業が終わるたびに `n_completed_tasks` を増やして呼ばれる（新旧の joblib で確認。research.md）
+- boruta 本体の `_fit` も `random_state` を書き換えるので、`perc` と同じく `_fit` の間だけ差し替えて戻す
+- テストの小さなデータは各テストファイルの中に置く。`tests/conftest.py` は英語化だけ（共通の fixture は変えない）
+- `.vscode/settings.json` の未コミットの変更は利用者のもの。触らない
+- docstring の Examples は doctest で動く形にするか、遅いもの・optional の依存やフォントの有無に頼るもの（NGBRegressor の学習、optuna の多くの試行、`set_font("Arial")` など）は `# doctest: +SKIP` を付ける（8.1 で変えたモジュールの doctest を通すため）
+- R7.4 の範囲はこの spec のテストのファイル。models のテストのファイル（`tests/test_optuna.py`・`test_gbdt.py`・`test_search_space.py`）は先頭で optuna を import するので、optional の依存なしでは収集できない。直すなら別の作業として扱う
+- release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと
