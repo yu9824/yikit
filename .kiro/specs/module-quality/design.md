@@ -3,10 +3,10 @@
 ## Overview
 **Purpose**: models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）に英語の docstring とテストを揃え、読んで見つかった小さな不具合を直す。
 **Users**: yikit の作者と利用者。docs の API リファレンス（Sphinx が docstring から作る）を読む人。
-**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱い、`tqdm_joblib` の逐次実行での進捗、図の関数が落ちていた入力、`SummarizePI.get_data` の中身。
+**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱い、`tqdm_joblib` の逐次実行での進捗（generator を返す `Parallel` は数えなくなる）、図の関数が落ちていた入力、`SummarizePI.get_data` の中身。
 
 ### Goals
-- 5つのサブパッケージの `__all__` のすべての名前が、英語の numpy 形式の docstring と、それを使うテストを持つ
+- 5つのサブパッケージの `__all__` のすべての名前が少なくとも1つのテストで使われ、（`yikit.logging` が再公開する標準ライブラリの定数を除いて）英語の numpy 形式の docstring を持つ
 - 図の関数が正しい入力で落ちず、利用者の matplotlib の設定を変えない
 - FilterSelector と BorutaPy が scikit-learn の決まり（`__init__` で引数を加工しない、`fit` で引数を書き換えない、`n_features_in_`）に従う
 
@@ -81,12 +81,12 @@ graph TB
 - `is_installed`・`is_argument`・`dummy_tqdm`: 振る舞いは変えない。docstring とテスト
 - `tqdm_joblib(total, silent=False, **tqdm_kwargs)`:
   - `__enter__` で進捗バー（tqdm、なければ `dummy_tqdm`）を作り、`joblib.parallel.Parallel.__call__` と `Parallel.print_progress` を差し替える
-  - 差し替えた `__call__`: context に入ったスレッドで、追っている呼び出しが走っていないときに始まった `Parallel` だけを「追う呼び出し」にする（中で動く別の `Parallel` の進捗を混ぜない）。終わったら、その呼び出しの終わった数を合計に加える
-  - 差し替えた `print_progress`: 追っている呼び出しのとき、進捗バーを（それまでの合計 + `self.n_completed_tasks`）に合わせる。元の `print_progress` も呼ぶ
+  - 差し替えた `__call__`: context に入ったスレッドで、追っている呼び出しが走っていないときに始まった `Parallel` だけを「追う呼び出し」にする（中で動く別の `Parallel` の進捗を混ぜない）。`self.return_generator` が真の呼び出し（`return_as` が list 以外）は追わない（`__call__` が作業の前に戻るため。joblib 1.3 未満にはこの属性がないので、ないときは偽とみなす）。追う呼び出しは、始まるときに context とそのときの合計（`base`）をインスタンスに結び付ける。終わったら（例外のときも finally で）合計を `base + self.n_completed_tasks` にし、進捗バーをその値まで進めてから結び付けを外す
+  - 差し替えた `print_progress`: インスタンスに context が結び付いていれば、進捗バーを `base + self.n_completed_tasks` まで進める（進めるだけで戻さない。同じ呼び出しで何度計算しても同じ値になる）。元の `print_progress` も呼ぶ。loky では `print_progress` が、`__call__` が戻った後や `__exit__` の後にもコールバック用のスレッドで呼ばれうる（loky の terminate はそのスレッドを待たない）。そのため結び付けは `print_progress` の初めに一度だけ読み、元の関数は差し替えのときに取っておいた参照（戻した後も消さない）で呼ぶ
   - `__exit__` で元の2つに戻し（例外のときも）、進捗バーを閉じる
   - 入れ子や、別々のスレッドでの同時の利用でも差し替えが正しく戻るよう、差し替えはモジュールに1つのロックと数で管理する（最初に入った context が差し替え、最後に出た context が戻す）。BorutaPy の `perc="auto"` は EnsembleRegressor をスレッドで並列にすると同時に呼ばれうるため
-  - context の引き方: スレッドごとの記録（いま有効な context）を引くのは、呼び出したスレッドで動く差し替えた `__call__` だけにする。そこで context をその `Parallel` のインスタンスに結び付け（終わったら外す）、差し替えた `print_progress` は `self`（インスタンス）から context を引く。joblib は並列のとき `print_progress` をコールバック用のスレッドで呼ぶので、スレッドから引くと進まないため。逐次実行の経路は呼び出したスレッドで動く
-  - モジュールのロックは、差し替えと数の増減の間だけ持つ。元の `__call__` を呼んでいる間と `print_progress` の中では取らない（joblib は `print_progress` を自身のロックを持ったまま呼ぶので、デッドロックを避ける）
+  - context の引き方: スレッドごとの context のスタック（入ったら積み、出たら外す。いちばん上が有効。入れ子では内側の context が数える）を引くのは、呼び出したスレッドで動く差し替えた `__call__` だけにする。そこで context をその `Parallel` のインスタンスに結び付け（終わったら外す）、差し替えた `print_progress` は `self`（インスタンス）から context を引く。joblib は並列のとき `print_progress` をコールバック用のスレッドで呼ぶので、スレッドから引くと進まないため。逐次実行の経路は呼び出したスレッドで動く
+  - モジュールのロックは、差し替えと数の増減の間だけ持つ。元の `__call__` を呼んでいる間と `print_progress` の中では取らない（joblib は `print_progress` を自身のロックを持ったまま呼ぶので、デッドロックを避ける）。context ごとの小さなロックは、合計と進捗バーの読み書きの間だけ持ち、その中で joblib を呼ばない
 - `_validation.feature_names_of(X) -> NDArray | None`（非公開）: `X.columns` の名前がすべて `type(name) is str`（`numpy.str_` を除く）で、scikit-learn 1.0 以上のときだけ `np.array(columns, dtype=object)`
 
 ### Logging（`src/yikit/logging/`）
@@ -134,7 +134,7 @@ graph TB
 ## Testing Strategy
 小さなデータを各テストファイルの中に置く（`conftest.py` の共通のデータは使ってよい）。optional の依存を使うテストは `pytest.importorskip` で飛ばし、モジュールの先頭で無条件に import しない（7.4）。
 
-- `test_helpers.py`: `is_installed`（あるもの・ないもの）、`is_argument`、`dummy_tqdm`、`tqdm_joblib`（`n_jobs` = None・1・2 で進捗バーが作業ごとに進み total に達する、中で別の `Parallel` を動かしても混ざらない、抜けると差し替えが戻る、例外のときも戻る、`silent=True`）
+- `test_helpers.py`: `is_installed`（あるもの・ないもの）、`is_argument`、`dummy_tqdm`、`tqdm_joblib`（`n_jobs` = None・1・2 で進捗バーが単調に進み total に達する（loky ではバッチ単位で進んでよい）、中で別の `Parallel` を動かしても混ざらない、`return_as="generator"` の呼び出しは数えない（joblib 1.3 以上のときだけ）、抜けると差し替えが戻る、例外のときも戻る、`silent=True`）
 - `test_logging.py`: `get_root_logger` の設定、`get_child_logger`（yikit の中、`__main__`、それ以外の ValueError）、`enable`・`disable` の重複なし、`catch_default_handler` が入る前の状態に戻す（付いていた・外れていた）、`get_handler`
 - `test_metrics.py`: `root_mean_squared_error` が import できない、`log_likelihood`（NGBRegressor で `-score`、ほかのモデルで TypeError。ngboost がなければ飛ばす）
 - `test_filtermethod.py`: 負の相関の除去、`get_feature_names_out`（DataFrame と ndarray）、特徴量の数の違いの ValueError、1000 を超える削除、一定の列（警告なし）、正の相関での結果が今と同じ

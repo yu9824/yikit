@@ -9,10 +9,10 @@
   - _Requirements: 1.1, 1.2, 1.3, 7.1, 7.3_
 
 - [ ] 1.2 tqdm_joblib を n_jobs によらず進むように作り直す
-  - `Parallel.__call__` と `Parallel.print_progress` を差し替え、context に入ったスレッドで、追っている呼び出しが走っていない間に始まった `Parallel` だけを追い、終わった作業の数だけ進捗バーを進める（design の Helpers）。抜けるときに（例外のときも）元に戻して進捗バーを閉じる
-  - 差し替えはモジュールに1つのロックと数で管理する（最初に入った context が差し替え、最後に出た context が戻す）。context は、呼び出したスレッドで動く差し替えた `__call__` の中で `Parallel` のインスタンスに結び付け、`print_progress` はインスタンスから引く（並列のとき `print_progress` はコールバック用のスレッドで呼ばれるため。design の Helpers）。モジュールのロックは差し替えと数の増減の間だけ持ち、元の `__call__` の間と `print_progress` の中では取らない（デッドロックを避ける）
-  - docstring を直す（Examples を動く形に、`total` は必須、`silent`、入れ子と別々のスレッドでの同時の利用に対応すること、進捗は context の中で始まった最も外側の `Parallel` の作業を数えること）
-  - テスト: `n_jobs` が None・1・2 で作業が終わるたびに進捗バーが進み total に達する（進捗バーの `update` を記録する）、中で別の `Parallel` を動かしても数が混ざらない、抜けると差し替えが戻る、例外のときも戻る、入れ子の `tqdm_joblib` と、2つのスレッドで同時に使ったときも（threading.Event で順番を決めて）それぞれの進捗が正しく、最後に差し替えが戻る、`silent=True` と tqdm がないときは `dummy_tqdm`
+  - `Parallel.__call__` と `Parallel.print_progress` を差し替え、context に入ったスレッドで、追っている呼び出しが走っていない間に始まった `Parallel` だけを追い、終わった作業の数だけ進捗バーを進める（design の Helpers）。`return_as` が list 以外の呼び出しは追わない。抜けるときに（例外のときも）元に戻して進捗バーを閉じる
+  - 差し替えはモジュールに1つのロックと数で管理する（最初に入った context が差し替え、最後に出た context が戻す）。context はスレッドごとのスタックに積み、呼び出したスレッドで動く差し替えた `__call__` の中で、いちばん上の context とそのときの合計（`base`）を `Parallel` のインスタンスに結び付ける。`print_progress` はインスタンスから引き、進捗バーを `base + n_completed_tasks` まで進める（進めるだけで戻さない）。`__call__` が終わったら finally で合計を確定し、進捗バーを合わせてから結び付けを外す（loky では `print_progress` が `__call__` の後にも遅れて呼ばれうるため。design の Helpers）。元の関数は差し替えのときに取っておいた参照で呼ぶ。モジュールのロックは差し替えと数の増減の間だけ持ち、元の `__call__` の間と `print_progress` の中では取らない（デッドロックを避ける）
+  - docstring を直す（Examples を動く形に、`total` は必須、`silent`、入れ子と別々のスレッドでの同時の利用に対応すること、進捗は context に入ったスレッドで始まった最も外側の `Parallel` の作業を数えること（入れ子では内側の context が数える。`return_as` が list 以外の呼び出しは数えない））
+  - テスト: `n_jobs` が None・1・2 で進捗バーが単調に進み total に達する（進捗バーの `update` を記録する。n_jobs=2 ではバッチ単位で進んでよく、1 ずつの歩みや `update` の回数は確かめない）、中で別の `Parallel` を動かしても数が混ざらない、`return_as="generator"` の呼び出しは数えない（joblib 1.3 以上のときだけ確かめる）、抜けると差し替えが戻る、例外のときも戻る、入れ子の `tqdm_joblib` と、2つのスレッドで同時に使ったときも（threading.Event で順番を決めて）それぞれの進捗が正しく、最後に差し替えが戻る、`silent=True` と tqdm がないときは `dummy_tqdm`
   - 完了の状態: `tqdm_joblib(total=5)` の中の `Parallel(n_jobs=1)` で進捗バーが 1 ずつ進み、抜けると `Parallel` が元に戻っていて、`tests/test_helpers.py` が通る
   - _Requirements: 1.4, 1.5, 7.3_
 
@@ -86,7 +86,7 @@
 
 - [ ] 7. 英語化と公開 API の網羅を確かめる
   - `tests/conftest.py` の日本語の docstring とコメント、対象のモジュールに残る日本語のコメントを英語にする。モジュールの docstring のないもの（`_helpers.py`・`_ngboost.py`・`_filter.py`・`_wrapper.py` など）に英語の docstring を付ける
-  - 5つのサブパッケージの `__all__` の名前が、英語の numpy 形式の docstring を持ち、少なくとも1つのテストで使われていることを確かめるテストを足す。規則: `yikit.logging` が再公開する標準ライブラリの定数（`CRITICAL`・`DEBUG`・`ERROR`・`INFO`・`NOTSET`・`WARNING`）は除く。optional の依存がない環境では、そのとき `__all__` にある名前だけを確かめる。docstring は概要の行があり、引数を取るなら Parameters の見出しを持つこと（Returns などの見出しは必須にしない）。テストでの使用は、この spec のテストのファイルに名前が出てくることで確かめる
+  - 5つのサブパッケージの `__all__` の名前が、英語の numpy 形式の docstring を持ち、少なくとも1つのテストで使われていることを確かめるテストを足す。規則: docstring の確認では `yikit.logging` が再公開する標準ライブラリの定数（`CRITICAL`・`DEBUG`・`ERROR`・`INFO`・`NOTSET`・`WARNING`）を除く。テストでの使用は定数も含めて確かめる。optional の依存がない環境では、そのとき `__all__` にある名前だけを確かめる。docstring は概要の行があり、引数を取るなら Parameters の見出しを持つこと（Returns などの見出しは必須にしない）。テストでの使用は、この spec のテストのファイルに名前が出てくることで確かめる
   - 完了の状態: 対象のファイルに日本語の文字が残らず（ライセンスの見出しを除く）、網羅のテストが通る
   - _Depends: 1.2, 2, 3, 4, 5, 6.4_
   - _Requirements: 7.1, 7.2, 7.3_
@@ -111,4 +111,4 @@
 - `.vscode/settings.json` の未コミットの変更は利用者のもの。触らない
 - docstring の Examples は doctest で動く形にするか、遅いもの・optional の依存やフォントの有無に頼るもの（NGBRegressor の学習、optuna の多くの試行、`set_font("Arial")` など）は `# doctest: +SKIP` を付ける（8.1 で変えたモジュールの doctest を通すため）
 - R7.4 の範囲はこの spec のテストのファイル。models のテストのファイル（`tests/test_optuna.py`・`test_gbdt.py`・`test_search_space.py`）は先頭で optuna を import するので、optional の依存なしでは収集できない。直すなら別の作業として扱う
-- release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと
+- release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むことと、`return_as` が list 以外の `Parallel` を数えなくなったこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと

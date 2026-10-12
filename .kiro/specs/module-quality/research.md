@@ -4,7 +4,7 @@
 - **Feature**: `module-quality`
 - **Discovery Scope**: Extension（既存の5つのサブパッケージの docstring・テスト・小さな不具合の修正）
 - **Key Findings**:
-  - joblib の `Parallel.print_progress` は、逐次実行（`n_jobs=1`・`None`）でも並列でも、作業が1つ終わるたびに `n_completed_tasks` を増やして呼ばれる（joblib 1.5.3 と、Python 3.8 の古い環境の joblib で確認）。今の `tqdm_joblib` が差し替える `BatchCompletionCallBack` は、joblib 1.3 以降の逐次実行では呼ばれないので、進捗バーが進まない
+  - joblib の `Parallel.print_progress` は、逐次実行（`n_jobs=1`・`None`）でも並列でも、作業（loky の自動バッチではバッチ）が終わるたびに `n_completed_tasks` を増やして呼ばれる（joblib 1.6.0 と、Python 3.8 の古い環境の joblib 1.4.2 で確認）。今の `tqdm_joblib` が差し替える `BatchCompletionCallBack` は、joblib 1.3 以降の逐次実行では呼ばれないので、進捗バーが進まない
   - 公開 API ごとの docstring・テスト・不具合の状況は、調査の結果（会話の中のサブエージェントの報告）にもとづき brief の Current State にまとめた
   - boruta 本体の `_fit` も `self.random_state = check_random_state(self.random_state)` で引数を書き換える（boruta_py.py:295）。yikit の `__init__` での変換をやめるだけでは足りず、`perc` と同じく `_fit` の間だけ差し替えて戻す必要がある
 
@@ -35,7 +35,7 @@
   2. 逐次実行の経路（`_get_sequential_output`）も差し替える — 非公開の関数で、版で名前が変わる
   3. `print_progress` を差し替える — 逐次でも並列でも、古い joblib でも呼ばれる
 - **Selected Approach**: 3。`__call__` も差し替えて追う呼び出しを決め、`print_progress` で進捗バーを `n_completed_tasks` に合わせる。抜けるときに（例外のときも）元に戻す
-- **Trade-offs**: どちらもプロセス全体の差し替えなので、入れ子や別々のスレッドでの同時の利用（EnsembleRegressor をスレッドで並列にしたときの BorutaPy など）では、差し替えをロックと数で管理し、進捗はスレッドごとの context に渡す
+- **Trade-offs**: どちらもプロセス全体の差し替えなので、入れ子や別々のスレッドでの同時の利用（EnsembleRegressor をスレッドで並列にしたときの BorutaPy など）では、差し替えをロックと数で管理する。context は呼び出したスレッドで `Parallel` のインスタンスに結び付け、`print_progress` はインスタンスから引く（並列のとき `print_progress` はコールバック用のスレッドで呼ばれる）。loky では `print_progress` が `__call__` の後にも遅れて呼ばれうるので、進捗は `base + n_completed_tasks` まで進めるだけにし、`__call__` の終わりに finally で合わせる（独立のレビューで確認。joblib 1.6.0 parallel.py:865-867 と 1782、`_parallel_backends.py` の loky の terminate）。`return_as` が list 以外の呼び出しは `__call__` が作業の前に戻るので数えない（作者の判断）
 
 ### Decision: BorutaPy の random_state は perc と同じく _fit の間だけ差し替える
 - **Selected Approach**: `__init__` は引数を入れるだけにする。`_fit` で `check_random_state(self.random_state)` を作り、boruta の `_fit` の間だけ `self.random_state` に入れて、try/finally で元の値に戻す。`_use_tqdm`・`_use_logging` も `_fit` で `verbose` から決める

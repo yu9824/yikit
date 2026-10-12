@@ -6,7 +6,7 @@ yikit を使う人（作者、licond など）は、モデル以外のモジュ�
 この spec では、5つのサブパッケージの公開 API に英語の numpy 形式の docstring とテストを揃え、見つかった小さな不具合を直す。機能の追加はしない（例外は、中身のない `SummarizePI.get_data` を実装すること）。詳細は `brief.md` を参照。
 
 ## Introduction
-yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱い、図の関数が落ちていた入力、`SummarizePI.get_data` の中身、`tqdm_joblib` の逐次実行での進捗、`yikit.metrics.root_mean_squared_error` の削除で、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
+yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱い、図の関数が落ちていた入力、`SummarizePI.get_data` の中身、`tqdm_joblib` の逐次実行での進捗（generator を返す呼び出しは数えなくなる）、`yikit.metrics.root_mean_squared_error` の削除で、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
 
 ## Boundary Context
 - **In scope**: `yikit.helpers`・`yikit.logging`・`yikit.metrics`・`yikit.feature_selection`・`yikit.visualize` の公開 API（各 `__init__.py` の `__all__` にある名前）の docstring・テスト・小さな不具合の修正。これらのモジュールの日本語のコメントと、`tests/conftest.py` の日本語の docstring の英語化。テストが optional の依存なしでも収集できること
@@ -25,7 +25,7 @@ yikit の作者と利用者のために、models 以外の公開 API（helpers�
 1. When 入っているパッケージと入っていないパッケージの名前を `is_installed` に渡したとき, the helpers shall それぞれ True と False を返す（名前・引数・返り値の型は変えない）
 2. When 関数とその引数の名前を `is_argument` に渡したとき, the helpers shall その引数があれば True、なければ False を返す
 3. When `dummy_tqdm` を tqdm の代わりに使ったとき, the helpers shall 渡された iterable をそのまま順にたどり、`update`・`close` などの呼び出しを何もせずに受け付ける
-4. When `tqdm_joblib` の中で joblib の `Parallel` を実行したとき, the helpers shall `n_jobs` によらず（逐次実行の `n_jobs=1` や `None` を含む）、作業が終わるたびに終わった数だけ進捗バーを進め、抜けるときに進捗バーを閉じる
+4. When `tqdm_joblib` の中で joblib の `Parallel` を実行したとき, the helpers shall `n_jobs` によらず（逐次実行の `n_jobs=1` や `None` を含む）、作業が終わるたびに終わった数だけ進捗バーを進め、抜けるときに進捗バーを閉じる。数えるのは `return_as` が既定の "list" の呼び出しで、generator を返す呼び出し（joblib 1.3 以降の `return_as="generator"` など）は数えない
 5. When `tqdm_joblib` を抜けたとき, the helpers shall joblib に加えた変更を元に戻す（例外のときも）
 
 ### Requirement 2: logging
