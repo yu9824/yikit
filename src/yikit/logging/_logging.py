@@ -1,4 +1,8 @@
-"""Module for logging configuration and utilities."""
+"""Implementation of :mod:`yikit.logging`.
+
+See the docstring of :mod:`yikit.logging` for how yikit configures the
+``"yikit"`` logger and how to silence or replace its default handler.
+"""
 
 from __future__ import annotations
 
@@ -45,9 +49,9 @@ def _color_supported() -> bool:
 
 
 _default_handler: StreamHandler | None = None
-"""default root logger handler
+"""Default handler of the "yikit" logger.
 
-if not configured, None
+None until :func:`get_root_logger` configures the logger for the first time.
 """
 
 
@@ -67,13 +71,16 @@ def create_default_formatter() -> Formatter:
     """
     Create a default log formatter with optional color support.
 
-    If the environment supports colorized output, a `ColoredFormatter` from the
-    `colorlog` package is returned. Otherwise, a standard `Formatter` is used.
+    If the environment supports colorized output (``colorlog`` is installed,
+    the ``NO_COLOR`` environment variable is not set, and ``sys.stderr`` is a
+    terminal), a ``colorlog.ColoredFormatter`` is returned. Otherwise, a
+    standard :class:`logging.Formatter` with the same fields is returned.
 
     Returns
     -------
     Formatter
-        A log formatter instance, either colored or plain depending on environment support.
+        A new log formatter, either colored or plain depending on the
+        environment.
     """
     if _color_supported():
         from colorlog import ColoredFormatter
@@ -101,27 +108,34 @@ def get_handler(
     level: int = NOTSET,
 ) -> HandlerType:
     """
-    Configure a log handler with a formatter and log level.
+    Configure a log handler with a formatter and a log level.
 
-    This function simplifies handler configuration by allowing optional
-    specification of a formatter and log level. If no formatter is provided,
-    a default one will be used.
+    Use it to build a handler that replaces or complements the default
+    handler of the ``"yikit"`` logger.
 
     Parameters
     ----------
-    handler : HandlerType
-        The log handler to configure.
-    formatter : Optional[Formatter], optional
-        The formatter to apply to the handler. If None, a default formatter
-        is used. Default is None.
-    level : int, optional
-        The logging level to set for the handler (e.g., logging.DEBUG,
-        logging.INFO). Default is logging.NOTSET.
+    handler : logging.Handler
+        The log handler to configure. It is modified in place.
+    formatter : logging.Formatter or None, default=None
+        The formatter to set on the handler. If None, a new default formatter
+        (the one the default handler uses) is set.
+    level : int, default=logging.NOTSET
+        The level to set on the handler (e.g., ``logging.DEBUG``,
+        ``logging.INFO``).
 
     Returns
     -------
-    HandlerType
-        The configured log handler.
+    logging.Handler
+        The same ``handler``, configured.
+
+    Examples
+    --------
+    >>> import logging
+    >>> from yikit.logging import WARNING, get_handler
+    >>> handler = get_handler(logging.StreamHandler(), level=WARNING)
+    >>> handler.level == WARNING
+    True
     """
     handler.setLevel(level)
     handler.setFormatter(
@@ -157,7 +171,7 @@ def _configure_library_root_logger() -> None:
     """
     global _default_handler
 
-    if _default_handler:
+    if _default_handler is not None:
         # This library has already configured the library root logger.
         return
 
@@ -170,17 +184,72 @@ def _configure_library_root_logger() -> None:
     library_root_logger.propagate = False
 
 
-def get_root_logger() -> Logger:
+def _get_default_handler() -> StreamHandler:
     """
-    Retrieve the root logger for this library package.
-
-    Ensures that the logger is properly configured with a default handler
-    and logging level before returning it.
+    Return the default handler, configuring the logger if needed.
 
     Returns
     -------
-    Logger
-        The root logger instance for the current package.
+    StreamHandler
+        The default handler of the ``"yikit"`` logger.
+
+    Raises
+    ------
+    RuntimeError
+        If the default handler does not exist after the configuration.
+    """
+    _configure_library_root_logger()
+
+    if _default_handler is None:
+        raise RuntimeError(
+            "The default handler of the "
+            f"{_get_root_logger_name()!r} logger was not created by the "
+            "logger configuration."
+        )
+    return _default_handler
+
+
+def _is_default_handler_attached() -> bool:
+    """
+    Return whether the default handler is attached to the root logger.
+
+    Returns
+    -------
+    bool
+        True if the default handler is attached to the ``"yikit"`` logger.
+    """
+    return _get_default_handler() in get_root_logger().handlers
+
+
+def get_root_logger() -> Logger:
+    """
+    Return the ``"yikit"`` logger, configuring it on the first call.
+
+    The first call attaches the default handler (a
+    :class:`logging.StreamHandler` that writes to ``sys.stderr`` with the
+    default formatter) to the ``"yikit"`` logger, sets its level to
+    ``logging.INFO``, and sets ``propagate`` to False so that the messages
+    are not printed again by the handlers of the Python root logger. Later
+    calls return the logger without changing it, so the level, handlers and
+    ``propagate`` set afterwards are kept. The level and ``propagate`` set on
+    ``logging.getLogger("yikit")`` before the first call are overwritten, so
+    change them on the logger that this function returns.
+
+    Returns
+    -------
+    logging.Logger
+        The ``"yikit"`` logger.
+
+    See Also
+    --------
+    disable_default_handler : Detach the default handler.
+    get_child_logger : Return a child of the ``"yikit"`` logger.
+
+    Examples
+    --------
+    >>> from yikit.logging import get_root_logger
+    >>> get_root_logger().name
+    'yikit'
     """
     _configure_library_root_logger()
 
@@ -189,31 +258,40 @@ def get_root_logger() -> Logger:
 
 def get_child_logger(name: str, propagate: bool = True) -> Logger:
     """
-    Retrieve a child logger associated with the given module name.
+    Return a child of the ``"yikit"`` logger for a module.
 
-    This function returns a child logger derived from the library's root logger.
-    The `name` argument should typically be set to `__name__` to ensure that
-    the logger is correctly nested under the library's namespace. If the name
-    does not match the expected pattern, a ValueError is raised.
+    Pass ``__name__``. A module inside yikit (``"yikit.<module>"``) gets the
+    logger of the same name, and a script run as ``__main__`` gets the
+    ``"yikit.__main__"`` logger. The ``"yikit"`` logger is configured first
+    (see :func:`get_root_logger`), so the messages of the child are printed
+    by the default handler while ``propagate`` is True.
 
     Parameters
     ----------
     name : str
-        The module name, typically set to `__name__`.
-    propagate : bool, optional
-        Whether log messages should propagate to the parent logger.
-        Default is True.
+        The module name, ``__name__``. It must be a module inside yikit
+        (``"yikit.<module>"``) or ``"__main__"``.
+    propagate : bool, default=True
+        Whether the messages of the child are passed to the handlers of the
+        ``"yikit"`` logger. It is set on the returned logger.
 
     Returns
     -------
-    Logger
-        A configured child logger instance.
+    logging.Logger
+        The child logger.
 
     Raises
     ------
     ValueError
-        If the provided name does not belong to the library's namespace and
-        is not '__main__'.
+        If ``name`` is neither a module inside yikit nor ``"__main__"``.
+
+    Examples
+    --------
+    >>> from yikit.logging import get_child_logger
+    >>> get_child_logger("yikit.feature_selection").name
+    'yikit.feature_selection'
+    >>> get_child_logger("__main__").name
+    'yikit.__main__'
     """
     root_logger = get_root_logger()
 
@@ -231,60 +309,127 @@ def get_child_logger(name: str, propagate: bool = True) -> Logger:
 
 def enable_default_handler() -> None:
     """
-    Enable the default handler for the library's root logger.
+    Attach the default handler to the ``"yikit"`` logger.
 
-    Re-attaches the default handler to the root logger if it has been
-    previously removed.
+    It undoes :func:`disable_default_handler`. The handler is never attached
+    twice, so calling it again does nothing.
 
     Returns
     -------
     None
-    """
-    _configure_library_root_logger()
 
-    assert _default_handler is not None
-    get_root_logger().addHandler(_default_handler)
+    Raises
+    ------
+    RuntimeError
+        If the default handler does not exist after configuring the logger.
+
+    See Also
+    --------
+    disable_default_handler : Detach the default handler.
+    catch_default_handler : Detach the default handler inside a block.
+
+    Examples
+    --------
+    >>> from yikit.logging import enable_default_handler
+    >>> enable_default_handler()
+    """
+    get_root_logger().addHandler(_get_default_handler())
 
 
 def disable_default_handler() -> None:
     """
-    Disable the default handler for the library's root logger.
+    Detach the default handler from the ``"yikit"`` logger.
 
-    Detaches the default handler from the root logger to suppress logging output.
+    The default handler no longer prints yikit's messages. Handlers that the
+    user attached are kept. Calling it again does nothing.
+
+    If the ``"yikit"`` logger has no other handler, Python's last-resort
+    handler (``logging.lastResort``) still writes messages of ``WARNING`` and
+    above to ``sys.stderr``. To hide them too, also add a
+    :class:`logging.NullHandler` to the logger returned by
+    :func:`get_root_logger`, or raise its level.
 
     Returns
     -------
     None
-    """
-    _configure_library_root_logger()
 
-    assert _default_handler is not None
-    get_root_logger().removeHandler(_default_handler)
+    Raises
+    ------
+    RuntimeError
+        If the default handler does not exist after configuring the logger.
+
+    See Also
+    --------
+    enable_default_handler : Attach the default handler again.
+    catch_default_handler : Detach the default handler inside a block.
+
+    Examples
+    --------
+    >>> from yikit.logging import (
+    ...     disable_default_handler,
+    ...     enable_default_handler,
+    ... )
+    >>> disable_default_handler()  # the default handler stops printing
+    >>> enable_default_handler()  # it prints yikit's messages again
+    """
+    get_root_logger().removeHandler(_get_default_handler())
 
 
 class catch_default_handler:
     """
-    Context manager to temporarily disable the default handler.
+    Context manager that detaches the default handler inside a block.
 
-    When entering the context, the library's default log handler is removed
-    from the root logger to suppress output. When exiting, the handler is
-    re-attached.
+    On entering, the default handler is detached from the ``"yikit"``
+    logger. On exiting, also when an exception is raised inside the block,
+    the default handler goes back to the state before entering: it is
+    attached again if it was attached, and stays detached if it was
+    detached. Other handlers are not touched. The same instance may be
+    entered again while it is active; each exit restores the state of the
+    matching entry.
+
+    Inside the block, if the ``"yikit"`` logger has no other handler,
+    Python's last-resort handler (``logging.lastResort``) still writes
+    messages of ``WARNING`` and above to ``sys.stderr``; see
+    :func:`disable_default_handler`.
+
+    Raises
+    ------
+    RuntimeError
+        On exiting without entering, or if the default handler does not exist
+        after configuring the logger.
+
+    See Also
+    --------
+    disable_default_handler : Detach the default handler.
 
     Examples
     --------
-    >>> logger = get_child_logger(__name__)
+    >>> from yikit.logging import catch_default_handler, get_root_logger
+    >>> logger = get_root_logger()
     >>> with catch_default_handler():
-    ...     logger.info("This message will not be logged.")
-    >>> logger.info("This message will be logged.")
+    ...     logger.info("This message is not printed by the default handler.")
+    >>> logger.info("This message is printed again.")
     """
 
+    def __init__(self) -> None:
+        # Whether the default handler was attached at each active entry.
+        self._was_attached: list[bool] = []
+
     def __enter__(self) -> None:
+        self._was_attached.append(_is_default_handler_attached())
         disable_default_handler()
 
     def __exit__(
         self,
-        exc_type: type[Exception] | None,
-        exc_value: Exception | None,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        enable_default_handler()
+        if not self._was_attached:
+            raise RuntimeError(
+                "catch_default_handler was exited without entering it."
+            )
+        if self._was_attached.pop():
+            enable_default_handler()
+        else:
+            disable_default_handler()

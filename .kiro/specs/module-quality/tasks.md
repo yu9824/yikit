@@ -16,7 +16,7 @@
   - 完了の状態: `tqdm_joblib(total=5)` の中の `Parallel(n_jobs=1)` で進捗バーが 1 ずつ進み、抜けると `Parallel` が元に戻っていて、`tests/test_helpers.py` が通る
   - _Requirements: 1.4, 1.5, 7.3_
 
-- [ ] 2. (P) logging の docstring とテスト、catch_default_handler の戻し方を直す
+- [x] 2. (P) logging の docstring とテスト、catch_default_handler の戻し方を直す
   - ロガーの振る舞い（import で既定のハンドラを付ける、INFO、propagate False）は変えず、docstring に明記する
   - `catch_default_handler` が抜けるときに、入る前の状態（付いていたか外れていたか）に戻すようにする
   - `enable_default_handler`・`disable_default_handler` の実行時の `assert` を、明示的な検査と意味のある例外にする
@@ -113,3 +113,4 @@
 - R7.4 の範囲はこの spec のテストのファイル。models のテストのファイル（`tests/test_optuna.py`・`test_gbdt.py`・`test_search_space.py`）は先頭で optuna を import するので、optional の依存なしでは収集できない。直すなら別の作業として扱う
 - release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むことと、`return_as` が list 以外の `Parallel` を数えなくなったこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと
 - `tqdm_joblib`（1.2）: リリース済みの属性 `tqdm_joblib.tqdm`（入る前は None、中では進捗バー、抜けた後は閉じた進捗バー）を互換のために残した。有効な同じインスタンスにもう一度入ったときと、入る前に抜けたときは RuntimeError（CHANGELOG に書く）
+- logging（2）: 既定のハンドラは `import yikit` では付かず、最初の `get_root_logger()`（`yikit.feature_selection` の import が呼ぶ）で付く。止め方の案内は `get_root_logger()` を通す形にした（それより前に `logging.getLogger("yikit")` に入れた水準は上書きされるため）。CHANGELOG に書く: `catch_default_handler` が入る前の状態に戻すこと、同じインスタンスに入れ子で入れること、入る前に抜けると RuntimeError、既定のハンドラがないときの例外が AssertionError から RuntimeError に変わったこと
