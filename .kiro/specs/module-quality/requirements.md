@@ -6,7 +6,7 @@ yikit を使う人（作者、licond など）は、モデル以外のモジュ�
 この spec では、5つのサブパッケージの公開 API に英語の numpy 形式の docstring とテストを揃え、見つかった小さな不具合を直す。機能の追加はしない（例外は、中身のない `SummarizePI.get_data` を実装すること）。詳細は `brief.md` を参照。
 
 ## Introduction
-yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱い、図の関数が落ちていた入力、`SummarizePI.get_data` の中身、`tqdm_joblib` の逐次実行での進捗（generator を返す呼び出しは数えなくなる）、`yikit.metrics.root_mean_squared_error` の削除で、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
+yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱い、図の関数が落ちていた入力、`SummarizePI.get_data` の中身、`tqdm_joblib` の逐次実行での進捗（generator を返す呼び出しは数えなくなる）、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が `Score=CRPScore` などで学習したモデルでも対数尤度を返すことで、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
 
 ## Boundary Context
 - **In scope**: `yikit.helpers`・`yikit.logging`・`yikit.metrics`・`yikit.feature_selection`・`yikit.visualize` の公開 API（各 `__init__.py` の `__all__` にある名前）の docstring・テスト・小さな不具合の修正。これらのモジュールの日本語のコメントと、`tests/conftest.py` の日本語の docstring の英語化。テストが optional の依存なしでも収集できること
@@ -43,7 +43,7 @@ yikit の作者と利用者のために、models 以外の公開 API（helpers�
 
 #### Acceptance Criteria
 1. The metrics shall `root_mean_squared_error` を提供しない（scikit-learn 1.4 以降の `sklearn.metrics.root_mean_squared_error` を使ってもらう。0.4.0 で削除し、import すると Python の通常の ImportError になる）。yikit の中でこの値を使う箇所（`yyplot` の RMSE）は、scikit-learn 0.24.1 でも動く形で同じ値を計算する
-2. Where ngboost が入っているとき, when `log_likelihood` に学習した NGBRegressor か NGBClassifier を渡したとき, the metrics shall 平均の対数尤度（大きいほど良い値）を返し、それ以外のモデルでは TypeError を出す
+2. Where ngboost が入っているとき, when `log_likelihood` に学習した NGBRegressor か NGBClassifier を渡したとき, the metrics shall 学習に使ったスコア（`Score`）によらず平均の対数尤度（大きいほど良い値）を返し、それ以外のモデルでは TypeError を出す
 3. The metrics shall `log_likelihood` の docstring を、返す値（負の対数尤度ではなく対数尤度）に合わせる
 
 ### Requirement 4: FilterSelector

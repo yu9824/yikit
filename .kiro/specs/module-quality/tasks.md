@@ -25,10 +25,10 @@
   - _Boundary: Logging_
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 7.1, 7.3_
 
-- [ ] 3. (P) metrics から root_mean_squared_error を削除する（境界をまたぐ小さな統合）
-  - `yikit/metrics/_common.py` を消し、`yikit.metrics` は ngboost があるときだけ `log_likelihood` を公開する。`log_likelihood` の docstring を対数尤度（大きいほど良い）に直す
-  - `visualize/_yyplot.py` の `root_mean_squared_error` の import を、`np.sqrt(mean_squared_error(...))` で計算する非公開の関数に置き換える（scikit-learn 0.24.1 でも動く。yyplot のそれ以外は 6.1 で扱う）
-  - テスト（新規 `tests/test_metrics.py`）: `from yikit.metrics import root_mean_squared_error` が ImportError、`log_likelihood` が NGBRegressor で `-score` と等しく、他のモデルで TypeError（ngboost がなければ飛ばす）、yyplot の非公開の RMSE の関数の値が平均二乗誤差の平方根と等しい（`test_metrics.py` で直接確かめる）
+- [x] 3. (P) metrics から root_mean_squared_error を削除する（境界をまたぐ小さな統合）
+  - `yikit/metrics/_common.py` を消し、`yikit.metrics` は ngboost があるときだけ `log_likelihood` を公開する。`log_likelihood` を、学習の `Score` によらず予測した分布の平均の対数尤度（大きいほど良い）を返すようにし（`Score=LogScore` では今と同じ値。作者の判断）、docstring を合わせる
+  - `visualize/_yyplot.py` の `root_mean_squared_error` の import を、scikit-learn の RMSE の既定と同じ値（多出力では出力ごとの RMSE の平均）を `mean_squared_error(..., multioutput="raw_values")` から計算する非公開の関数に置き換える（scikit-learn 0.24.1 でも動く。yyplot のそれ以外は 6.1 で扱う）
+  - テスト（新規 `tests/test_metrics.py`）: `from yikit.metrics import root_mean_squared_error` が ImportError、`log_likelihood` が NGBRegressor と NGBClassifier で `Score=LogScore` なら `-score` と等しく、`Score=CRPScore` でも予測した分布の平均の対数尤度になり、他のモデルで TypeError（ngboost がなければ飛ばす）、yyplot の非公開の RMSE の関数の値が、1次元では平均二乗誤差の平方根、多出力では出力ごとの RMSE の平均と等しい（`test_metrics.py` で直接確かめる）
   - 完了の状態: src に `root_mean_squared_error` の参照が残らず、tests では ImportError を確かめるテストだけが名前を使い（scikit-learn の scorer の文字列 `neg_root_mean_squared_error` は別）、テストが通る
   - _Boundary: Metrics, Visualize（yyplot の import の1か所）_
   - _Requirements: 3.1, 3.2, 3.3, 7.1, 7.3_
@@ -111,6 +111,7 @@
 - `.vscode/settings.json` の未コミットの変更は利用者のもの。触らない
 - docstring の Examples は doctest で動く形にするか、遅いもの・optional の依存やフォントの有無に頼るもの（NGBRegressor の学習、optuna の多くの試行、`set_font("Arial")` など）は `# doctest: +SKIP` を付ける（8.1 で変えたモジュールの doctest を通すため）
 - R7.4 の範囲はこの spec のテストのファイル。models のテストのファイル（`tests/test_optuna.py`・`test_gbdt.py`・`test_search_space.py`）は先頭で optuna を import するので、optional の依存なしでは収集できない。直すなら別の作業として扱う
-- release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むことと、`return_as` が list 以外の `Parallel` を数えなくなったこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと
+- release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、`log_likelihood` が学習の `Score` によらず対数尤度を返すようになったこと（`Score=CRPScore` などで値が変わる）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むことと、`return_as` が list 以外の `Parallel` を数えなくなったこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと
 - `tqdm_joblib`（1.2）: リリース済みの属性 `tqdm_joblib.tqdm`（入る前は None、中では進捗バー、抜けた後は閉じた進捗バー）を互換のために残した。有効な同じインスタンスにもう一度入ったときと、入る前に抜けたときは RuntimeError（CHANGELOG に書く）
 - logging（2）: 既定のハンドラは `import yikit` では付かず、最初の `get_root_logger()`（`yikit.feature_selection` の import が呼ぶ）で付く。止め方の案内は `get_root_logger()` を通す形にした（それより前に `logging.getLogger("yikit")` に入れた水準は上書きされるため）。CHANGELOG に書く: `catch_default_handler` が入る前の状態に戻すこと、同じインスタンスに入れ子で入れること、入る前に抜けると RuntimeError、既定のハンドラがないときの例外が AssertionError から RuntimeError に変わったこと
+- metrics（3）: `log_likelihood` は `ngboost.manifold.manifold(LogScore, Dist)` を予測したパラメータ（`pred_dist(X)._params`、`NGBoost.score` と同じ）に当てて計算する。打ち切り付きの分布（LogNormal・Exponential）は ngboost が包んだ `DistWithUncensoredScore` を名前で見分けて LogScore で包み直す（ngboost の `__getstate__` と同じ見分け方）。ngboost 0.3.6 は LogNormal を CRPScore で学習できない。NormalFixedVar は ngboost 自身の `score` と同じく落ちる（upstream）

@@ -3,7 +3,7 @@
 ## Overview
 **Purpose**: models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）に英語の docstring とテストを揃え、読んで見つかった小さな不具合を直す。
 **Users**: yikit の作者と利用者。docs の API リファレンス（Sphinx が docstring から作る）を読む人。
-**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱い、`tqdm_joblib` の逐次実行での進捗（generator を返す `Parallel` は数えなくなる）、図の関数が落ちていた入力、`SummarizePI.get_data` の中身。
+**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が学習の `Score` によらず対数尤度を返すこと、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱い、`tqdm_joblib` の逐次実行での進捗（generator を返す `Parallel` は数えなくなる）、図の関数が落ちていた入力、`SummarizePI.get_data` の中身。
 
 ### Goals
 - 5つのサブパッケージの `__all__` のすべての名前が少なくとも1つのテストで使われ、（`yikit.logging` が再公開する標準ライブラリの定数を除いて）英語の numpy 形式の docstring を持つ
@@ -32,7 +32,7 @@
 
 ### Revalidation Triggers
 - `is_installed` の名前・引数・返り値（models と、それを置き換えるテスト）
-- `yikit.metrics` の公開する名前（examples の simulate が `root_mean_squared_error` を使う。release-0.4.0 で書き直す）
+- `yikit.metrics` の公開する名前（yikit の examples は `yikit.metrics.root_mean_squared_error` を使っていない。examples の simulate は scikit-learn の `mean_squared_error(..., squared=False)` を使い、新しい scikit-learn で落ちる。release-0.4.0 で書き直す）
 - BorutaPy の引数と学習後の属性（ensemble-on-sklearn のテストと Examples）
 - 図の見た目（参照画像）
 
@@ -59,7 +59,7 @@ graph TB
 - `src/yikit/helpers/_helpers.py` — `tqdm_joblib` を `Parallel.print_progress` の差し替えで作り直す。docstring の整理
 - `src/yikit/helpers/_validation.py`（新規・非公開）— `feature_names_of(X)`: 列名がすべて `str` で scikit-learn 1.0 以上なら列名の配列、そうでなければ None
 - `src/yikit/logging/_logging.py` — docstring、`catch_default_handler` の状態の戻し方、実行時の `assert` を明示的な検査に
-- `src/yikit/metrics/__init__.py`・`_common.py`（削除）・`_ngboost.py` — `root_mean_squared_error` の削除、`log_likelihood` の docstring
+- `src/yikit/metrics/__init__.py`・`_common.py`（削除）・`_ngboost.py` — `root_mean_squared_error` の削除、`log_likelihood` を学習の `Score` によらず対数尤度にする、docstring
 - `src/yikit/feature_selection/_filter.py` — 絶対値の相関、反復による削除、`n_features_in_`・`feature_names_in_`、一定の列、クラスの docstring
 - `src/yikit/feature_selection/_wrapper.py` — BorutaPy の `random_state` と表示の設定の扱い、`perc="auto"` のシャッフルの種、進捗バーの閉じ方、クラスの docstring
 - `src/yikit/visualize/_yyplot.py`・`_permutation_importance.py`・`_optuna.py`・`_gbdt.py`・`_utils.py` — 図の不具合、フォントの戻し方、`get_data`、docstring、日本語のコメント
@@ -96,7 +96,7 @@ graph TB
 
 ### Metrics（`src/yikit/metrics/`）
 - `_common.py` を消し、`__init__.py` は ngboost があるときだけ `log_likelihood` を公開する（`__all__` は空か `["log_likelihood"]`）
-- `log_likelihood` の docstring を「平均の対数尤度（大きいほど良い）」に直す（3.3）
+- `log_likelihood` は、学習の `Score` によらず平均の対数尤度（大きいほど良い）を返す（3.2。作者の判断）。`-estimator.score` は `Score=LogScore` のときだけ対数尤度になるため、予測した分布の対数尤度（回帰は `logpdf`、分類は正解のクラスの対数確率）の平均を計算する。`Score=LogScore` では今と同じ値。docstring もそれに合わせる（3.3）
 
 ### FilterSelector（`src/yikit/feature_selection/_filter.py`）
 - `fit`: `check_array` の後、`n_features_in_` と `feature_names_of(X)`（あれば `feature_names_in_`）を入れる。相関行列と p 値は今と同じに計算し、`np.errstate` で一定の列の警告を抑え、NaN は相関なしとして扱う（4.5）
@@ -116,7 +116,7 @@ graph TB
 - `get_learning_curve_gb`: `with_custom_matplotlib_settings` で包む（6.1）。色は既知の名前（train・test・val）なら `COLORS`、それ以外は matplotlib の色の順。評価の記録が空なら ValueError、NGBoost・LightGBM 以外は TypeError（6.5）
 - `get_learning_curve_optuna`: `TrialState.COMPLETE` の試行だけを使う。完了した試行がない、方向が `NOT_SET`、多目的の study は ValueError（6.4）
 - `get_dist_figure`: `plt.subplots(..., squeeze=False)`。`titles` の既定を None にする。docstring を直す（6.3）
-- `yyplot`: 指標の名前を描く前に検査する。`ax` を渡されたときは `tight_layout` をかけない。ラベルは数式の外に置くか、数式の特殊文字を逃がして、書いたとおりに表示する。RMSE は `np.sqrt(mean_squared_error(...))` で計算する（6.2、3.1）
+- `yyplot`: 指標の名前を描く前に検査する。`ax` を渡されたときは `tight_layout` をかけない。ラベルは数式の外に置くか、数式の特殊文字を逃がして、書いたとおりに表示する。RMSE は `mean_squared_error(..., multioutput="raw_values")` の平方根の平均で計算する（scikit-learn の RMSE の既定と同じで、多出力では出力ごとの RMSE の平均。6.2、3.1）
 
 ## Error Handling
 
@@ -125,6 +125,7 @@ graph TB
 | `get_child_logger` の名前が yikit・`__main__` の外 | ValueError | logging |
 | 既定のハンドラの状態が想定と違う | RuntimeError（今の `assert` の代わり） | logging |
 | `log_likelihood` に NGBoost 以外 | TypeError | metrics |
+| `log_likelihood` のモデルの分布に ngboost の LogScore の実装がない | ValueError（分布の名前を示す） | metrics |
 | 学習時と違う数の特徴量で `transform` | ValueError（SelectorMixin） | FilterSelector |
 | `yyplot` の未知の指標 | ValueError（描く前） | visualize |
 | 完了した試行がない・方向がない・多目的の study | ValueError | visualize |
@@ -136,7 +137,7 @@ graph TB
 
 - `test_helpers.py`: `is_installed`（あるもの・ないもの）、`is_argument`、`dummy_tqdm`、`tqdm_joblib`（`n_jobs` = None・1・2 で進捗バーが単調に進み total に達する（loky ではバッチ単位で進んでよい）、中で別の `Parallel` を動かしても混ざらない、`return_as="generator"` の呼び出しは数えない（joblib 1.3 以上のときだけ）、抜けると差し替えが戻る、例外のときも戻る、`silent=True`）
 - `test_logging.py`: `get_root_logger` の設定、`get_child_logger`（yikit の中、`__main__`、それ以外の ValueError）、`enable`・`disable` の重複なし、`catch_default_handler` が入る前の状態に戻す（付いていた・外れていた）、`get_handler`
-- `test_metrics.py`: `root_mean_squared_error` が import できない、`log_likelihood`（NGBRegressor で `-score`、ほかのモデルで TypeError。ngboost がなければ飛ばす）
+- `test_metrics.py`: `root_mean_squared_error` が import できない、`log_likelihood`（NGBRegressor と NGBClassifier で予測した分布の平均の対数尤度、`Score=LogScore` では `-score` と等しく、`Score=CRPScore` でも対数尤度、ほかのモデルで TypeError。ngboost がなければ飛ばす）
 - `test_filtermethod.py`: 負の相関の除去、`get_feature_names_out`（DataFrame と ndarray）、特徴量の数の違いの ValueError、1000 を超える削除、一定の列（警告なし）、正の相関での結果が今と同じ
 - `test_boruta.py`: `get_params()["random_state"]` が渡した値のまま、同じインスタンスで2回学習して同じ結果、`n_jobs` を変えても同じ `perc_`、`set_params(verbose=...)` が効く、例外のとき進捗バーが閉じる
 - `test_visualize.py`: `yyplot`（値、指標の文字、渡した ax の図の配置が変わらない、未知の指標で描く前に ValueError、特殊文字のラベル）、`set_font`・`with_custom_matplotlib_settings`（戻す・戻さない）、`SummarizePI.get_data`（値と順番）と `get_figure` のあとのフォントの設定、`get_dist_figure` の 1・2 サンプル、`get_learning_curve_optuna` の失敗した試行と ValueError、`get_learning_curve_gb` の LightGBM の既定の名前とフォントの設定の戻し、空の記録。optuna・lightgbm・ngboost は `importorskip`
