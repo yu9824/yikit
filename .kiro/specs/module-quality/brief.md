@@ -4,10 +4,16 @@
 yikit を使う人（作者、licond など）は、モデル以外のモジュール（helpers・logging・metrics・feature_selection・visualize）が今の依存の版で正しく動くのかを、テストで確かめられません。docstring も日本語と英語が混ざっていたり、なかったりします。docs は Sphinx が docstring から生成しているので、docstring が欠けると API リファレンスも欠けます。
 
 ## Current State
-- テストは `test_boruta.py`、`test_filtermethod.py`、`test_visualize.py`、`test_optuna.py` の4つで、9件だけ。helpers・logging・metrics にはテストがない
-- `test_visualize.py` は図を `tests/imgs/` の参照画像と比べる。新しい環境（matplotlib などの版が新しい）では3件が許容値（RMS 20）を超えて失敗する（RMS 30・22・22）
-- 比べた結果、差分の画像を `tests/imgs/` に書き出して、リポジトリを汚す
-- docstring は、英語の numpy 形式のもの、日本語のもの、ないものが混ざっている。テストのコメントや fixture の docstring も日本語
+（2026-10-12 時点。dev-foundation・optuna-tuning・ensemble-on-sklearn・gbdt-fix の後）
+- 画像を比べるテストは dev-foundation で安定した（差分の画像も一時ディレクトリに出る）。BorutaPy の `perc="auto"` の経路と DataFrame の扱いは ensemble-on-sklearn で直し、テストもある
+- helpers・logging・metrics にはテストがない。yyplot、set_font、with_custom_matplotlib_settings にも直接のテストがない。FilterSelector は iris での1件だけ
+- docstring は、英語の numpy 形式のもの、形式が崩れたもの、ないもの（FilterSelector・SummarizePI・BorutaPy のクラス docstring など）が混ざっている。visualize の一部と `tests/conftest.py` に日本語のコメントや docstring が残る
+- 読んで見つかった不具合（調査の結果）:
+  - visualize: `get_dist_figure` がサンプル 1〜2 個で落ちる。`get_learning_curve_optuna` が失敗した試行や方向のない study で落ちる。`get_learning_curve_gb` が LightGBM の既定の評価名で落ち、フォントの設定を戻さない。`SummarizePI.get_figure` もフォントの設定を戻さず、`get_data` は None を返すだけ。`yyplot` は渡された ax の図全体に `tight_layout` をかける
+  - feature_selection: FilterSelector は符号つきの相関で判定するので強い負の相関を消さず、`n_features_in_` を持たないので `get_feature_names_out` が使えず、削除が多いと再帰の上限で落ちる。BorutaPy は `__init__` で `random_state` を RandomState に変える（同じインスタンスの学習し直しが再現しない）
+  - helpers: `tqdm_joblib` の進捗バーは、joblib 1.3 以降の逐次実行（`n_jobs=1`）では進まない
+  - logging: `catch_default_handler` は抜けるときに、入る前の状態に関係なくハンドラを付け直す
+  - `tests/test_visualize.py` は optuna と lightgbm を無条件に import するので、それらがない環境では収集で失敗する
 
 ## Desired Outcome
 - helpers・logging・metrics・feature_selection・visualize の公開 API に、英語の numpy 形式の docstring がある
