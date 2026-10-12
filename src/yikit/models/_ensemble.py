@@ -10,10 +10,12 @@ so that ``yikit.models`` can be imported without optuna.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import sklearn
 from sklearn.base import BaseEstimator, RegressorMixin, is_regressor
 from sklearn.ensemble import (
     RandomForestRegressor,
@@ -154,6 +156,37 @@ def _n_features(X: Any) -> int:
             f"is {shape}."
         )
     return int(shape[1])
+
+
+def _sklearn_has_feature_names() -> bool:
+    """Return whether scikit-learn defines ``feature_names_in_`` (>= 1.0)."""
+    match = re.match(r"(\d+)\.(\d+)", sklearn.__version__)
+    if match is None:
+        raise ValueError(
+            f"Cannot read the version of scikit-learn: {sklearn.__version__!r}"
+        )
+    return (int(match.group(1)), int(match.group(2))) >= (1, 0)
+
+
+def _feature_names(X: Any) -> NDArray[Any] | None:
+    """Return the column names of ``X`` as ``feature_names_in_``, or None.
+
+    As in scikit-learn, the names are those of the ``columns`` of ``X``
+    (such as a ``pandas.DataFrame``) when they are all of type ``str``
+    (scikit-learn also ignores subclasses such as ``numpy.str_``). None is
+    returned when ``X`` has no columns, when one of the names is not a
+    ``str``, or with scikit-learn < 1.0 (which has no
+    ``feature_names_in_``).
+    """
+    columns = getattr(X, "columns", None)
+    if columns is None or not _sklearn_has_feature_names():
+        return None
+    names = np.array(columns, dtype=object)
+    if names.ndim != 1 or len(names) == 0:
+        return None
+    if not all(type(name) is str for name in names):
+        return None
+    return names
 
 
 def _import_search_regressor() -> tuple[Any, Any]:
@@ -376,9 +409,14 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
     n_features_in_ : int
         Number of features seen during ``fit``.
     feature_names_in_ : ndarray of shape (n_features_in_,)
-        Names of the features seen during ``fit``. Defined only when ``X``
-        has feature names that are all strings (such as the columns of a
-        ``pandas.DataFrame``), with scikit-learn >= 1.0.
+        Names of the features seen during ``fit``. Those of ``estimator_``
+        when it has them (read from the models). When no model records
+        them (e.g. a ``Pipeline`` whose first step is ``BorutaPy``), the
+        names of the ``columns`` of ``X`` (such as a ``pandas.DataFrame``)
+        as an ndarray of dtype object, if they are all of type ``str`` (the
+        rule of scikit-learn). Defined only with scikit-learn >= 1.0, and
+        not defined (removed after a previous fit) when ``X`` has no such
+        names.
 
     See Also
     --------
@@ -535,8 +573,8 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         ------
         ValueError
             If ``method`` is not one of ``"average"``, ``"stacking"`` and
-            ``"blending"``, if ``estimators`` is empty, or if one of the
-            models is not a regressor.
+            ``"blending"``, if ``estimators`` is empty, if one of the
+            models is not a regressor, or if ``X`` is not 2-dimensional.
         ImportError
             If ``opt=True`` and optuna or optuna-integration cannot be
             imported. It tells the user to install them or to pass
@@ -609,6 +647,10 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
             self.n_features_in_ = _n_features(X)
         if hasattr(ensemble, "feature_names_in_"):
             self.feature_names_in_ = ensemble.feature_names_in_
+        else:  # no model records them (e.g. a Pipeline of BorutaPy)
+            feature_names = _feature_names(X)
+            if feature_names is not None:
+                self.feature_names_in_ = feature_names
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[Any]:

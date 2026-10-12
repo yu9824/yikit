@@ -22,7 +22,7 @@
 ### This Spec Owns
 - EnsembleRegressor の引数、まとめ方の組み立て、調整の付け方、`random_state` の規則の適用、入力の検査、学習後の属性
 - `OptunaSearchCV` を回帰モデルとして扱わせる派生クラス（yikit の中だけで使う）
-- `BorutaPy` の `perc` の解決の経路（`fit` と `fit_transform` の両方）と `perc_` 属性
+- `BorutaPy` の `perc` の解決の経路（`fit` と `fit_transform` の両方）と `perc_` 属性、`return_df=False` のときの DataFrame の変換（`_transform`）
 
 ### Out of Boundary
 - `ParamDistributions`・探索範囲・`apply_params`・`find_unspecified_random_states` の振る舞い（optuna-tuning。ここでは使うだけ）
@@ -83,7 +83,7 @@ src/yikit/models/
 ├── _ensemble.py      # 作り直し: EnsembleRegressor
 └── _search_cv.py     # 新規: OptunaSearchRegressor（OptunaSearchCV を回帰モデルとして扱わせる。公開しない）
 src/yikit/feature_selection/
-└── _wrapper.py       # 変更: BorutaPy の perc の解決を _fit に移し、perc_ を持つ
+└── _wrapper.py       # 変更: BorutaPy の perc の解決を _fit に移し、perc_ を持つ。_transform で DataFrame を配列にする
 tests/
 ├── test_ensemble.py  # 新規: EnsembleRegressor のテスト
 ├── test_search_cv.py # 新規: OptunaSearchRegressor のテスト
@@ -127,11 +127,11 @@ sequenceDiagram
 | 1.5 | モデル1つ | EnsembleRegressor | | |
 | 1.6 | 名前の付け方 | EnsembleRegressor | `_named_estimators` | |
 | 1.7 | `n_jobs`・`verbose` | EnsembleRegressor | `__init__` | |
-| 2.1, 2.2, 2.3 | 調整 | EnsembleRegressor, OptunaSearchRegressor | `_prepare_estimator` | fit |
+| 2.1, 2.2, 2.3 | 調整 | EnsembleRegressor, OptunaSearchRegressor | `_import_search_regressor`, `_search_space` | fit |
 | 2.4 | 分割ごとの調整 | OptunaSearchRegressor, StackingRegressor | clone ごとの `fit` | fit |
-| 2.5 | `opt=False` | EnsembleRegressor | `_prepare_estimator` | |
+| 2.5 | `opt=False` | EnsembleRegressor | `_with_random_states` | |
 | 2.6 | optuna-integration がない | EnsembleRegressor | `_import_search_regressor` | |
-| 2.7 | 範囲のないモデル | EnsembleRegressor | `_prepare_estimator` | |
+| 2.7 | 範囲のないモデル | EnsembleRegressor | `_search_space` | |
 | 2.8 | optuna のログ | OptunaSearchRegressor | `fit` | |
 | 3.1, 3.2, 3.3, 3.4 | 引数と `random_state` の規則 | EnsembleRegressor, EstimatorParams | `apply_params`, `find_unspecified_random_states` | fit |
 | 4.1 | Boruta の Pipeline | EnsembleRegressor, BorutaPy | | |
@@ -147,7 +147,7 @@ sequenceDiagram
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | EnsembleRegressor | models | 引数から sklearn のアンサンブルを組み立てて委ねる | 1, 2.1–2.7, 3, 4.1, 4.4, 5, 6 | VotingRegressor/StackingRegressor (P0), ParamDistributions (P0), EstimatorParams (P0) | Service, State |
 | OptunaSearchRegressor | models | `OptunaSearchCV` に回帰モデルの印を付け、ログを抑える | 2.1, 2.4, 2.8, 5.3, 5.4 | optuna-integration (P0) | Service |
-| BorutaPy（変更） | feature_selection | `perc="auto"` をどの経路でも解決し、`perc_` に持つ | 4.2, 4.3 | boruta (P0) | Service |
+| BorutaPy（変更） | feature_selection | `perc="auto"` をどの経路でも解決し、`perc_` に持つ。DataFrame を変換できる | 4.1, 4.2, 4.3 | boruta (P0) | Service |
 
 ### models
 
@@ -171,8 +171,8 @@ sequenceDiagram
      - stacking: `StackingRegressor(並び, final_estimator=LinearRegression(), cv=cv, n_jobs=n_jobs, verbose=verbose)`
      - blending: `StackingRegressor(並び, final_estimator=LinearRegression(positive=True, fit_intercept=False), cv=cv, n_jobs=n_jobs, verbose=verbose)`
   8. 組み立てたアンサンブルを `X`、`y` のまま（配列に変えずに）学習し、学習後の属性を写す
-- X の列の数は `X.shape[1]`（`shape` がなければ `np.asarray(X)`）で読む。それ以外の入力の検査は中のアンサンブルに任せる
-- 学習後の属性（5.1–5.5）: `estimator_`、`estimators_`、`named_estimators_`、`n_features_in_`、中のアンサンブルが持つときだけ `feature_names_in_`。stacking と blending では `final_estimator_` と `weights_`（`final_estimator_.coef_`）。average では `weights_ = None`。`model_random_state_`（引いた整数）。`results_` は持たない
+- X の列の数は `np.shape(X)` で読み（`_n_features`。2 次元でなければ ValueError）、それ以外の入力の検査は中のアンサンブルに任せる。未指定の `random_state` の規則は `_with_random_states`、範囲の取得と誤りの包みは `_search_space`、調整に使う import は `_import_search_regressor` に置く
+- 学習後の属性（5.1–5.5）: `estimator_`、`estimators_`、`named_estimators_`、`n_features_in_`（中のアンサンブルが持たないとき、例えば NGBRegressor だけのときは X の列の数）、`feature_names_in_`（中のアンサンブルが持てばその値。持たないときは、scikit-learn 1.0 以上で X の列名がすべて `str` ならその列名。Boruta から始まる Pipeline だけのときなど）。学習し直したときは、前回の学習の `final_estimator_`・`feature_names_in_` を消す。stacking と blending では `final_estimator_` と `weights_`（`final_estimator_.coef_`）。average では `weights_ = None`。`model_random_state_`（引いた整数）。`results_` は持たない
 - `predict`: `check_is_fitted(self, "estimator_")` の後、`estimator_.predict(X)`（1.4、5.6）
 
 **Dependencies**
@@ -242,11 +242,12 @@ class OptunaSearchRegressor(OptunaSearchCV):
 | Field | Detail |
 |-------|--------|
 | Intent | `perc="auto"` を `fit` と `fit_transform` のどちらでも解決し、引数を書き換えない |
-| Requirements | 4.2, 4.3 |
+| Requirements | 4.1, 4.2, 4.3 |
 
 **Responsibilities & Constraints**
 - `_fit(X, y)` を上書きする: `check_X_y` の後、`perc_` を決める（`perc == "auto"` なら `_calc_auto_perc(X, y)`、そうでなければ `perc`）。tqdm の進捗バーを用意する（今 `fit` にある処理を移す）。boruta の `_fit` が読む `self.perc` に `perc_` を入れて `super()._fit(X, y)` を呼び、try/finally で `self.perc` を元に戻す
 - `fit(X, y)` は `self._fit(X, y)` を呼ぶだけにする（docstring は保つ）。boruta の `fit_transform` は `self._fit` を呼ぶので、同じ経路を通る
+- `_transform(X, weak=False, return_df=False)` を上書きする: `return_df=False` で X が DataFrame なら配列にしてから boruta の `_transform` に渡す（boruta は `X[:, mask]` で列を選ぶので、DataFrame を入れた Pipeline が失敗していた）。`return_df=True` は変えない
 - それ以外の振る舞い（`_calc_auto_perc`、`get_support`、表示）は変えない
 
 ## Error Handling
@@ -255,6 +256,7 @@ class OptunaSearchRegressor(OptunaSearchCV):
 |------|---------|------|
 | `method` が不正 | ValueError（使える値を示す） | `EnsembleRegressor.fit` |
 | `estimators` が空 | ValueError | `EnsembleRegressor.fit` |
+| X が 2 次元でない | ValueError | `EnsembleRegressor.fit` |
 | 回帰モデルでないもの | ValueError（名前と型） | `EnsembleRegressor.fit` |
 | `opt=True` で optuna か optuna-integration がない（調整に使う import の失敗） | ImportError（入れるか `opt=False`。元の例外をつなぐ） | `EnsembleRegressor.fit` |
 | `opt=True` で範囲のないモデル | NotImplementedError（名前と型。元の例外をつなぐ） | `EnsembleRegressor.fit` |

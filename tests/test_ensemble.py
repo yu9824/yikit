@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import pickle
 import subprocess
 import sys
 import textwrap
@@ -419,6 +420,66 @@ def test_number_of_features_without_the_attribute_in_the_models(method):
 
     assert ensemble.n_features_in_ == N_FEATURES
     assert ensemble.predict(X).shape == (N_SAMPLES,)
+
+
+@pytest.mark.skipif(
+    not HAS_FEATURE_NAMES, reason="feature_names_in_ needs scikit-learn 1.0"
+)
+@pytest.mark.parametrize("model", ["boruta", "no-feature-count"])
+@pytest.mark.parametrize("method", METHODS)
+def test_feature_names_of_a_dataframe_without_the_attribute_in_the_models(
+    method, model
+):
+    # Neither model records the names: BorutaPy (the first step of the
+    # pipeline) validates X with check_X_y, which drops them.
+    estimator = (
+        _boruta_pipeline() if model == "boruta" else _NoFeatureCountRegressor()
+    )
+    X_frame = pd.DataFrame(X, columns=COLUMNS)
+    ensemble = EnsembleRegressor(
+        estimators=[estimator],
+        method=method,
+        cv=CV,
+        random_state=SEED,
+        opt=False,
+    ).fit(X_frame, y)
+
+    # The names are the columns of X, as the ensemble does not have them.
+    assert not hasattr(ensemble.estimator_, "feature_names_in_")
+    assert type(ensemble.feature_names_in_) is np.ndarray
+    assert ensemble.feature_names_in_.dtype == object
+    assert list(ensemble.feature_names_in_) == COLUMNS
+    assert ensemble.n_features_in_ == N_FEATURES
+
+    # They are removed when it is fitted again on data without names.
+    ensemble.fit(X, y)
+    assert not hasattr(ensemble, "feature_names_in_")
+
+
+@pytest.mark.parametrize(
+    "columns",
+    [
+        list(range(N_FEATURES)),
+        ["x0", "x1", 2, 3],
+        # scikit-learn takes the names of type str only.
+        [np.str_(column) for column in COLUMNS],
+    ],
+    ids=["integers", "mixed", "numpy-str"],
+)
+@pytest.mark.parametrize("method", METHODS)
+def test_no_feature_names_unless_the_column_names_are_strings(method, columns):
+    ensemble = EnsembleRegressor(
+        estimators=[_NoFeatureCountRegressor()],
+        method=method,
+        cv=CV,
+        opt=False,
+    ).fit(pd.DataFrame(X, columns=COLUMNS), y)
+    assert hasattr(ensemble, "feature_names_in_") is HAS_FEATURE_NAMES
+    # Fitted again on columns whose names are not all strings.
+    ensemble.fit(pd.DataFrame(X, columns=columns), y)
+
+    assert not hasattr(ensemble, "feature_names_in_")
+    assert ensemble.n_features_in_ == N_FEATURES
 
 
 def test_predict_before_fit_raises_not_fitted_error():
@@ -1086,6 +1147,53 @@ def test_boruta_pipeline_is_tuned_on_the_parameters_of_its_regressor(method):
     y_pred = ensemble.predict(X_df)
     assert y_pred.shape == (N_SAMPLES,)
     assert np.isfinite(y_pred).all()
+    assert ensemble.n_features_in_ == N_FEATURES
+    if HAS_FEATURE_NAMES:  # read from the columns, as BorutaPy lacks them
+        assert list(ensemble.feature_names_in_) == COLUMNS
+
+
+# --- Pickle ------------------------------------------------------------------
+
+
+def _assert_pickle_round_trip(
+    ensemble: EnsembleRegressor, X_frame: pd.DataFrame
+) -> None:
+    """Check that ``ensemble`` (fitted on ``X_frame``) survives pickle."""
+    loaded = pickle.loads(pickle.dumps(ensemble))
+
+    assert type(loaded) is EnsembleRegressor
+    assert_array_equal(loaded.predict(X_frame), ensemble.predict(X_frame))
+    assert loaded.n_features_in_ == N_FEATURES
+    if HAS_FEATURE_NAMES:
+        assert list(loaded.feature_names_in_) == COLUMNS
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_pickled_ensemble_predicts_the_same(method):
+    X_frame = pd.DataFrame(X, columns=COLUMNS)
+    ensemble = EnsembleRegressor(
+        estimators=_models(),
+        method=method,
+        cv=CV,
+        random_state=SEED,
+        opt=False,
+    ).fit(X_frame, y)
+
+    _assert_pickle_round_trip(ensemble, X_frame)
+
+
+def test_pickled_tuned_boruta_pipeline_predicts_the_same():
+    _tuning_classes()
+    X_frame = pd.DataFrame(X, columns=COLUMNS)
+    ensemble = EnsembleRegressor(
+        estimators=[_boruta_pipeline()],
+        method="average",
+        cv=CV,
+        random_state=SEED,
+        n_trials=N_TRIALS,
+    ).fit(X_frame, y)
+
+    _assert_pickle_round_trip(ensemble, X_frame)
 
 
 # --- Errors ------------------------------------------------------------------
