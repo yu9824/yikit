@@ -15,128 +15,167 @@ T = TypeVar("T")
 
 
 def is_installed(package_name: str) -> bool:
-    """
-    Check whether a given Python package is installed.
+    """Return whether a package can be imported.
 
-    Uses `importlib.util.find_spec` to determine if the specified package
-    can be imported.
+    The package is looked up with :func:`importlib.util.find_spec`, so a
+    top-level package is found without being imported.
 
     Parameters
     ----------
     package_name : str
-        The name of the package (e.g., "sklearn").
+        The name used to import the package, such as ``"sklearn"`` (not the
+        name of the distribution, ``"scikit-learn"``).
 
     Returns
     -------
     bool
         True if the package is installed, False otherwise.
+
+    Raises
+    ------
+    ModuleNotFoundError
+        If ``package_name`` is a dotted name (such as ``"a.b"``) whose
+        parent package is not installed. The parent packages of a dotted
+        name are imported.
+
+    Examples
+    --------
+    >>> from yikit.helpers import is_installed
+    >>> is_installed("numpy")
+    True
+    >>> is_installed("yikit_package_that_does_not_exist")
+    False
     """
     return bool(importlib.util.find_spec(package_name))
 
 
 def is_argument(__callable: Callable[..., Any], arg_name: str) -> bool:
-    """
-    Check if a given argument name is present in the callable's signature.
+    """Return whether a callable has a parameter of the given name.
 
-    This function checks whether the specified argument name is part of the
-    parameters in the callable's signature. It can be used to verify if a
-    function or method accepts a specific argument.
+    The names of the parameters are read with :func:`inspect.signature`.
+    Variable parameters count by their own names (``"kwargs"`` for
+    ``**kwargs``); they do not make other names parameters.
 
     Parameters
     ----------
-    __callable : Callable
-        The callable (function or method) whose signature is inspected.
+    __callable : callable
+        The function, method or class to inspect (passed positionally). The
+        signature of a bound method does not include ``self``, and that of a
+        class is the signature of its constructor.
     arg_name : str
-        The name of the argument to check for in the callable's signature.
+        The name of the parameter.
 
     Returns
     -------
     bool
-        True if the argument name is found in the callable's parameters, False otherwise.
+        True if ``arg_name`` is the name of a parameter of ``__callable``,
+        False otherwise.
+
+    Raises
+    ------
+    TypeError
+        If ``__callable`` is not callable.
+    ValueError
+        If no signature can be read from ``__callable`` (such as some
+        built-in functions).
+
+    Examples
+    --------
+    >>> from yikit.helpers import is_argument
+    >>> def fit(X, y, sample_weight=None, **kwargs):
+    ...     pass
+    >>> is_argument(fit, "sample_weight")
+    True
+    >>> is_argument(fit, "eval_set")
+    False
     """
     return arg_name in set(inspect.signature(__callable).parameters.keys())
 
 
 # HACK: when drop python3.8, use `dummy_tqdm(Iterable[T])`
 class dummy_tqdm(Iterable, Generic[T]):
-    """
-    A dummy class that mimics the behavior of 'tqdm' for testing or placeholder purposes.
+    """Stand-in for ``tqdm`` that shows no progress bar.
 
-    This class allows you to use a tqdm-like interface in cases where the
-    progress bar functionality is not needed or when testing code without
-    depending on the actual `tqdm` library.
+    It replaces ``tqdm`` when tqdm is not installed or no progress bar is
+    wanted. Iterating over it yields the items of the given iterable in
+    order. Any other attribute, such as ``update``, ``close`` or
+    ``set_postfix``, is a function that accepts any arguments and does
+    nothing.
 
     Parameters
     ----------
-    __iterable : Iterable[T]
-        An iterable object that will be wrapped and returned by the class.
+    __iterable : iterable or None, default=None
+        The iterable to iterate over, passed positionally (an ``iterable=``
+        keyword is ignored like the other keyword arguments). None, or any
+        other false value, means that nothing is iterated.
+    *args
+        Ignored; accepted for compatibility with ``tqdm``.
+    **kwargs
+        Ignored; accepted for compatibility with ``tqdm`` (such as
+        ``total`` and ``desc``).
 
-    Methods
-    -------
-    __iter__() -> Iterator[T]
-        Returns an iterator for the provided iterable.
-    __getattr__(name: str) -> Callable[..., None]
-        Returns a no-operation function for unsupported attributes.
+    Examples
+    --------
+    >>> from yikit.helpers import dummy_tqdm
+    >>> list(dummy_tqdm([3, 1, 2], desc="fit"))
+    [3, 1, 2]
+    >>> progress_bar = dummy_tqdm(total=3)
+    >>> progress_bar.update(1)
+    >>> progress_bar.close()
     """
 
     def __init__(
         self, __iterable: Iterable[T] | None = None, *args, **kwargs
     ) -> None:
-        """
-        Initialize the dummy tqdm wrapper.
+        """Store the iterable; the other arguments are ignored.
 
         Parameters
         ----------
-        __iterable : Iterable[T], optional
-            An iterable object to wrap. If None, an empty tuple is used.
+        __iterable : iterable or None, default=None
+            The iterable to iterate over. None, or any other false value, is
+            replaced with an empty tuple.
         *args
-            Additional positional arguments (ignored, for tqdm compatibility).
+            Ignored; accepted for compatibility with ``tqdm``.
         **kwargs
-            Additional keyword arguments (ignored, for tqdm compatibility).
+            Ignored; accepted for compatibility with ``tqdm``.
         """
         self.__iterable = __iterable if __iterable else ()
 
     def __iter__(self) -> Iterator[T]:
-        """
-        Return an iterator for the given iterable.
+        """Return an iterator over the given iterable.
 
         Returns
         -------
-        Iterator[T]
-            An iterator for the provided iterable object.
+        iterator
+            An iterator over the iterable passed to the constructor.
         """
         return iter(self.__iterable)
 
     def __getattr__(self, name: str) -> Callable[..., None]:
-        """
-        Handle unsupported attribute access by returning a no-op function.
-
-        This method allows the class to simulate the behavior of tqdm by
-        returning a no-op function for any attribute that is not defined.
+        """Return a function that does nothing for any other attribute.
 
         Parameters
         ----------
         name : str
-            The name of the attribute being accessed.
+            The name of the attribute, such as ``"update"``.
 
         Returns
         -------
-        Callable[..., None]
-            A no-op function that does nothing.
+        callable
+            A function that accepts any arguments and returns None.
         """
         return self.__no_operation
 
     @staticmethod
     def __no_operation(*args, **kwargs) -> None:
-        """
-        A no-operation function used as a placeholder.
+        """Accept any arguments and do nothing.
 
-        This function does nothing and is used as a fallback for unsupported
-        method calls or attributes.
-
-        Returns
-        -------
-        None
+        Parameters
+        ----------
+        *args
+            Ignored.
+        **kwargs
+            Ignored.
         """
         return
 

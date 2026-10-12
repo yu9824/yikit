@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. helpers
-- [ ] 1.1 is_installed・is_argument・dummy_tqdm の docstring とテスト、列名の補助関数を作る
+- [x] 1.1 is_installed・is_argument・dummy_tqdm の docstring とテスト、列名の補助関数を作る
   - `is_installed`・`is_argument`・`dummy_tqdm` の振る舞いは変えず、英語の numpy 形式の docstring を整える（`is_installed` の名前・引数・返り値は models が使うので変えない）
   - 非公開の `yikit/helpers/_validation.py` に `feature_names_of(X)` を作る（列名がすべて `str`（`numpy.str_` を除く）で scikit-learn 1.0 以上なら `np.array(columns, dtype=object)`、そうでなければ None）
   - テスト（新規 `tests/test_helpers.py`）: `is_installed` の True と False、`is_argument`、`dummy_tqdm` が iterable をたどり `update`・`close` を受け付ける、`feature_names_of` の str・int・混在・`numpy.str_`・ndarray
