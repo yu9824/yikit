@@ -33,7 +33,7 @@
   - _Boundary: Metrics, Visualize（yyplot の import の1か所）_
   - _Requirements: 3.1, 3.2, 3.3, 7.1, 7.3_
 
-- [ ] 4. FilterSelector を直す
+- [x] 4. FilterSelector を直す
   - 相関の判定を絶対値にし（`|r| > r` かつ `p < alpha`）、再帰の削除を同じ順番のループに書き直す
   - 学習で `n_features_in_` と、`feature_names_of(X)` があれば `feature_names_in_` を入れる。一定の列は警告を出さずに相関なしとして扱う
   - クラスの docstring（Parameters・Attributes・Examples）
@@ -115,3 +115,4 @@
 - `tqdm_joblib`（1.2）: リリース済みの属性 `tqdm_joblib.tqdm`（入る前は None、中では進捗バー、抜けた後は閉じた進捗バー）を互換のために残した。有効な同じインスタンスにもう一度入ったときと、入る前に抜けたときは RuntimeError（CHANGELOG に書く）
 - logging（2）: 既定のハンドラは `import yikit` では付かず、最初の `get_root_logger()`（`yikit.feature_selection` の import が呼ぶ）で付く。止め方の案内は `get_root_logger()` を通す形にした（それより前に `logging.getLogger("yikit")` に入れた水準は上書きされるため）。CHANGELOG に書く: `catch_default_handler` が入る前の状態に戻すこと、同じインスタンスに入れ子で入れること、入る前に抜けると RuntimeError、既定のハンドラがないときの例外が AssertionError から RuntimeError に変わったこと
 - metrics（3）: `log_likelihood` は `ngboost.manifold.manifold(LogScore, Dist)` を予測したパラメータ（`pred_dist(X)._params`、`NGBoost.score` と同じ）に当てて計算する。打ち切り付きの分布（LogNormal・Exponential）は ngboost が包んだ `DistWithUncensoredScore` を名前で見分けて LogScore で包み直す（ngboost の `__getstate__` と同じ見分け方）。ngboost 0.3.6 は LogNormal を CRPScore で学習できない。NormalFixedVar は ngboost 自身の `score` と同じく落ちる（upstream）
+- FilterSelector（4）: 削除の順番は旧実装と同じ（つながる組が最も多い特徴量から、同数なら番号の小さいほう）。CHANGELOG に書く: `corr_` の一定の列を含む組が NaN（または丸めによる意味のない値）から r=0.0・p=1.0 になったこと、`|r| > r` の負の組に実際の p 値が入ること（以前は p=1.0）
