@@ -3,7 +3,7 @@
 ## Overview
 **Purpose**: models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）に英語の docstring とテストを揃え、読んで見つかった小さな不具合を直す。
 **Users**: yikit の作者と利用者。docs の API リファレンス（Sphinx が docstring から作る）を読む人。
-**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が学習の `Score` によらず対数尤度を返すこと、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱い、`tqdm_joblib` の逐次実行での進捗（generator を返す `Parallel` は数えなくなる）、図の関数が落ちていた入力、`SummarizePI.get_data` の中身。
+**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が学習の `Score` によらず対数尤度を返すこと、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱い、`tqdm_joblib` の逐次実行での進捗（generator を返す `Parallel` は数えなくなる）、図の関数が落ちていた入力、`SummarizePI.get_data` の中身（あわせて `SummarizePI.get_figure` がばらつきを誤差棒で描く。以前は描こうとして NaN になっていた）。
 
 ### Goals
 - 5つのサブパッケージの `__all__` のすべての名前が少なくとも1つのテストで使われ、（`yikit.logging` が再公開する標準ライブラリの定数を除いて）英語の numpy 形式の docstring を持つ

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 from itertools import accumulate
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -10,6 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib.cbook import is_math_text
+from matplotlib.container import ErrorbarContainer
 from matplotlib.mathtext import MathTextParser
 from matplotlib.testing.compare import compare_images
 from matplotlib.text import Text
@@ -17,7 +19,12 @@ from matplotlib.ticker import PercentFormatter
 from scipy.stats import norm
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from yikit.visualize import SummarizePI, yyplot
+from yikit.visualize import (
+    SummarizePI,
+    set_font,
+    with_custom_matplotlib_settings,
+    yyplot,
+)
 
 # optuna, lightgbm and ngboost are optional: the tests that use them import
 # them through ``pytest.importorskip`` and are skipped without them (ngboost
@@ -485,11 +492,64 @@ def _legend_labels(ax: Axes) -> list[str]:
     return [text.get_text() for text in legend.get_texts()]
 
 
-def test_summarize_pi(assert_figure_matches_reference):
-    mean_importances = _make_importances().mean(axis=1)
-    expected = (mean_importances / mean_importances.sum()).sort_values(
-        ascending=False
+def _error_bar_segments(ax: Axes) -> np.ndarray:
+    """Return the segments of the only error bars on ``ax``.
+
+    The array has the shape (n_bars, 2, 2): the two (x, y) end points of
+    each error bar.
+    """
+    (container,) = [
+        container
+        for container in ax.containers
+        if isinstance(container, ErrorbarContainer)
+    ]
+    _, _, (bar_lines,) = container.lines
+    return np.asarray(bar_lines.get_segments())
+
+
+def _assert_summarize_pi_bars(
+    ax: Axes, names: Sequence[object], means: np.ndarray, stds: np.ndarray
+) -> None:
+    """Check the bars and the horizontal error bars drawn by SummarizePI.
+
+    The i-th feature of ``names`` must be drawn at y = i, counted from the
+    top: its tick label, its bar of width ``means[i]`` and its error bar
+    from ``means[i] - stds[i]`` to ``means[i] + stds[i]``. The y range must
+    hold the bars only, without margins.
+    """
+    positions = np.arange(len(names))
+    np.testing.assert_array_equal(ax.get_yticks(), positions)
+    assert [label.get_text() for label in ax.get_yticklabels()] == [
+        str(name) for name in names
+    ]
+    # seaborn may add the bars in another order than their positions.
+    centers = np.array(
+        [bar.get_y() + bar.get_height() / 2 for bar in ax.patches]
     )
+    widths = np.array([bar.get_width() for bar in ax.patches])
+    np.testing.assert_allclose(np.sort(centers), positions)
+    np.testing.assert_allclose(widths[np.argsort(centers)], means)
+    segments = _error_bar_segments(ax)
+    np.testing.assert_allclose(
+        segments[np.argsort(segments[:, 0, 1])],
+        np.stack(
+            [
+                np.column_stack([means - stds, positions]),
+                np.column_stack([means + stds, positions]),
+            ],
+            axis=1,
+        ),
+    )
+    assert ax.get_ylim() == (len(names) - 0.5, -0.5)
+
+
+def test_summarize_pi(assert_figure_matches_reference):
+    importances = _make_importances()
+    # Each value is divided by the sum of the per-feature means: the bars
+    # show the mean of each feature and the error bars the population
+    # standard deviation (as scikit-learn's ``importances_std``).
+    values = importances.to_numpy() / importances.mean(axis=1).sum()
+    order = np.argsort(-values.mean(axis=1), kind="stable")
 
     fig = _draw_summarize_pi()
 
@@ -497,13 +557,11 @@ def test_summarize_pi(assert_figure_matches_reference):
     ax = fig.axes[0]
     assert _axis_texts(ax) == ("", "", "")
     assert ax.get_legend() is None
-    # One horizontal bar per feature, the most important one first.
-    assert [label.get_text() for label in ax.get_yticklabels()] == list(
-        expected.index
-    )
-    assert len(ax.patches) == _N_FEATURES
-    np.testing.assert_allclose(
-        [bar.get_width() for bar in ax.patches], expected.to_numpy()
+    _assert_summarize_pi_bars(
+        ax,
+        importances.index[order],
+        values.mean(axis=1)[order],
+        values.std(axis=1)[order],
     )
 
     assert_figure_matches_reference(fig, "sample_summarize_pi.png")
@@ -652,6 +710,185 @@ def test_figure_comparison_ignores_font_family(
     assert_figure_matches_reference(
         draw(_OTHER_FONT_FAMILY), name, reference_dir=reference.parent
     )
+
+
+# ===========================================================================
+# SummarizePI.get_data and the font settings
+# ===========================================================================
+
+#: Global font settings in place before a call, unlike any value set by
+#: yikit. Every test applies them in ``plt.rc_context``, which restores the
+#: settings of the session afterwards.
+_USER_FONT_SETTINGS = {"font.family": ["serif"], "font.size": 9.0}
+
+#: Permutation importances with exact normalized values: the per-feature
+#: means 0.6, 0.2 and 1.2 sum to 2.0.
+_SMALL_IMPORTANCES = pd.DataFrame(
+    [[0.4, 0.8], [0.2, 0.2], [1.0, 1.4]],
+    index=pd.Index(["a", "b", "c"], name="feature"),
+)
+
+
+def _font_settings() -> tuple[list[str], float]:
+    """Return the global font family and font size of matplotlib."""
+    return list(plt.rcParams["font.family"]), plt.rcParams["font.size"]
+
+
+def test_summarize_pi_get_data():
+    importances = _SMALL_IMPORTANCES.copy()
+
+    data = SummarizePI(importances).get_data()
+
+    pd.testing.assert_frame_equal(
+        data,
+        pd.DataFrame(
+            {
+                "importances_mean": [0.6, 0.3, 0.1],
+                "importances_std": [0.1, 0.1, 0.0],
+            },
+            index=pd.Index(["c", "a", "b"], name="feature"),
+        ),
+    )
+    pd.testing.assert_frame_equal(importances, _SMALL_IMPORTANCES)
+
+
+def test_summarize_pi_get_data_keeps_order_of_ties():
+    # Unimportant features often tie at zero; ties keep the input order.
+    names = [f"feature_{i}" for i in range(40)]
+    values = np.zeros((len(names), 3))
+    values[5] = (1.0, 2.0, 3.0)
+    values[17] = (3.0, 4.0, 5.0)
+    values[30] = (2.0, 2.0, 2.0)
+
+    data = SummarizePI(pd.DataFrame(values, index=names)).get_data()
+
+    assert list(data.index) == [
+        "feature_17",
+        "feature_5",
+        "feature_30",
+        *(name for i, name in enumerate(names) if i not in (5, 17, 30)),
+    ]
+
+
+@pytest.mark.parametrize(
+    "index",
+    [
+        pytest.param(None, id="str"),
+        # seaborn >= 0.13 sorts numeric names unless told the order.
+        pytest.param(pd.RangeIndex(_N_FEATURES), id="int"),
+        pytest.param([i + 0.5 for i in range(_N_FEATURES)], id="float"),
+    ],
+)
+def test_summarize_pi_get_data_matches_figure(index):
+    importances = _make_importances()
+    if index is not None:
+        importances.index = index
+    summarize_pi = SummarizePI(importances)
+
+    data = summarize_pi.get_data()
+    fig, ax = summarize_pi.get_figure(fontfamily=FONT_FAMILY)
+
+    try:
+        assert fig is summarize_pi.fig
+        assert ax is summarize_pi.ax
+        # Sorting by importance must differ from sorting by name.
+        assert list(data.index) != sorted(data.index)
+        _assert_summarize_pi_bars(
+            ax,
+            data.index,
+            data["importances_mean"].to_numpy(),
+            data["importances_std"].to_numpy(),
+        )
+    finally:
+        plt.close(fig)
+
+
+def test_summarize_pi_get_figure_restores_font_settings():
+    with plt.rc_context(_USER_FONT_SETTINGS):
+        before = _font_settings()
+
+        fig, ax = SummarizePI(_make_importances()).get_figure(
+            fontfamily=_OTHER_FONT_FAMILY
+        )
+
+        try:
+            assert _font_settings() == before
+            # The font family was in effect while the figure was drawn.
+            assert ax.get_yticklabels()[0].get_fontfamily() == [
+                _OTHER_FONT_FAMILY
+            ]
+        finally:
+            plt.close(fig)
+
+
+def test_set_font_changes_global_settings():
+    with plt.rc_context(_USER_FONT_SETTINGS):
+        set_font(fontfamily=_OTHER_FONT_FAMILY, fontsize=17)
+
+        # The settings stay changed after the call, for every new figure.
+        assert _font_settings() == ([_OTHER_FONT_FAMILY], 17.0)
+        fig = plt.figure()
+        try:
+            text = fig.text(0.5, 0.5, "text")
+            assert text.get_fontfamily() == [_OTHER_FONT_FAMILY]
+            assert text.get_fontsize() == 17.0
+        finally:
+            plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("system", "expected"),
+    [
+        ("Darwin", "Helvetica"),
+        ("Linux", "DejaVu Sans"),
+        ("Windows", "DejaVu Sans"),
+    ],
+)
+def test_set_font_defaults_to_platform_font(monkeypatch, system, expected):
+    monkeypatch.setattr(platform, "system", lambda: system)
+
+    # Only the settings are checked: nothing is drawn, so the font does not
+    # need to be installed.
+    with plt.rc_context(_USER_FONT_SETTINGS):
+        set_font()
+
+        assert _font_settings() == ([expected], 13.0)
+
+
+@pytest.mark.parametrize("restore", [True, False])
+def test_with_custom_matplotlib_settings(restore):
+    @with_custom_matplotlib_settings(
+        fontfamily=_OTHER_FONT_FAMILY, fontsize=17, restore=restore
+    )
+    def draw(value, *, scale):
+        """Return ``value * scale`` and the font settings in effect."""
+        return value * scale, _font_settings()
+
+    with plt.rc_context(_USER_FONT_SETTINGS):
+        before = _font_settings()
+
+        result, inside = draw(2, scale=3)
+
+        after = _font_settings()
+
+    assert draw.__name__ == "draw"
+    assert result == 6
+    assert inside == ([_OTHER_FONT_FAMILY], 17.0)
+    assert after == (before if restore else inside)
+
+
+def test_with_custom_matplotlib_settings_restores_after_error():
+    @with_custom_matplotlib_settings(fontfamily=_OTHER_FONT_FAMILY)
+    def fail():
+        raise RuntimeError("drawing failed")
+
+    with plt.rc_context(_USER_FONT_SETTINGS):
+        before = _font_settings()
+
+        with pytest.raises(RuntimeError, match="drawing failed"):
+            fail()
+
+        assert _font_settings() == before
 
 
 # ===========================================================================
