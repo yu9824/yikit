@@ -70,7 +70,7 @@
   - 完了の状態: 上のテストが通り、SummarizePI の参照画像との比較が通る（見た目が変わるなら作り直す）
   - _Requirements: 6.1, 6.6, 6.7, 7.1, 7.2, 7.3_
 
-- [ ] 6.3 get_learning_curve_optuna を直す
+- [x] 6.3 get_learning_curve_optuna を直す
   - 完了した試行だけを使い、完了した試行がない・方向がない・多目的の study では理由を示す ValueError
   - docstring を整え、`loc` に注釈を付ける
   - テスト（optuna がなければ飛ばす）: 失敗・枝刈り・実行中の試行を含む study で、完了した試行だけの曲線になる、3つの ValueError、既存の図のテスト
@@ -119,3 +119,4 @@
 - BorutaPy（5）: 既存の `test_boruta` の期待値は変わらなかった（`perc_` は 79.58 から 81.00 に変わるが `support_`・`ranking_` は同じ）。範囲の中で足したこと: 数値の `perc` で学習すると前の `r_ccmax_`・`pears_` を消す、閉じた進捗バーを消して学習した BorutaPy を pickle できるようにした（以前は tqdm があり verbose>=1 だと TypeError。CHANGELOG に書く）。7 で直す docstring: `perc_` の型は「float or int」、`_transform`・`get_support`・`_print_results` の古い書き方（`array-like, shape = [...]`）
 - yyplot（6.1）: CHANGELOG に書く: 指標の行のラベルを数式の外に置くので、見た目が「R²_train = 0.98」（下付き）から「R² (train) = 0.98」に変わる（ラベルのない行は同じ）、ラベルを数式として読まなくなる（凡例でも書いたとおりの文字）、渡した ax の図に `tight_layout` をかけない、未知の指標の ValueError を描く前に出す（メッセージも変わる）。空のラベル `""` は None と同じに扱う
 - SummarizePI（6.2）: CHANGELOG に書く: `get_figure` がばらつき（正規化した反復の標準偏差、ddof=0）を誤差棒で描き、x の範囲が広がった（参照画像を作り直した）、数値の特徴量名でも重要度の大きい順に並ぶ（seaborn 0.13 では名前の順だった）、`get_figure` の後にフォントの設定を戻す、`get_data` の実装（列は `importances_mean`・`importances_std`、同じ値は入力の順）
+- optuna の学習曲線（6.3）: CHANGELOG に書く: 完了していない試行を描かなくなった（以前は失敗・実行中の試行が NaN の点になり、枝刈りの試行の中間値が最良値の線を変えうた）、多目的・方向のない・完了した試行のない study で ValueError（以前は optuna の RuntimeError・UnboundLocalError・空の図）。方向のない study は公開の API では作れないので、テストは InMemoryStorage で作る（optuna 3.0 と 4.5 は手元で未確認。CI で確かめる）

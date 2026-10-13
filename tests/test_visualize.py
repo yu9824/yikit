@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import platform
 from itertools import accumulate
 from pathlib import Path
@@ -710,6 +711,177 @@ def test_figure_comparison_ignores_font_family(
     assert_figure_matches_reference(
         draw(_OTHER_FONT_FAMILY), name, reference_dir=reference.parent
     )
+
+
+# ===========================================================================
+# get_learning_curve_optuna: trial states and invalid studies
+# ===========================================================================
+
+#: States of the trials of a study, in the order of their numbers: the
+#: complete trials alternate with trials in every other state.
+_MIXED_TRIAL_STATES = (
+    "COMPLETE",
+    "FAIL",
+    "COMPLETE",
+    "PRUNED",
+    "COMPLETE",
+    "RUNNING",
+    "COMPLETE",
+    "WAITING",
+    "COMPLETE",
+)
+
+#: Objective values of the complete trials of that study, in order.
+_COMPLETE_VALUES = (0.35, 0.21, 0.30, 0.52, 0.18)
+
+
+def _make_study_with_states(
+    direction: str, states: Sequence[str]
+) -> optuna.Study:
+    """Return a study with one trial in each of ``states``, in order.
+
+    The complete trials take their values from :data:`_COMPLETE_VALUES`.
+    The pruned trials report an intermediate value better than every
+    complete value, which optuna keeps as their value. ``"RUNNING"`` must
+    come before ``"WAITING"``: ``ask`` starts a waiting trial first. The
+    calling test is skipped when optuna is not installed.
+    """
+    optuna = pytest.importorskip("optuna")
+    TrialState = optuna.trial.TrialState
+    create_trial = optuna.trial.create_trial
+
+    pruned_value = 1.0 if direction == "maximize" else 0.0
+    complete_values = iter(_COMPLETE_VALUES)
+
+    study = optuna.create_study(direction=direction)
+    for state in states:
+        if state == "COMPLETE":
+            study.add_trial(create_trial(value=next(complete_values)))
+        elif state == "FAIL":
+            study.add_trial(create_trial(state=TrialState.FAIL))
+        elif state == "PRUNED":
+            trial = study.ask()
+            trial.report(pruned_value, step=0)
+            study.tell(trial, state=TrialState.PRUNED)
+        elif state == "RUNNING":
+            study.ask()
+        elif state == "WAITING":
+            study.enqueue_trial({})
+        else:
+            raise ValueError(f"Unknown trial state: {state!r}")
+
+    assert [trial.state.name for trial in study.trials] == list(states)
+    return study
+
+
+def _make_study_without_direction() -> optuna.Study:
+    """Return a study with a complete trial and the direction ``NOT_SET``.
+
+    ``optuna.create_study`` always sets a direction, so the study is made
+    in a storage: newer optuna takes the directions there, older optuna
+    leaves a new study without one. The calling test is skipped when
+    optuna is not installed.
+    """
+    optuna = pytest.importorskip("optuna")
+    not_set = optuna.study.StudyDirection.NOT_SET
+
+    storage = optuna.storages.InMemoryStorage()
+    if "directions" in inspect.signature(storage.create_new_study).parameters:
+        study_id = storage.create_new_study(directions=[not_set])
+    else:
+        study_id = storage.create_new_study()
+    study = optuna.load_study(
+        study_name=storage.get_study_name_from_id(study_id), storage=storage
+    )
+    study.add_trial(optuna.trial.create_trial(value=_COMPLETE_VALUES[0]))
+
+    assert study.directions == [not_set]
+    return study
+
+
+def _make_multi_objective_study() -> optuna.Study:
+    """Return a study with two objectives and a complete trial.
+
+    The calling test is skipped when optuna is not installed.
+    """
+    optuna = pytest.importorskip("optuna")
+
+    study = optuna.create_study(directions=["minimize", "maximize"])
+    study.add_trial(optuna.trial.create_trial(values=_COMPLETE_VALUES[:2]))
+    return study
+
+
+@pytest.mark.parametrize(
+    "direction, better",
+    [
+        pytest.param("maximize", max, id="maximize"),
+        pytest.param("minimize", min, id="minimize"),
+    ],
+)
+def test_learning_curve_optuna_uses_only_complete_trials(direction, better):
+    study = _make_study_with_states(direction, _MIXED_TRIAL_STATES)
+    from yikit.visualize import get_learning_curve_optuna
+
+    fig, ax = get_learning_curve_optuna(
+        study, fontfamily=FONT_FAMILY, return_axis=True
+    )
+
+    try:
+        # Each complete trial is drawn at its trial number.
+        numbers = [
+            number
+            for number, state in enumerate(_MIXED_TRIAL_STATES)
+            if state == "COMPLETE"
+        ]
+        assert len(ax.collections) == 1  # objective value of each trial
+        assert len(ax.lines) == 1  # best value so far
+        np.testing.assert_allclose(
+            np.asarray(ax.collections[0].get_offsets()),
+            list(zip(numbers, _COMPLETE_VALUES)),
+        )
+        np.testing.assert_allclose(ax.lines[0].get_xdata(), numbers)
+        np.testing.assert_allclose(
+            ax.lines[0].get_ydata(), list(accumulate(_COMPLETE_VALUES, better))
+        )
+    finally:
+        plt.close(fig)
+
+
+def _assert_raises_before_drawing(study: optuna.Study, match: str) -> None:
+    """Assert that the study is rejected with a ValueError and no figure."""
+    from yikit.visualize import get_learning_curve_optuna
+
+    figures = plt.get_fignums()
+    with pytest.raises(ValueError, match=match):
+        get_learning_curve_optuna(study, fontfamily=FONT_FAMILY)
+    assert plt.get_fignums() == figures
+
+
+@pytest.mark.parametrize(
+    "states",
+    [
+        pytest.param((), id="no_trial"),
+        pytest.param(
+            ("FAIL", "PRUNED", "RUNNING", "WAITING"), id="unfinished"
+        ),
+    ],
+)
+def test_learning_curve_optuna_rejects_study_without_complete_trial(states):
+    study = _make_study_with_states("maximize", states)
+
+    _assert_raises_before_drawing(study, "no complete trial")
+
+
+def test_learning_curve_optuna_rejects_study_without_direction():
+    study = _make_study_without_direction()
+
+    _assert_raises_before_drawing(study, "no optimization direction")
+
+
+def test_learning_curve_optuna_rejects_multi_objective_study():
+    study = _make_multi_objective_study()
+
+    _assert_raises_before_drawing(study, "single-objective")
 
 
 # ===========================================================================
