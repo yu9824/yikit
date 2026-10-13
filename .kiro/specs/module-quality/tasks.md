@@ -55,7 +55,7 @@
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 7.1, 7.3_
 
 - [ ] 6. visualize
-- [ ] 6.1 テストの収集を optional の依存から切り離し、yyplot を直す
+- [x] 6.1 テストの収集を optional の依存から切り離し、yyplot を直す
   - `tests/test_visualize.py` の optuna・lightgbm・ngboost の import を、使うテストの中の `pytest.importorskip` にする（ファイルが収集で失敗しない）
   - `yyplot`: 未知の指標を描く前に ValueError、`ax` を渡したときは `tight_layout` をかけない、ラベルを書いたとおりに表示する、docstring
   - テスト: 描いた点の値と指標の文字、渡した ax の図の配置が変わらない、未知の指標で何も描かずに ValueError、`$`・`_`・`%` を含むラベル
@@ -117,3 +117,4 @@
 - metrics（3）: `log_likelihood` は `ngboost.manifold.manifold(LogScore, Dist)` を予測したパラメータ（`pred_dist(X)._params`、`NGBoost.score` と同じ）に当てて計算する。打ち切り付きの分布（LogNormal・Exponential）は ngboost が包んだ `DistWithUncensoredScore` を名前で見分けて LogScore で包み直す（ngboost の `__getstate__` と同じ見分け方）。ngboost 0.3.6 は LogNormal を CRPScore で学習できない。NormalFixedVar は ngboost 自身の `score` と同じく落ちる（upstream）
 - FilterSelector（4）: 削除の順番は旧実装と同じ（つながる組が最も多い特徴量から、同数なら番号の小さいほう）。CHANGELOG に書く: `corr_` の一定の列を含む組が NaN（または丸めによる意味のない値）から r=0.0・p=1.0 になったこと、`|r| > r` の負の組に実際の p 値が入ること（以前は p=1.0）
 - BorutaPy（5）: 既存の `test_boruta` の期待値は変わらなかった（`perc_` は 79.58 から 81.00 に変わるが `support_`・`ranking_` は同じ）。範囲の中で足したこと: 数値の `perc` で学習すると前の `r_ccmax_`・`pears_` を消す、閉じた進捗バーを消して学習した BorutaPy を pickle できるようにした（以前は tqdm があり verbose>=1 だと TypeError。CHANGELOG に書く）。7 で直す docstring: `perc_` の型は「float or int」、`_transform`・`get_support`・`_print_results` の古い書き方（`array-like, shape = [...]`）
+- yyplot（6.1）: CHANGELOG に書く: 指標の行のラベルを数式の外に置くので、見た目が「R²_train = 0.98」（下付き）から「R² (train) = 0.98」に変わる（ラベルのない行は同じ）、ラベルを数式として読まなくなる（凡例でも書いたとおりの文字）、渡した ax の図に `tight_layout` をかけない、未知の指標の ValueError を描く前に出す（メッセージも変わる）。空のラベル `""` は None と同じに扱う

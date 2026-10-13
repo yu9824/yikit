@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from itertools import accumulate
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -8,32 +7,29 @@ from typing import TYPE_CHECKING
 import matplotlib.image
 import matplotlib.pyplot as plt
 import numpy as np
-import optuna
 import pandas as pd
 import pytest
-from lightgbm import LGBMRegressor
+from matplotlib.cbook import is_math_text
+from matplotlib.mathtext import MathTextParser
 from matplotlib.testing.compare import compare_images
 from matplotlib.text import Text
 from matplotlib.ticker import PercentFormatter
 from scipy.stats import norm
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from yikit.visualize import (
-    SummarizePI,
-    get_learning_curve_gb,
-    get_learning_curve_optuna,
-)
+from yikit.visualize import SummarizePI, yyplot
 
-if sys.version_info < (3, 14):
-    from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
-    from ngboost.distns import Normal  # type: ignore[reportMissingImports]
-else:  # ngboost does not support Python 3.14; its tests are skipped.
-    NGBRegressor = Normal = None
-
+# optuna, lightgbm and ngboost are optional: the tests that use them import
+# them through ``pytest.importorskip`` and are skipped without them (ngboost
+# is not installed on Python 3.14, which it does not support).
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    import optuna
+    from lightgbm import LGBMRegressor
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
+    from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
 
 
 # ===========================================================================
@@ -339,11 +335,6 @@ SEED = 334
 #: Font family passed to every figure function.
 FONT_FAMILY = "DejaVu Sans"
 
-requires_ngboost = pytest.mark.skipif(
-    sys.version_info >= (3, 14),
-    reason="ngboost is not supported on Python 3.14",
-)
-
 # SummarizePI: permutation importances (features x repeats).
 _N_FEATURES = 10
 _N_REPEATS = 5
@@ -380,7 +371,12 @@ def _make_importances() -> pd.DataFrame:
 
 
 def _make_study() -> optuna.Study:
-    """Return a study holding completed trials with fixed values."""
+    """Return a study holding completed trials with fixed values.
+
+    The calling test is skipped when optuna is not installed.
+    """
+    optuna = pytest.importorskip("optuna")
+
     study = optuna.create_study(direction="maximize")
     for value in _TRIAL_VALUES:
         study.add_trial(optuna.trial.create_trial(value=value))
@@ -388,8 +384,13 @@ def _make_study() -> optuna.Study:
 
 
 def _make_ngb_regressor() -> NGBRegressor:
-    """Return an NGBRegressor whose ``evals_result`` is fixed."""
-    ngb = NGBRegressor()
+    """Return an NGBRegressor whose ``evals_result`` is fixed.
+
+    The calling test is skipped when ngboost is not installed.
+    """
+    ngboost = pytest.importorskip("ngboost")
+
+    ngb = ngboost.NGBRegressor()
     ngb.evals_result = {
         name: {_NGBOOST_METRIC: list(scores)}
         for name, scores in _NGBOOST_SCORES.items()
@@ -398,13 +399,18 @@ def _make_ngb_regressor() -> NGBRegressor:
 
 
 def _fit_lgbm_regressor() -> LGBMRegressor:
-    """Fit LightGBM on a small fixed dataset with deterministic settings."""
+    """Fit LightGBM on a small fixed dataset with deterministic settings.
+
+    The calling test is skipped when lightgbm is not installed.
+    """
+    lightgbm = pytest.importorskip("lightgbm")
+
     rng = np.random.RandomState(SEED)
     X = rng.uniform(-1.0, 1.0, size=(100, 3))
     y = X @ np.array([3.0, -2.0, 1.0]) + rng.normal(0.0, 0.1, size=100)
     X_train, X_test, y_train, y_test = X[:80], X[80:], y[:80], y[80:]
 
-    lgbm = LGBMRegressor(
+    lgbm = lightgbm.LGBMRegressor(
         n_estimators=_LGBM_N_ESTIMATORS,
         random_state=SEED,
         deterministic=True,
@@ -428,10 +434,11 @@ def _draw_summarize_pi(fontfamily: str = FONT_FAMILY) -> Figure:
 
 
 def _draw_dist_figure(fontfamily: str = FONT_FAMILY) -> Figure:
+    distns = pytest.importorskip("ngboost.distns")
     from yikit.visualize import get_dist_figure
 
     # ngboost's Normal takes the rows (loc, log(scale)).
-    y_dist = Normal(np.array([_DIST_LOC, np.log(_DIST_SCALE)]))
+    y_dist = distns.Normal(np.array([_DIST_LOC, np.log(_DIST_SCALE)]))
     return get_dist_figure(
         y_dist,
         np.array(_DIST_Y_TRUE),
@@ -441,16 +448,30 @@ def _draw_dist_figure(fontfamily: str = FONT_FAMILY) -> Figure:
     )
 
 
+# The figure functions below exist in yikit.visualize only when their
+# optional packages are installed, so each is imported after the model or
+# study that skips the test without them.
+
+
 def _draw_learning_curve_optuna(fontfamily: str = FONT_FAMILY) -> Figure:
-    return get_learning_curve_optuna(_make_study(), fontfamily=fontfamily)
+    study = _make_study()
+    from yikit.visualize import get_learning_curve_optuna
+
+    return get_learning_curve_optuna(study, fontfamily=fontfamily)
 
 
 def _draw_learning_curve_ngboost(fontfamily: str = FONT_FAMILY) -> Figure:
-    return get_learning_curve_gb(_make_ngb_regressor(), fontfamily=fontfamily)
+    ngb = _make_ngb_regressor()
+    from yikit.visualize import get_learning_curve_gb
+
+    return get_learning_curve_gb(ngb, fontfamily=fontfamily)
 
 
 def _draw_learning_curve_lightgbm(fontfamily: str = FONT_FAMILY) -> Figure:
-    return get_learning_curve_gb(_fit_lgbm_regressor(), fontfamily=fontfamily)
+    lgbm = _fit_lgbm_regressor()
+    from yikit.visualize import get_learning_curve_gb
+
+    return get_learning_curve_gb(lgbm, fontfamily=fontfamily)
 
 
 def _axis_texts(ax: Axes) -> tuple[str, str, str]:
@@ -488,7 +509,6 @@ def test_summarize_pi(assert_figure_matches_reference):
     assert_figure_matches_reference(fig, "sample_summarize_pi.png")
 
 
-@requires_ngboost
 def test_get_dist_figure(assert_figure_matches_reference):
     # Every density is drawn on one grid spanning the predicted means with
     # a 5% margin, and all subplots share the top of the y range.
@@ -547,7 +567,6 @@ def test_learning_curve_optuna(assert_figure_matches_reference):
     assert_figure_matches_reference(fig, "sample_learning_curve_optuna.png")
 
 
-@requires_ngboost
 def test_learning_curve_ngboost(assert_figure_matches_reference):
     fig = _draw_learning_curve_ngboost()
 
@@ -565,6 +584,8 @@ def test_learning_curve_ngboost(assert_figure_matches_reference):
 
 def test_learning_curve_lightgbm(assert_figure_matches_reference):
     lgbm = _fit_lgbm_regressor()
+    from yikit.visualize import get_learning_curve_gb
+
     fig = get_learning_curve_gb(lgbm, fontfamily=FONT_FAMILY)
 
     assert len(fig.axes) == 1
@@ -595,14 +616,10 @@ _FONT_RMS_TOLERANCE = 0.1
     "draw",
     [
         pytest.param(_draw_summarize_pi, id="summarize_pi"),
-        pytest.param(
-            _draw_dist_figure, id="dist_figure", marks=requires_ngboost
-        ),
+        pytest.param(_draw_dist_figure, id="dist_figure"),
         pytest.param(_draw_learning_curve_optuna, id="learning_curve_optuna"),
         pytest.param(
-            _draw_learning_curve_ngboost,
-            id="learning_curve_ngboost",
-            marks=requires_ngboost,
+            _draw_learning_curve_ngboost, id="learning_curve_ngboost"
         ),
         pytest.param(
             _draw_learning_curve_lightgbm, id="learning_curve_lightgbm"
@@ -635,3 +652,238 @@ def test_figure_comparison_ignores_font_family(
     assert_figure_matches_reference(
         draw(_OTHER_FONT_FAMILY), name, reference_dir=reference.parent
     )
+
+
+# ===========================================================================
+# yyplot
+# ===========================================================================
+
+#: (true values, predicted values) of the data sets drawn by ``yyplot``.
+_YY_TRAIN = ((1.0, 2.0, 3.0, 4.0, 5.0), (1.2, 1.9, 3.3, 3.8, 5.1))
+_YY_TEST = ((1.5, 2.5, 3.5, 4.5), (1.0, 2.9, 3.4, 5.0))
+
+
+def _metric_values(
+    y_true: Sequence[float], y_pred: Sequence[float]
+) -> tuple[str, str, str, str]:
+    """Return the texts of R2, RMSE, MAE and MSE as ``yyplot`` formats them."""
+    mse = mean_squared_error(y_true, y_pred)
+    return (
+        f"{r2_score(y_true, y_pred):#.2f}",
+        f"{np.sqrt(mse):#.3g}",
+        f"{mean_absolute_error(y_true, y_pred):#.3g}",
+        f"{mse:#.3g}",
+    )
+
+
+def _displayed_characters(text: str) -> str:
+    """Return the characters matplotlib draws for one line of ``text``.
+
+    Matplotlib draws a string with an even number of unescaped dollar
+    signs as mathtext (spaces inside math are dropped), and any other string
+    as plain text in which ``\\$`` stands for ``$``.
+    """
+    if not is_math_text(text):
+        return text.replace("\\$", "$")
+    glyphs = MathTextParser("path").parse(text)[3]
+    return "".join(chr(glyph[2]) for glyph in glyphs)
+
+
+def _layout(fig: Figure) -> tuple[tuple[float, ...], list[tuple[float, ...]]]:
+    """Return the subplot parameters and the axes positions of ``fig``."""
+    params = fig.subplotpars
+    return (
+        (
+            params.left,
+            params.right,
+            params.bottom,
+            params.top,
+            params.wspace,
+            params.hspace,
+        ),
+        [tuple(ax.get_position(original=True).bounds) for ax in fig.axes],
+    )
+
+
+def _is_blank(ax: Axes) -> bool:
+    return (
+        len(ax.collections) == 0
+        and len(ax.lines) == 0
+        and len(ax.texts) == 0
+        and ax.get_legend() is None
+    )
+
+
+def test_yyplot_draws_values_and_metrics():
+    ax = yyplot(*_YY_TRAIN, *_YY_TEST, metrics=("r2", "rmse", "mae", "mse"))
+
+    try:
+        # One scatter per data set at (true, predicted), labeled by default.
+        assert len(ax.collections) == 2
+        for collection, (y_true, y_pred) in zip(
+            ax.collections, (_YY_TRAIN, _YY_TEST)
+        ):
+            np.testing.assert_allclose(
+                np.asarray(collection.get_offsets()),
+                np.column_stack([y_true, y_pred]),
+            )
+        assert _legend_labels(ax) == ["train", "test"]
+        assert (ax.get_xlabel(), ax.get_ylabel()) == (
+            "$y_\\mathrm{true}$",
+            "$y_\\mathrm{pred}$",
+        )
+
+        # The line y = x and both axes span all the values with a 5% margin.
+        values = np.concatenate([*_YY_TRAIN, *_YY_TEST])
+        margin = np.ptp(values) * 0.05
+        limits = (values.min() - margin, values.max() + margin)
+        (line,) = ax.lines
+        np.testing.assert_allclose(line.get_xdata(), limits)
+        np.testing.assert_allclose(line.get_ydata(), limits)
+        assert ax.get_xlim() == pytest.approx(limits)
+        assert ax.get_ylim() == pytest.approx(limits)
+
+        # The metrics of each data set, in the order of ``metrics``.
+        (text,) = ax.texts
+        expected = []
+        for label, (y_true, y_pred) in zip(
+            ("train", "test"), (_YY_TRAIN, _YY_TEST)
+        ):
+            r2, rmse, mae, mse = _metric_values(y_true, y_pred)
+            expected += [
+                f"$R^2$ ({label})$ = {r2}$",
+                f"RMSE ({label})$ = {rmse}$",
+                f"MAE ({label})$ = {mae}$",
+                f"MSE ({label})$ = {mse}$",
+            ]
+        assert text.get_text().split("\n") == expected
+    finally:
+        plt.close(ax.figure)
+
+
+def test_yyplot_without_labels():
+    ax = yyplot(*_YY_TRAIN)
+
+    try:
+        r2, rmse, _, _ = _metric_values(*_YY_TRAIN)
+        (text,) = ax.texts
+        assert text.get_text().split("\n") == [
+            f"$R^2$$ = {r2}$",
+            f"RMSE$ = {rmse}$",
+        ]
+        assert ax.get_legend() is None
+    finally:
+        plt.close(ax.figure)
+
+
+def test_yyplot_treats_empty_label_as_no_label():
+    # Alone: no legend at all, and the unlabeled metric lines.
+    ax = yyplot(*_YY_TRAIN, labels=[""])
+
+    try:
+        r2, rmse, _, _ = _metric_values(*_YY_TRAIN)
+        (text,) = ax.texts
+        assert text.get_text().split("\n") == [
+            f"$R^2$$ = {r2}$",
+            f"RMSE$ = {rmse}$",
+        ]
+        assert ax.get_legend() is None
+    finally:
+        plt.close(ax.figure)
+
+    # Next to a labeled data set: only that one is in the legend.
+    ax = yyplot(*_YY_TRAIN, *_YY_TEST, labels=["", "test"])
+
+    try:
+        test_r2, test_rmse, _, _ = _metric_values(*_YY_TEST)
+        (text,) = ax.texts
+        assert text.get_text().split("\n") == [
+            f"$R^2$$ = {r2}$",
+            f"RMSE$ = {rmse}$",
+            f"$R^2$ (test)$ = {test_r2}$",
+            f"RMSE (test)$ = {test_rmse}$",
+        ]
+        assert _legend_labels(ax) == ["test"]
+    finally:
+        plt.close(ax.figure)
+
+
+def test_yyplot_keeps_layout_of_figure_of_given_axes():
+    fig, axes = plt.subplots(1, 2, figsize=(6.0, 3.0))
+    fig.subplots_adjust(left=0.3, right=0.9, bottom=0.25, top=0.8, wspace=0.6)
+    layout = _layout(fig)
+
+    try:
+        ax = yyplot(*_YY_TRAIN, *_YY_TEST, ax=axes[0])
+
+        assert ax is axes[0]
+        assert len(ax.collections) == 2
+        assert _layout(fig) == layout
+        assert _is_blank(axes[1])
+    finally:
+        plt.close(fig)
+
+
+def test_yyplot_legend_keeps_labeled_artists_of_given_axes():
+    fig, ax = plt.subplots()
+    ax.plot([0.0, 6.0], [0.5, 6.5], label="reference")
+
+    try:
+        yyplot(*_YY_TRAIN, *_YY_TEST, ax=ax)
+
+        assert _legend_labels(ax) == ["reference", "train", "test"]
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "given_axes", [False, True], ids=["new-figure", "given-axes"]
+)
+def test_yyplot_rejects_unknown_metric_before_drawing(given_axes):
+    fig, ax = plt.subplots() if given_axes else (None, None)
+    figure_numbers = plt.get_fignums()
+
+    try:
+        with pytest.raises(ValueError, match="'rmsle'"):
+            yyplot(*_YY_TRAIN, metrics=("r2", "rmsle"), ax=ax)
+
+        assert plt.get_fignums() == figure_numbers
+        if ax is not None:
+            assert _is_blank(ax)
+    finally:
+        if fig is not None:
+            plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "$x$",
+        "cost $5",
+        "y_train",
+        "_valid",
+        "50% CI",
+        "a^b {c} #d &e ~f",
+        "\\alpha",
+        "\\$",
+        "ends with \\",
+    ],
+)
+def test_yyplot_shows_labels_as_written(label):
+    ax = yyplot(*_YY_TRAIN, labels=[label])
+    fig = ax.figure
+
+    try:
+        # Mathtext errors are raised when the texts are drawn.
+        fig.canvas.draw()
+
+        (legend_text,) = ax.get_legend().get_texts()
+        assert _displayed_characters(legend_text.get_text()) == label
+
+        r2, rmse, _, _ = _metric_values(*_YY_TRAIN)
+        (text,) = ax.texts
+        assert [
+            _displayed_characters(line) for line in text.get_text().split("\n")
+        ] == [f"R2 ({label})={r2}", f"RMSE ({label})={rmse}"]
+    finally:
+        plt.close(fig)
