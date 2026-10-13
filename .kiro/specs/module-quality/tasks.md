@@ -92,14 +92,14 @@
   - _Depends: 1.2, 2, 3, 4, 5, 6.4_
   - _Requirements: 5.7, 7.1, 7.2, 7.3_
 
-- [ ] 8. 検証
+- [x] 8. 検証
 - [x] 8.1 全体の検査を通す
   - 手元で `pytest`、`ruff check src tests`、`ruff format --check src tests`、`mypy`、変えたモジュールの doctest を通す
   - この spec のテストのファイル（test_helpers・test_logging・test_metrics・test_filtermethod・test_boruta・test_visualize）を、optional の依存を見えなくした状態（`sys.modules` に None を入れる、または別のプロセス）で収集できることを確かめる
   - 完了の状態: すべてエラーなく終わる
   - _Requirements: 7.3_
 
-- [ ] 8.2 作業ブランチで CI を実行し、全版で通ることを確かめる
+- [x] 8.2 作業ブランチで CI を実行し、全版で通ることを確かめる
   - 作業ブランチを push し、CI を手動で実行して Python 3.8〜3.14 の7つの版の結果を確かめる。版による失敗は原因を直す
   - 完了の状態: 7つの版のテストがすべて成功する
   - _Requirements: 7.4, 7.5_
