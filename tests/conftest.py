@@ -74,10 +74,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 @pytest.fixture(scope="session")
 def regression_data():
-    """テスト用の回帰データセットを生成
+    """Generate a regression dataset for the tests.
 
-    load_diabetes()と同様のサイズ（442サンプル、10特徴量）で生成
-    seedは固定（334）で再現性を確保
+    It has the size of ``load_diabetes()`` (442 samples and 10 features),
+    and the seed is fixed (334) for reproducibility.
     """
     X, y = make_regression(
         n_samples=442,
@@ -87,7 +87,7 @@ def regression_data():
         random_state=334,
     )
 
-    # DataFrameとSeriesに変換（load_diabetes()と同様の形式）
+    # Convert to a DataFrame and a Series (the same form as load_diabetes()).
     feature_names = [f"feature_{i}" for i in range(X.shape[1])]
     X_df = pd.DataFrame(X, columns=feature_names)
     y_series = pd.Series(y)
@@ -103,13 +103,13 @@ def regression_data():
 
 @pytest.fixture(scope="session")
 def X_regression(regression_data):
-    """回帰データの特徴量（DataFrame）"""
+    """Features of the regression data (DataFrame)."""
     return regression_data["X"]
 
 
 @pytest.fixture(scope="session")
 def y_regression(regression_data):
-    """回帰データのターゲット（Series）"""
+    """Target of the regression data (Series)."""
     return regression_data["y"]
 
 

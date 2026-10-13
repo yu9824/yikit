@@ -231,6 +231,30 @@ def test_clone_of_a_fitted_selector_keeps_auto_perc():
     assert not hasattr(cloned, "perc_")
 
 
+def test_get_support_with_weak_includes_confirmed_and_tentative_features():
+    # A short run with a low percentile leaves some features tentative.
+    selector = _make_selector(perc=50, max_iter=10).fit(X_SMALL, y_SMALL)
+    confirmed, tentative = selector.support_, selector.support_weak_
+    assert confirmed.any() and tentative.any(), (
+        "The fit must have confirmed and tentative features for this test: "
+        f"support_={confirmed}, support_weak_={tentative}"
+    )
+
+    weak_mask = selector.get_support(weak=True)
+    mask = selector.get_support()
+
+    assert weak_mask.dtype == bool and weak_mask.shape == (X_SMALL.shape[1],)
+    np.testing.assert_array_equal(weak_mask, confirmed | tentative)
+    np.testing.assert_array_equal(mask, confirmed)
+    # The masks select the columns that ``transform`` keeps.
+    np.testing.assert_array_equal(
+        selector.transform(X_SMALL, weak=True), X_SMALL[:, weak_mask]
+    )
+    np.testing.assert_array_equal(
+        selector.transform(X_SMALL), X_SMALL[:, mask]
+    )
+
+
 # --- scikit-learn conventions, random state and display ----------------------
 
 

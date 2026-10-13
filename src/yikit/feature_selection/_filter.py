@@ -1,4 +1,8 @@
-"""
+"""Filter method of feature selection: :class:`FilterSelector`.
+
+The selector removes features that are strongly correlated with other
+features, judging from their Pearson correlations alone (no estimator).
+
 Copyright © 2021 yu9824
 
 Licensed under the Apache License, Version 2.0 (the "License");

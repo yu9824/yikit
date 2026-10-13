@@ -1,3 +1,11 @@
+"""Implementation of the public helpers of :mod:`yikit.helpers`.
+
+:func:`is_installed` and :func:`is_argument` inspect packages and callables,
+:class:`dummy_tqdm` stands in for ``tqdm`` when no progress bar is wanted or
+tqdm is missing, and :class:`tqdm_joblib` shows the progress of
+:class:`joblib.Parallel` with a progress bar.
+"""
+
 from __future__ import annotations
 
 import functools

@@ -84,12 +84,13 @@
   - 完了の状態: 上のテストと既存の分布・学習曲線の図のテストが通る（見た目が変わるなら参照画像を作り直す）
   - _Requirements: 6.1, 6.3, 6.5, 6.7, 7.1, 7.2, 7.3_
 
-- [ ] 7. 英語化と公開 API の網羅を確かめる
+- [x] 7. 英語化と公開 API の網羅を確かめる
   - `tests/conftest.py` の日本語の docstring とコメント、対象のモジュールに残る日本語のコメントを英語にする。モジュールの docstring のないもの（`_helpers.py`・`_ngboost.py`・`_filter.py`・`_wrapper.py` など）に英語の docstring を付ける
   - 5つのサブパッケージの `__all__` の名前が、英語の numpy 形式の docstring を持ち、少なくとも1つのテストで使われていることを確かめるテストを足す。規則: docstring の確認では `yikit.logging` が再公開する標準ライブラリの定数（`CRITICAL`・`DEBUG`・`ERROR`・`INFO`・`NOTSET`・`WARNING`）を除く。テストでの使用は定数も含めて確かめる。optional の依存がない環境では、そのとき `__all__` にある名前だけを確かめる。docstring は概要の行があり、引数を取るなら Parameters の見出しを持つこと（Returns などの見出しは必須にしない）。テストでの使用は、この spec のテストのファイルに名前が出てくることで確かめる
-  - 完了の状態: 対象のファイルに日本語の文字が残らず（ライセンスの見出しを除く）、網羅のテストが通る
+  - 作業中に見つかった不具合（作者の判断）: BorutaPy の `get_support(weak=True)` が confirmed と tentative の両方（`support_ | support_weak_`）を返すようにし、テストを足す
+  - 完了の状態: 対象のファイルに日本語の文字が残らず（ライセンスの見出しを除く）、網羅のテストが通り、`get_support(weak=True)` のテストが通る
   - _Depends: 1.2, 2, 3, 4, 5, 6.4_
-  - _Requirements: 7.1, 7.2, 7.3_
+  - _Requirements: 5.7, 7.1, 7.2, 7.3_
 
 - [ ] 8. 検証
 - [ ] 8.1 全体の検査を通す
@@ -111,7 +112,7 @@
 - `.vscode/settings.json` の未コミットの変更は利用者のもの。触らない
 - docstring の Examples は doctest で動く形にするか、遅いもの・optional の依存やフォントの有無に頼るもの（NGBRegressor の学習、optuna の多くの試行、`set_font("Arial")` など）は `# doctest: +SKIP` を付ける（8.1 で変えたモジュールの doctest を通すため）
 - R7.4 の範囲はこの spec のテストのファイル。models のテストのファイル（`tests/test_optuna.py`・`test_gbdt.py`・`test_search_space.py`）は先頭で optuna を import するので、optional の依存なしでは収集できない。直すなら別の作業として扱う
-- release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、`log_likelihood` が学習の `Score` によらず対数尤度を返すようになったこと（`Score=CRPScore` などで値が変わる）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むことと、`return_as` が list 以外の `Parallel` を数えなくなったこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと
+- release-0.4.0 の CHANGELOG に書くこと（module-quality）: `yikit.metrics.root_mean_squared_error` の削除（`sklearn.metrics.root_mean_squared_error` を使う）、`log_likelihood` が学習の `Score` によらず対数尤度を返すようになったこと（`Score=CRPScore` などで値が変わる）、FilterSelector が相関の絶対値で判定するようになったこと、BorutaPy の `get_support(weak=True)` が confirmed と tentative の両方を返すようになったこと（以前は tentative だけ）、BorutaPy の `random_state` を加工しなくなったことと `perc="auto"` の `perc_` が同じ種でも変わること、`tqdm_joblib` が逐次実行でも進むことと、`return_as` が list 以外の `Parallel` を数えなくなったこと、`SummarizePI.get_data` の実装、図の関数が落ちていた入力の修正とフォントの設定を戻すようになったこと、`catch_default_handler` が入る前の状態に戻すこと
 - `tqdm_joblib`（1.2）: リリース済みの属性 `tqdm_joblib.tqdm`（入る前は None、中では進捗バー、抜けた後は閉じた進捗バー）を互換のために残した。有効な同じインスタンスにもう一度入ったときと、入る前に抜けたときは RuntimeError（CHANGELOG に書く）
 - logging（2）: 既定のハンドラは `import yikit` では付かず、最初の `get_root_logger()`（`yikit.feature_selection` の import が呼ぶ）で付く。止め方の案内は `get_root_logger()` を通す形にした（それより前に `logging.getLogger("yikit")` に入れた水準は上書きされるため）。CHANGELOG に書く: `catch_default_handler` が入る前の状態に戻すこと、同じインスタンスに入れ子で入れること、入る前に抜けると RuntimeError、既定のハンドラがないときの例外が AssertionError から RuntimeError に変わったこと
 - metrics（3）: `log_likelihood` は `ngboost.manifold.manifold(LogScore, Dist)` を予測したパラメータ（`pred_dist(X)._params`、`NGBoost.score` と同じ）に当てて計算する。打ち切り付きの分布（LogNormal・Exponential）は ngboost が包んだ `DistWithUncensoredScore` を名前で見分けて LogScore で包み直す（ngboost の `__getstate__` と同じ見分け方）。ngboost 0.3.6 は LogNormal を CRPScore で学習できない。NormalFixedVar は ngboost 自身の `score` と同じく落ちる（upstream）

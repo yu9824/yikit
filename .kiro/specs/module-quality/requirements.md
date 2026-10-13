@@ -6,7 +6,7 @@ yikit を使う人（作者、licond など）は、モデル以外のモジュ�
 この spec では、5つのサブパッケージの公開 API に英語の numpy 形式の docstring とテストを揃え、見つかった小さな不具合を直す。機能の追加はしない（例外は、中身のない `SummarizePI.get_data` を実装すること）。詳細は `brief.md` を参照。
 
 ## Introduction
-yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱い、図の関数が落ちていた入力、`SummarizePI.get_data` の中身、`tqdm_joblib` の逐次実行での進捗（generator を返す呼び出しは数えなくなる）、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が `Score=CRPScore` などで学習したモデルでも対数尤度を返すことで、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
+yikit の作者と利用者のために、models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）が、Python 3.8〜3.14 と各版の依存で意図どおり動くことをテストで確かめ、英語の docstring で説明する。あわせて、意図した振る舞いから外れている箇所を直す。振る舞いが変わるのは、FilterSelector の相関の判定（絶対値にする）、BorutaPy の乱数の扱いと `get_support(weak=True)`、図の関数が落ちていた入力、`SummarizePI.get_data` の中身、`tqdm_joblib` の逐次実行での進捗（generator を返す呼び出しは数えなくなる）、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が `Score=CRPScore` などで学習したモデルでも対数尤度を返すことで、0.4.0 の CHANGELOG に書く。ロガーの振る舞いは変えない。
 
 ## Boundary Context
 - **In scope**: `yikit.helpers`・`yikit.logging`・`yikit.metrics`・`yikit.feature_selection`・`yikit.visualize` の公開 API（各 `__init__.py` の `__all__` にある名前）の docstring・テスト・小さな不具合の修正。これらのモジュールの日本語のコメントと、`tests/conftest.py` の日本語の docstring の英語化。テストが optional の依存なしでも収集できること
@@ -67,6 +67,7 @@ yikit の作者と利用者のために、models 以外の公開 API（helpers�
 4. When `set_params(verbose=...)` で表示の設定を変えたとき, the BorutaPy shall 次の学習からその設定に従う
 5. If 学習の途中で例外が出たとき, the BorutaPy shall 進捗バーを閉じ、`perc` を元に戻す（ensemble-on-sklearn で入れた振る舞いを保つ）
 6. The BorutaPy shall クラスの docstring を numpy 形式で正しく書き（見出しの形、例、学習後の属性 `perc_`・`r_ccmax_` など）、誤字を直す
+7. When `get_support(weak=True)` を呼んだとき, the BorutaPy shall confirmed と tentative の両方の特徴量を示すマスクを返す（`transform(X, weak=True)` が残す特徴量と同じ）
 
 ### Requirement 6: visualize
 **Objective:** As yikit の利用者, I want 図の関数がどんな正しい入力でも図を返し、自分の matplotlib の設定を変えないこと, so that ノートブックの他の図に影響を受けずに使える

@@ -3,7 +3,7 @@
 ## Overview
 **Purpose**: models 以外の公開 API（helpers・logging・metrics・feature_selection・visualize）に英語の docstring とテストを揃え、読んで見つかった小さな不具合を直す。
 **Users**: yikit の作者と利用者。docs の API リファレンス（Sphinx が docstring から作る）を読む人。
-**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が学習の `Score` によらず対数尤度を返すこと、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱い、`tqdm_joblib` の逐次実行での進捗（generator を返す `Parallel` は数えなくなる）、図の関数が落ちていた入力、`SummarizePI.get_data` の中身（あわせて `SummarizePI.get_figure` がばらつきを誤差棒で描く。以前は描こうとして NaN になっていた）。
+**Impact**: 公開 API の名前と形はほぼ保つ。変わるのは、`yikit.metrics.root_mean_squared_error` の削除、`log_likelihood` が学習の `Score` によらず対数尤度を返すこと、FilterSelector の相関の判定（絶対値）、BorutaPy の乱数の扱いと `get_support(weak=True)`、`tqdm_joblib` の逐次実行での進捗（generator を返す `Parallel` は数えなくなる）、図の関数が落ちていた入力、`SummarizePI.get_data` の中身（あわせて `SummarizePI.get_figure` がばらつきを誤差棒で描く。以前は描こうとして NaN になっていた）。
 
 ### Goals
 - 5つのサブパッケージの `__all__` のすべての名前が少なくとも1つのテストで使われ、（`yikit.logging` が再公開する標準ライブラリの定数を除いて）英語の numpy 形式の docstring を持つ
@@ -108,6 +108,7 @@ graph TB
 - `_fit`: `rng = check_random_state(self.random_state)`。`perc_` を決め（`perc="auto"` なら `_calc_auto_perc(X, y, rng)`）、boruta の `_fit` の間だけ `self.perc = perc_`、`self.random_state = rng` にして、try/finally で両方を元に戻し、進捗バーが開いていれば閉じる（5.2、5.5）
 - `_calc_auto_perc`: シャッフルごとの種を `rng` から先に引き、ワーカーには種を渡す（5.3）
 - クラスの docstring（numpy 形式、`perc_`・`r_ccmax_`・`pears_` などの属性、Examples、References）と誤字（5.6）
+- `get_support(weak=True)` は confirmed と tentative の両方（`support_ | support_weak_`）を返す。以前は tentative だけを返し、docstring と boruta の `transform(X, weak=True)` と食い違っていた（作者の判断。task 7 で見つかった）
 
 ### Visualize（`src/yikit/visualize/`）
 - `set_font`: 全体の設定を変える関数として残し、docstring に書く

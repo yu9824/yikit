@@ -1,4 +1,9 @@
-"""
+"""Wrapper method of feature selection: :class:`BorutaPy`.
+
+The selector extends ``boruta.BorutaPy`` of scikit-learn-contrib/boruta_py,
+so this module imports boruta at the top and :mod:`yikit.feature_selection`
+imports it only when boruta is installed.
+
 Copyright © 2021 yu9824
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -186,9 +191,9 @@ class BorutaPy(boruta.BorutaPy):
         The importances of the features in each iteration, after a first
         row of zeros. A feature has NaN in the iterations after it was
         rejected.
-    perc_ : float
-        The percentile used in the last fit: the value calculated from the
-        data when ``perc="auto"``, otherwise ``perc`` itself.
+    perc_ : float or int
+        The percentile used in the last fit: the float calculated from the
+        data when ``perc="auto"``, otherwise ``perc`` itself as passed.
     r_ccmax_ : float
         The largest Pearson correlation between the shuffled features and
         the target. Only set by a fit with ``perc="auto"``.
@@ -370,7 +375,7 @@ class BorutaPy(boruta.BorutaPy):
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, n_features]
+        X : array-like of shape (n_samples, n_features)
             The input samples.
         weak : bool, default=False
             If True, the tentative features are also selected.
@@ -379,9 +384,15 @@ class BorutaPy(boruta.BorutaPy):
 
         Returns
         -------
-        X : array-like, shape = [n_samples, n_features_]
-            ``X`` reduced to the selected features: a NumPy array for a
-            DataFrame without ``return_df``, otherwise the type of boruta.
+        X_selected : ndarray or DataFrame of shape (n_samples, n_selected)
+            ``X`` reduced to the ``n_selected`` selected features: a NumPy
+            array for a DataFrame without ``return_df``, otherwise what
+            boruta returns.
+
+        Raises
+        ------
+        ValueError
+            If the selector is not fitted yet (raised by boruta).
         """
         if return_df:
             return super()._transform(X, weak, return_df)
@@ -391,26 +402,33 @@ class BorutaPy(boruta.BorutaPy):
         return super()._transform(X, weak)
 
     def get_support(self, weak: bool = False) -> np.ndarray:
-        """Get a mask, or integer index, of the features selected.
+        """Return a boolean mask of the selected features.
+
+        The mask marks the same features as the columns that
+        ``transform(X, weak=weak)`` keeps.
 
         Parameters
         ----------
-        weak : bool, optional
-            If set to True, the tentative features are also included in the support mask.
-            If False, only confirmed features are included. By default False.
+        weak : bool, default=False
+            If False, only the confirmed features are True (``support_``).
+            If True, the tentative features are also True
+            (``support_ | support_weak_``).
 
         Returns
         -------
-        support : array of shape [n_features]
-            A boolean mask of the features selected. If `weak=True`, includes both
-            confirmed and tentative features. If `weak=False`, includes only confirmed
-            features.
+        support : ndarray of shape (n_features,)
+            The boolean mask of the selected features. With
+            ``weak=False``, this is ``support_`` itself (not a copy).
+
+        Raises
+        ------
+        sklearn.exceptions.NotFittedError
+            If the selector is not fitted yet.
         """
         check_is_fitted(self, "support_")
         if weak:
-            return self.support_weak_
-        else:
-            return self.support_
+            return self.support_ | self.support_weak_
+        return self.support_
 
     def _calc_auto_perc(
         self, X: np.ndarray, y: np.ndarray, random_state: np.random.RandomState
@@ -465,25 +483,27 @@ class BorutaPy(boruta.BorutaPy):
         return perc
 
     def _print_results(self, dec_reg, _iter, flag):
-        """Print the results of the Boruta feature selection process.
+        """Show the progress of an iteration or the result at the end.
 
-        This method displays the current status of feature selection, including
-        the number of confirmed, tentative, and rejected features at each iteration.
-        The output format depends on the verbosity level and whether tqdm is available.
+        boruta calls this method when ``verbose`` is positive: with
+        ``flag=0`` in each iteration and with ``flag=1`` once at the end.
+        Instead of printing like boruta, this override advances the progress
+        bar when tqdm is used (and closes it at the end), and writes to the
+        logger of yikit: the result at the end always, and the progress of
+        each iteration only when no progress bar is shown or ``verbose`` is
+        2 or more.
 
         Parameters
         ----------
-        dec_reg : array-like
-            Decision registry array indicating the status of each feature:
-            - 1: confirmed features
-            - 0: tentative features (still under consideration)
-            - -1: rejected features
+        dec_reg : ndarray of shape (n_features,)
+            The decision of each feature so far: 1 for confirmed, 0 for
+            undecided, and -1 for rejected.
         _iter : int
-            Current iteration number.
+            The number of the current iteration.
         flag : int
-            Status flag:
-            - 0: feature selection is still in progress
-            - non-zero: Boruta has finished running and tentative features have been filtered
+            0 while the selection runs; any other value once it has
+            finished and the tentative features have been settled in
+            ``support_`` and ``support_weak_``.
         """
         n_iter = str(_iter) + " / " + str(self.max_iter)
         n_confirmed = np.where(dec_reg == 1)[0].shape[0]

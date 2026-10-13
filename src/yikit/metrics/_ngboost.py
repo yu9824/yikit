@@ -1,3 +1,9 @@
+"""Log-likelihood of NGBoost models.
+
+This module imports ngboost at the top, so :mod:`yikit.metrics` imports it
+and exports :func:`log_likelihood` only when ngboost is installed.
+"""
+
 from __future__ import annotations
 
 import numpy as np
