@@ -93,7 +93,7 @@
   - _Requirements: 5.7, 7.1, 7.2, 7.3_
 
 - [ ] 8. 検証
-- [ ] 8.1 全体の検査を通す
+- [x] 8.1 全体の検査を通す
   - 手元で `pytest`、`ruff check src tests`、`ruff format --check src tests`、`mypy`、変えたモジュールの doctest を通す
   - この spec のテストのファイル（test_helpers・test_logging・test_metrics・test_filtermethod・test_boruta・test_visualize）を、optional の依存を見えなくした状態（`sys.modules` に None を入れる、または別のプロセス）で収集できることを確かめる
   - 完了の状態: すべてエラーなく終わる
