@@ -1415,9 +1415,10 @@ def test_learning_curve_ngboost_of_fitted_model():
         pytest.param(
             _draw_learning_curve_lightgbm, id="learning_curve_lightgbm"
         ),
+        pytest.param(_draw_learning_curve_optuna, id="learning_curve_optuna"),
     ],
 )
-def test_gbdt_figures_restore_font_settings(draw):
+def test_figure_functions_restore_font_settings(draw):
     with plt.rc_context(_USER_FONT_SETTINGS):
         before = _font_settings()
 

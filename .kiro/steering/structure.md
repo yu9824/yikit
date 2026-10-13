@@ -52,7 +52,7 @@ if is_installed("optuna"):
 
 - **Files**: snake_case。サブパッケージの中の実装は `_` で始める（`_filter.py`、`_optuna.py`）
 - **Classes**: PascalCase。sklearn に合わせて役割を末尾に付ける（`...Regressor`、`...Selector`）
-- **Functions**: snake_case（`get_learning_curve_optuna`、`root_mean_squared_error`）
+- **Functions**: snake_case（`get_learning_curve_optuna`、`log_likelihood`）
 - **Fitted attributes**: 末尾に `_`（sklearn の決まり）
 - **Constants**: UPPER_SNAKE_CASE（テストの `SEED` など）
 
@@ -77,7 +77,7 @@ from yikit.models._gbdt import GBDTRegressor
 - サブパッケージ間の依存は一方向にし、循環させない。今の向きは次のとおり
   - `helpers`・`logging`: 他に依存しない（基盤）
   - `metrics`・`feature_selection`: 基盤だけに依存する
-  - `visualize`: `metrics` と基盤に依存する
+  - `visualize`: 基盤だけに依存する
   - `models`: 基盤だけに依存する（特徴量の選択は、利用者が `feature_selection` の `BorutaPy` を Pipeline の前段に置いて組み合わせる）
 - 公開する名前は `__all__` に載せたものだけ。`_` で始まるモジュールの中身は内部用で、版をまたいで変わりうる
 - 複数のモデルにまたがる設定（探索範囲、推奨値など）は1つのモジュールにまとめ、それを使う側（`Objective`、`ParamDistributions` など）は同じ定義を参照する

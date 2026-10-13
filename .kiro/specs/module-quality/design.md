@@ -63,7 +63,7 @@ graph TB
 - `src/yikit/feature_selection/_filter.py` — 絶対値の相関、反復による削除、`n_features_in_`・`feature_names_in_`、一定の列、クラスの docstring
 - `src/yikit/feature_selection/_wrapper.py` — BorutaPy の `random_state` と表示の設定の扱い、`perc="auto"` のシャッフルの種、進捗バーの閉じ方、クラスの docstring
 - `src/yikit/visualize/_yyplot.py`・`_permutation_importance.py`・`_optuna.py`・`_gbdt.py`・`_utils.py` — 図の不具合、フォントの戻し方、`get_data`、docstring、日本語のコメント
-- `tests/` — `test_helpers.py`・`test_logging.py`・`test_metrics.py`（新規）、`test_filtermethod.py`・`test_boruta.py`・`test_visualize.py`（拡充）、`conftest.py`（英語化）。参照画像は必要なときだけ作り直す
+- `tests/` — `test_helpers.py`・`test_logging.py`・`test_metrics.py`・`test_public_api.py`（新規。`test_public_api.py` は 7.1・7.3 の網羅の確認で、サブパッケージをまたぐので別のファイルにした）、`test_filtermethod.py`・`test_boruta.py`・`test_visualize.py`（拡充）、`conftest.py`（英語化）。参照画像は必要なときだけ作り直す
 
 ## Components and Interfaces
 
