@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import platform
+import warnings
 from itertools import accumulate
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -12,14 +13,18 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib.cbook import is_math_text
+from matplotlib.colors import to_hex
 from matplotlib.container import ErrorbarContainer
 from matplotlib.mathtext import MathTextParser
 from matplotlib.testing.compare import compare_images
 from matplotlib.text import Text
 from matplotlib.ticker import PercentFormatter
 from scipy.stats import norm
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.tree import DecisionTreeRegressor
 
+import yikit.visualize
 from yikit.visualize import (
     SummarizePI,
     set_font,
@@ -38,6 +43,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
     from ngboost import NGBRegressor  # type: ignore[reportMissingImports]
+    from ngboost.distns import Normal  # type: ignore[reportMissingImports]
 
 
 # ===========================================================================
@@ -406,8 +412,17 @@ def _make_ngb_regressor() -> NGBRegressor:
     return ngb
 
 
-def _fit_lgbm_regressor() -> LGBMRegressor:
+def _fit_lgbm_regressor(
+    eval_data: Sequence[str] = ("train", "test"),
+    eval_names: Sequence[str] | None = _LGBM_EVAL_NAMES,
+) -> LGBMRegressor:
     """Fit LightGBM on a small fixed dataset with deterministic settings.
+
+    ``eval_data`` lists the data evaluated during the fit, in order:
+    "train" is the training data itself (the same objects, which LightGBM
+    names "training" by default) and "test" the held-out data (named
+    "valid_<position>" by default). ``eval_names`` is passed to ``fit``
+    unless it is None, which keeps LightGBM's default names.
 
     The calling test is skipped when lightgbm is not installed.
     """
@@ -417,6 +432,8 @@ def _fit_lgbm_regressor() -> LGBMRegressor:
     X = rng.uniform(-1.0, 1.0, size=(100, 3))
     y = X @ np.array([3.0, -2.0, 1.0]) + rng.normal(0.0, 0.1, size=100)
     X_train, X_test, y_train, y_test = X[:80], X[80:], y[:80], y[80:]
+    data = {"train": (X_train, y_train), "test": (X_test, y_test)}
+    evaluated = [data[name] for name in eval_data]
 
     lgbm = lightgbm.LGBMRegressor(
         n_estimators=_LGBM_N_ESTIMATORS,
@@ -426,13 +443,21 @@ def _fit_lgbm_regressor() -> LGBMRegressor:
         n_jobs=1,
         verbose=-1,
     )
-    # ``eval_set`` (not ``eval_X``) keeps LightGBM 4.6 on Python 3.8 working.
-    lgbm.fit(
-        X_train,
-        y_train,
-        eval_set=[(X_train, y_train), (X_test, y_test)],
-        eval_names=list(_LGBM_EVAL_NAMES),
-    )
+    fit_params: dict[str, object] = {}
+    if evaluated:
+        # LightGBM 4.7 deprecates ``eval_set`` in favor of ``eval_X`` and
+        # ``eval_y``, which older versions (4.6 on Python 3.8) do not have.
+        if (
+            "eval_X"
+            in inspect.signature(lightgbm.LGBMRegressor.fit).parameters
+        ):
+            fit_params["eval_X"] = tuple(X_eval for X_eval, _ in evaluated)
+            fit_params["eval_y"] = tuple(y_eval for _, y_eval in evaluated)
+        else:
+            fit_params["eval_set"] = evaluated
+    if eval_names is not None:
+        fit_params["eval_names"] = list(eval_names)
+    lgbm.fit(X_train, y_train, **fit_params)
     return lgbm
 
 
@@ -441,12 +466,21 @@ def _draw_summarize_pi(fontfamily: str = FONT_FAMILY) -> Figure:
     return fig
 
 
-def _draw_dist_figure(fontfamily: str = FONT_FAMILY) -> Figure:
+def _make_normal_dist(loc: Sequence[float], scale: Sequence[float]) -> Normal:
+    """Return ngboost's normal distributions of the given means and scales.
+
+    The calling test is skipped when ngboost is not installed.
+    """
     distns = pytest.importorskip("ngboost.distns")
-    from yikit.visualize import get_dist_figure
 
     # ngboost's Normal takes the rows (loc, log(scale)).
-    y_dist = distns.Normal(np.array([_DIST_LOC, np.log(_DIST_SCALE)]))
+    return distns.Normal(np.array([loc, np.log(scale)]))
+
+
+def _draw_dist_figure(fontfamily: str = FONT_FAMILY) -> Figure:
+    y_dist = _make_normal_dist(_DIST_LOC, _DIST_SCALE)
+    from yikit.visualize import get_dist_figure
+
     return get_dist_figure(
         y_dist,
         np.array(_DIST_Y_TRUE),
@@ -1061,6 +1095,427 @@ def test_with_custom_matplotlib_settings_restores_after_error():
             fail()
 
         assert _font_settings() == before
+
+
+# ===========================================================================
+# get_dist_figure: few samples and titles
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    ("loc", "scale", "shape", "x_range"),
+    [
+        # The x axis spans the means with a margin of 5% of their range, or
+        # of three standard deviations of the widest distribution when the
+        # means span no range (one sample, or equal means).
+        pytest.param((10.0,), (4.0,), (1, 1), (-2.0, 22.0), id="one_sample"),
+        pytest.param(
+            (10.0, 25.0), (4.0, 6.0), (2, 1), (9.25, 25.75), id="two_samples"
+        ),
+        pytest.param(
+            (10.0, 10.0), (4.0, 6.0), (2, 1), (-8.0, 28.0), id="equal_means"
+        ),
+    ],
+)
+def test_get_dist_figure_with_few_samples(loc, scale, shape, x_range):
+    y_dist = _make_normal_dist(loc, scale)
+    from yikit.visualize import get_dist_figure
+
+    y_true = [mean + 1.0 for mean in loc]
+    fig, axes = get_dist_figure(
+        y_dist,
+        y_true,
+        verbose=False,
+        fontfamily=FONT_FAMILY,
+        return_axis=True,
+    )
+
+    try:
+        assert isinstance(axes, np.ndarray)
+        assert axes.shape == shape
+        assert fig.axes == list(axes.flat)
+        x = np.linspace(*x_range, 200)
+        for idx, ax in enumerate(axes.flat):
+            assert _axis_texts(ax) == (
+                f"idx: {idx}",
+                "",
+                "Probability density",
+            )
+            assert _legend_labels(ax) == ["ground truth", "pred"]
+            (line,) = ax.lines
+            density = norm.pdf(x, loc[idx], scale[idx])
+            np.testing.assert_allclose(np.ravel(line.get_xdata()), x)
+            np.testing.assert_allclose(line.get_ydata(), density)
+            for collection, x_position in zip(
+                ax.collections, (y_true[idx], loc[idx])
+            ):
+                (segment,) = collection.get_segments()
+                np.testing.assert_allclose(
+                    segment, [[x_position, 0.0], [x_position, density.max()]]
+                )
+            assert ax.get_xlim() == pytest.approx(x_range)
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("loc", "scale", "stds", "x_range"),
+    [
+        # Without a finite, positive standard deviation (such as for
+        # Student's t with df <= 2), the margin is 1.0.
+        pytest.param((10.0,), (4.0,), (np.inf,), (9.0, 11.0), id="inf"),
+        pytest.param((10.0,), (4.0,), (np.nan,), (9.0, 11.0), id="nan"),
+        pytest.param((10.0,), (4.0,), (0.0,), (9.0, 11.0), id="zero"),
+        # Otherwise only the finite, positive ones count.
+        pytest.param(
+            (10.0, 10.0),
+            (4.0, 6.0),
+            (np.inf, 6.0),
+            (-8.0, 28.0),
+            id="inf_and_finite",
+        ),
+    ],
+)
+def test_get_dist_figure_with_unusable_std(loc, scale, stds, x_range):
+    # ngboost < 0.4 has no Student's t, so the standard deviations of
+    # normal distributions are replaced instead.
+    y_dist = _make_normal_dist(loc, scale)
+    y_dist.std = lambda: np.array(stds)
+    from yikit.visualize import get_dist_figure
+
+    with warnings.catch_warnings():
+        # Matplotlib warns when it widens an empty range of the x axis.
+        warnings.simplefilter("error", UserWarning)
+        fig, axes = get_dist_figure(
+            y_dist, verbose=False, fontfamily=FONT_FAMILY, return_axis=True
+        )
+
+    try:
+        x = np.linspace(*x_range, 200)
+        for ax, mean, std in zip(axes.flat, loc, scale):
+            (line,) = ax.lines
+            np.testing.assert_allclose(np.ravel(line.get_xdata()), x)
+            np.testing.assert_allclose(
+                line.get_ydata(), norm.pdf(x, mean, std)
+            )
+            assert ax.get_xlim() == pytest.approx(x_range)
+    finally:
+        plt.close(fig)
+
+
+def test_get_dist_figure_with_t_of_infinite_std():
+    distns = pytest.importorskip("ngboost.distns")
+    if not hasattr(distns, "T"):
+        pytest.skip("ngboost < 0.4 has no Student's t distribution")
+    from yikit.visualize import get_dist_figure
+
+    # ngboost's T takes the rows (loc, log(scale), log(df)); df = 2 has an
+    # infinite standard deviation.
+    y_dist = distns.T(np.array([[0.0], [0.0], [np.log(2.0)]]))
+    assert np.isinf(y_dist.std()).all()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        fig, axes = get_dist_figure(
+            y_dist, verbose=False, fontfamily=FONT_FAMILY, return_axis=True
+        )
+
+    try:
+        (ax,) = axes.flat
+        assert ax.get_xlim() == pytest.approx((-1.0, 1.0))
+        assert np.isfinite(ax.lines[0].get_ydata()).all()
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("titles", "expected"),
+    [
+        pytest.param(None, ["idx: 0", "idx: 1", "idx: 2"], id="none"),
+        # An empty sequence stands for no titles, as before None was the
+        # default.
+        pytest.param([], ["idx: 0", "idx: 1", "idx: 2"], id="empty"),
+        pytest.param(["a", "b", "c"], ["a", "b", "c"], id="list"),
+        pytest.param(np.array([1, 2, 3]), ["1", "2", "3"], id="array"),
+    ],
+)
+def test_get_dist_figure_titles(titles, expected):
+    y_dist = _make_normal_dist(_DIST_LOC[:3], _DIST_SCALE[:3])
+    from yikit.visualize import get_dist_figure
+
+    parameters = inspect.signature(get_dist_figure).parameters
+    assert parameters["titles"].default is None
+
+    fig, axes = get_dist_figure(
+        y_dist,
+        titles=titles,
+        verbose=False,
+        fontfamily=FONT_FAMILY,
+        return_axis=True,
+    )
+
+    try:
+        assert axes.shape == (2, 2)
+        assert [ax.get_title() for ax in axes.flat] == [*expected, ""]
+        # The unused subplot is hidden.
+        assert not axes[1, 1].axison
+    finally:
+        plt.close(fig)
+
+
+def test_get_dist_figure_rejects_titles_of_wrong_length():
+    y_dist = _make_normal_dist(_DIST_LOC, _DIST_SCALE)
+    from yikit.visualize import get_dist_figure
+
+    figures = plt.get_fignums()
+    with pytest.raises(ValueError, match=r"titles.*4 samples.*got 3"):
+        get_dist_figure(y_dist, titles=["a", "b", "c"], verbose=False)
+    assert plt.get_fignums() == figures
+
+
+# ===========================================================================
+# get_learning_curve_gb: names of the evaluation data, font settings and
+# invalid models
+# ===========================================================================
+
+#: Color of the evaluation data named "train" (``COLORS`` of
+#: ``yikit.visualize._utils``), the same for NGBoost and LightGBM.
+_TRAIN_COLOR = "#283655"
+#: Color of the evaluation data named "val" or "test".
+_VALIDATION_COLOR = "#cf3721"
+
+_NGBOOST_N_ESTIMATORS = 10
+
+
+def _import_get_learning_curve_gb() -> Callable[..., object]:
+    """Return ``get_learning_curve_gb``.
+
+    The calling test is skipped when neither lightgbm nor ngboost is
+    installed, as ``yikit.visualize`` does not have the function then.
+    """
+    if "get_learning_curve_gb" not in yikit.visualize.__all__:
+        pytest.skip("get_learning_curve_gb needs lightgbm or ngboost")
+    return yikit.visualize.get_learning_curve_gb
+
+
+def _fit_ngb_regressor() -> NGBRegressor:
+    """Fit NGBoost with validation data on a small fixed dataset.
+
+    The calling test is skipped when ngboost is not installed.
+    """
+    ngboost = pytest.importorskip("ngboost")
+
+    rng = np.random.RandomState(SEED)
+    X = rng.uniform(-1.0, 1.0, size=(60, 3))
+    y = X @ np.array([3.0, -2.0, 1.0]) + rng.normal(0.0, 0.1, size=60)
+
+    # A new base learner: the default one is shared by every NGBRegressor.
+    ngb = ngboost.NGBRegressor(
+        Base=DecisionTreeRegressor(max_depth=3, random_state=SEED),
+        n_estimators=_NGBOOST_N_ESTIMATORS,
+        verbose=False,
+        random_state=SEED,
+    )
+    return ngb.fit(X[:40], y[:40], X_val=X[40:], Y_val=y[40:])
+
+
+def _line_colors(ax: Axes) -> list[str]:
+    return [to_hex(line.get_color()) for line in ax.lines]
+
+
+@pytest.mark.parametrize(
+    ("eval_data", "eval_names", "names", "colors"),
+    [
+        # LightGBM names the training data "training" and the others
+        # "valid_<position>". Names other than "train", "val" and "test"
+        # take the colors of matplotlib's color cycle in order.
+        pytest.param(
+            ("train", "test"),
+            None,
+            ["training", "valid_1"],
+            ["C0", "C1"],
+            id="training_valid_1",
+        ),
+        pytest.param(("test",), None, ["valid_0"], ["C0"], id="valid_0"),
+        pytest.param(
+            ("test", "train"),
+            None,
+            ["training", "valid_0"],
+            ["C0", "C1"],
+            id="training_valid_0",
+        ),
+        # Known names keep their colors and do not use the color cycle.
+        pytest.param(
+            ("train", "test"),
+            ("train", "holdout"),
+            ["train", "holdout"],
+            [_TRAIN_COLOR, "C0"],
+            id="known_and_custom",
+        ),
+    ],
+)
+def test_learning_curve_lightgbm_with_any_eval_names(
+    eval_data, eval_names, names, colors
+):
+    lgbm = _fit_lgbm_regressor(eval_data, eval_names)
+    from yikit.visualize import get_learning_curve_gb
+
+    fig, ax = get_learning_curve_gb(
+        lgbm, fontfamily=FONT_FAMILY, return_axis=True
+    )
+
+    try:
+        assert list(lgbm.evals_result_) == names
+        assert fig.axes == [ax]
+        assert _axis_texts(ax) == ("", "n_iter", "l2")
+        assert _legend_labels(ax) == names
+        assert len(ax.lines) == len(names)
+        for line, name in zip(ax.lines, names):
+            np.testing.assert_allclose(
+                line.get_xdata(), range(_LGBM_N_ESTIMATORS)
+            )
+            np.testing.assert_allclose(
+                line.get_ydata(), lgbm.evals_result_[name]["l2"]
+            )
+        assert _line_colors(ax) == [to_hex(color) for color in colors]
+    finally:
+        plt.close(fig)
+
+
+def test_learning_curve_ngboost_of_fitted_model():
+    ngb = _fit_ngb_regressor()
+    from yikit.visualize import get_learning_curve_gb
+
+    fig, ax = get_learning_curve_gb(
+        ngb, fontfamily=FONT_FAMILY, return_axis=True
+    )
+
+    try:
+        assert _axis_texts(ax) == ("", "n_iter", _NGBOOST_METRIC)
+        assert _legend_labels(ax) == ["train", "val"]
+        for line, name in zip(ax.lines, ["train", "val"]):
+            scores = ngb.evals_result[name][_NGBOOST_METRIC]
+            assert len(scores) == _NGBOOST_N_ESTIMATORS
+            np.testing.assert_allclose(
+                line.get_xdata(), range(_NGBOOST_N_ESTIMATORS)
+            )
+            np.testing.assert_allclose(line.get_ydata(), scores)
+        assert _line_colors(ax) == [_TRAIN_COLOR, _VALIDATION_COLOR]
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "draw",
+    [
+        pytest.param(_draw_dist_figure, id="dist_figure"),
+        pytest.param(
+            _draw_learning_curve_ngboost, id="learning_curve_ngboost"
+        ),
+        pytest.param(
+            _draw_learning_curve_lightgbm, id="learning_curve_lightgbm"
+        ),
+    ],
+)
+def test_gbdt_figures_restore_font_settings(draw):
+    with plt.rc_context(_USER_FONT_SETTINGS):
+        before = _font_settings()
+
+        fig = draw(_OTHER_FONT_FAMILY)
+
+        try:
+            assert _font_settings() == before
+            # The font family was in effect while the figure was drawn.
+            legend = fig.axes[0].get_legend()
+            assert legend.get_texts()[0].get_fontfamily() == [
+                _OTHER_FONT_FAMILY
+            ]
+        finally:
+            plt.close(fig)
+
+
+def _make_unfitted_lgbm_regressor() -> LGBMRegressor:
+    lightgbm = pytest.importorskip("lightgbm")
+    return lightgbm.LGBMRegressor()
+
+
+def _make_unfitted_ngb_regressor() -> NGBRegressor:
+    ngboost = pytest.importorskip("ngboost")
+    return ngboost.NGBRegressor()
+
+
+def _fit_lgbm_regressor_without_eval_data() -> LGBMRegressor:
+    # The record is {} in LightGBM >= 4 and None before.
+    return _fit_lgbm_regressor(eval_data=(), eval_names=None)
+
+
+def _make_ngb_regressor_with_empty_record() -> NGBRegressor:
+    ngb = _make_ngb_regressor()
+    ngb.evals_result = {}
+    return ngb
+
+
+def _make_ngb_regressor_without_scores() -> NGBRegressor:
+    ngb = _make_ngb_regressor()
+    ngb.evals_result = {name: {} for name in _NGBOOST_SCORES}
+    return ngb
+
+
+@pytest.mark.parametrize(
+    "make_model",
+    [
+        pytest.param(
+            _fit_lgbm_regressor_without_eval_data,
+            id="lightgbm_without_eval_data",
+        ),
+        pytest.param(_make_unfitted_lgbm_regressor, id="lightgbm_unfitted"),
+        pytest.param(_make_unfitted_ngb_regressor, id="ngboost_unfitted"),
+        pytest.param(
+            _make_ngb_regressor_with_empty_record, id="ngboost_empty_record"
+        ),
+        pytest.param(
+            _make_ngb_regressor_without_scores, id="ngboost_without_scores"
+        ),
+    ],
+)
+def test_learning_curve_gb_rejects_model_without_record(make_model):
+    model = make_model()
+    from yikit.visualize import get_learning_curve_gb
+
+    figures = plt.get_fignums()
+    with plt.rc_context(_USER_FONT_SETTINGS):
+        before = _font_settings()
+
+        with pytest.raises(ValueError, match="no evaluation record"):
+            get_learning_curve_gb(model, fontfamily=FONT_FAMILY)
+
+        assert _font_settings() == before
+    assert plt.get_fignums() == figures
+
+
+class _ModelWithRecord:
+    """Not a gradient boosting model, but with LightGBM's record."""
+
+    evals_result_ = {"valid_0": {"l2": [1.0, 0.5]}}
+    evals_result = evals_result_
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param(LinearRegression(), id="linear_regression"),
+        pytest.param(_ModelWithRecord(), id="model_with_record"),
+        # ``isinstance(None, ...)`` must not match a missing package.
+        pytest.param(None, id="none"),
+    ],
+)
+def test_learning_curve_gb_rejects_other_models(model):
+    get_learning_curve_gb = _import_get_learning_curve_gb()
+
+    figures = plt.get_fignums()
+    with pytest.raises(TypeError, match="NGBoost or LightGBM"):
+        get_learning_curve_gb(model, fontfamily=FONT_FAMILY)
+    assert plt.get_fignums() == figures
 
 
 # ===========================================================================

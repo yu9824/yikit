@@ -54,7 +54,7 @@
   - _Boundary: BorutaPy_
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 7.1, 7.3_
 
-- [ ] 6. visualize
+- [x] 6. visualize
 - [x] 6.1 テストの収集を optional の依存から切り離し、yyplot を直す
   - `tests/test_visualize.py` の optuna・lightgbm・ngboost の import を、使うテストの中の `pytest.importorskip` にする（ファイルが収集で失敗しない）
   - `yyplot`: 未知の指標を描く前に ValueError、`ax` を渡したときは `tight_layout` をかけない、ラベルを書いたとおりに表示する、docstring
@@ -77,7 +77,7 @@
   - 完了の状態: 上のテストと既存の optuna の図のテストが通る
   - _Requirements: 6.4, 6.7, 7.1, 7.3_
 
-- [ ] 6.4 get_dist_figure と get_learning_curve_gb を直す
+- [x] 6.4 get_dist_figure と get_learning_curve_gb を直す
   - `get_dist_figure`: サンプルが 1・2 個でも落ちない（`squeeze=False`）、`titles` の既定を None、docstring の誤字と書きかけを直す
   - `get_learning_curve_gb`: `with_custom_matplotlib_settings` で包む、任意の評価データの名前に色を割り当てる（既知の名前は今の色）、評価の記録が空なら ValueError、NGBoost・LightGBM 以外は TypeError、日本語のコメントを英語に
   - テスト（ngboost・lightgbm がなければ飛ばす）: 分布の図の 1・2 サンプル、LightGBM の既定の名前（"training"・"valid_0"）で図を返す、呼んだ後にフォントの設定が元のまま、空の記録の ValueError、既存の図のテスト
@@ -120,3 +120,4 @@
 - yyplot（6.1）: CHANGELOG に書く: 指標の行のラベルを数式の外に置くので、見た目が「R²_train = 0.98」（下付き）から「R² (train) = 0.98」に変わる（ラベルのない行は同じ）、ラベルを数式として読まなくなる（凡例でも書いたとおりの文字）、渡した ax の図に `tight_layout` をかけない、未知の指標の ValueError を描く前に出す（メッセージも変わる）。空のラベル `""` は None と同じに扱う
 - SummarizePI（6.2）: CHANGELOG に書く: `get_figure` がばらつき（正規化した反復の標準偏差、ddof=0）を誤差棒で描き、x の範囲が広がった（参照画像を作り直した）、数値の特徴量名でも重要度の大きい順に並ぶ（seaborn 0.13 では名前の順だった）、`get_figure` の後にフォントの設定を戻す、`get_data` の実装（列は `importances_mean`・`importances_std`、同じ値は入力の順）
 - optuna の学習曲線（6.3）: CHANGELOG に書く: 完了していない試行を描かなくなった（以前は失敗・実行中の試行が NaN の点になり、枝刈りの試行の中間値が最良値の線を変えうた）、多目的・方向のない・完了した試行のない study で ValueError（以前は optuna の RuntimeError・UnboundLocalError・空の図）。方向のない study は公開の API では作れないので、テストは InMemoryStorage で作る（optuna 3.0 と 4.5 は手元で未確認。CI で確かめる）
+- 分布の図と GB の学習曲線（6.4）: CHANGELOG に書く: 1・2 サンプルの分布の図が動く（予測平均の幅が 0 のときは x の範囲を「平均 ± 有限で正の標準偏差の最大値の 3 倍」、なければ ±1.0）、`titles` の既定が None（空の列も None と同じ、配列も可、長さ違いは ValueError）、`return_axis=True` の axes が常に 2 次元、`get_learning_curve_gb` が呼んだ後にフォントの設定を戻す、未知の評価データの名前を ValueError でなく matplotlib の色の順で描く、記録がない・空・未学習のモデルで理由付きの ValueError、受け付けるクラスを `LGBMModel`・`NGBoost` の基底に広げた、optional の依存がないとき None を渡すと TypeError（以前は AttributeError）
