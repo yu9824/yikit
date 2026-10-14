@@ -7,6 +7,7 @@
   - setuptools-scm の `write_to` は 8.0 から非推奨で、`version_file` に置き換わった。10.1 で `write_to_source` が入り、設定しないと非推奨の警告が出る。python-template はまだ `write_to` と `setuptools-scm[toml]>=7` を使っている
   - actions/checkout v7 は、tag の push では既定（`fetch-depth: 1`）で「push された tag だけ」を取ってくる。`fetch-depth: 0` にするとすべての tag が入り、同じコミットに rc と正式版の tag があると `git describe` が rc を選ぶことがある（annotated と lightweight が混ざるとき）。一方、tag ではない ref の手動実行では、履歴と tag がないと版が `0.1.dev1+g<hash>` になる
   - TestPyPI と PyPI はローカル版（`+g<hash>`）を受け付けない。setuptools-scm の `SETUPTOOLS_SCM_OVERRIDES_FOR_YIKIT='{local_scheme = "no-local-version-strict"}'` で、release のビルドだけローカル版を外せる（作業ツリーが汚れていればビルドを失敗させる）
+  - 0.5.0 の spec の横断のレビューの後、作者が 2026-10-14 に 3 つを決めた: D1 CI に Python 3.14 で `.[test]` だけを入れる job を 1 つ足す、D2 dependabot が ngboost の 0.5.11 以上を提案しない（0.5.11 への対応は後の版）、D3 `MANIFEST.in` で sdist から開発のためだけのファイルを外す。D1 には、module の先頭で optuna を import する 3 つのテストのファイルの手直しが要る
 
 ## Research Log
 
@@ -157,6 +158,43 @@
   - テストで版を `importlib.metadata` と比べると、手元では古い egg-info のせいで失敗する。テストは `yikit._version` と比べる
   - workflow の検査に actionlint を使える。scratchpad に置いた workflow の下書き（この design の契約どおり）は actionlint の指摘 0 件だった
 
+### optional の依存なしの job（作者の決定 D1、2026-10-14）
+- **Context**: Requirement 4.9・4.10。drop-legacy-compat で 3.14 でも ngboost が入ると、ngboost の依存の lifelines が pandas<3.0 を求め、optional を入れる CI の job では pandas 3 が入らなくなる。作者は、3.14 で `.[test]` だけを入れる job を 1 つ足し、pandas 3 と optional の依存がないときの動作をそこで確かめると決めた
+- **Sources Consulted**: yikit-dev での読み取りだけの試し（optional の依存を塞いだ pytest）、`gh api repos/yu9824/yikit/commits/f65c6ca.../check-runs`、GitHub Docs の「Running variations of jobs in a workflow」「Using jobs in a workflow」「Troubleshooting required status checks」
+- **Findings**:
+  - scratchpad の `sitecustomize.py` で `colorlog`・`tqdm`・`ngboost`・`lightgbm`・`boruta`・`optuna`・`optuna_integration` を `sys.modules[name] = None` にし、`PYTHONPATH` で読ませた（何も入れない。`importlib.util.find_spec` も None を返すので、yikit の `is_installed()` も False になる。子プロセスにも効く）
+  - その状態で `import yikit.models, yikit.visualize, yikit.metrics, yikit.feature_selection` は通る
+  - `pytest --co` は 3 つのファイルで集める段階で失敗する: `tests/test_gbdt.py`（module の先頭の `import optuna`。`lightgbm` の `importorskip` より前）、`tests/test_optuna.py`（先頭の `import optuna`）、`tests/test_search_space.py`（先頭の `from optuna.distributions import ...`）。この 3 つでは yikit の import も optuna に頼る（`yikit.models` の `Objective` などは optuna があるときだけ出る。`yikit.models._search_space` は先頭で optuna を import する）
+  - 3 つを除くと 296 passed・102 skipped（失敗なし）。他のテストは optional の依存を `pytest.importorskip` か `is_installed` で扱っている
+  - `.[test]` の依存（pytest と、scikit-learn・numpy・pandas・joblib・scipy・matplotlib・seaborn とその依存）には optional の依存が入らない
+  - check の名前: 今の main のコミットの check runs は、matrix の `test` job が `test (3.8)`〜`test (3.14)`、`name` のない docs の job が `docs`（job の ID）。GitHub Docs は `jobs.<job_id>.name` を「GitHub の UI に出る job の名前」とだけ書き、`name` がないときの名前は書いていないので、実際の check runs で確かめた
+  - matrix の `include`: GitHub Docs の決まりでは、`include` の項目は元の組み合わせの値を上書きせずに足せるなら、その組み合わせに足される。`{python-version: "3.14", extras: "test"}` は元の 3.14 の組み合わせに足され、新しい job にならない
+  - job の `if` で飛ばした job は「Success」と報告される（GitHub Docs の「Troubleshooting required status checks」）
+- **Implications**: `test-no-optional` は matrix でない別の job にし、`name` を書かない（check の名前は `test-no-optional`）。3 つのテストのファイルは、module の先頭の optuna の import を `pytest.importorskip("optuna")` の後に置く（OptionalTestGuard）。確かめは同じ塞ぎ方の pytest で、何も入れずにできる
+
+### sdist の中身と `MANIFEST.in`（作者の決定 D3、2026-10-14）
+- **Context**: Requirement 12。setuptools-scm の file finder は、git で追跡しているすべてのファイルを sdist に入れる
+- **Sources Consulted**: setuptools の docs（「Controlling files in the distribution」、「Data Files Support」）、setuptools-scm の docs（Usage の file finder）、yikit-dev の setuptools 84.0.0 のソース（`setuptools/command/egg_info.py` の `manifest_maker`、`setuptools/command/build_py.py` の `analyze_manifest`、`setuptools/command/sdist.py`）、`git ls-files` と各ファイルの大きさ、setuptools の `FileList` での試し
+- **Findings**:
+  - `MANIFEST.in` の命令: `include`・`exclude`・`recursive-include`・`recursive-exclude`・`global-include`・`global-exclude`・`graft`・`prune`（`prune` は「`dir-pattern` に当たるディレクトリの下のすべてのファイルを外す」、`global-exclude` は「ソースのツリーのどこでも、パターンに当たるファイルを外す」）
+  - setuptools 84 の `manifest_maker.run` は、`add_defaults()`（既定のファイルと、`walk_revctrl()` で setuptools-scm などの file finder が返すファイル）→ `read_template()`（`MANIFEST.in`）→ `add_license_files()` → `_add_referenced_files()`（`readme` で指したファイルなど）→ `prune_file_list()` の順に一覧を作る。`MANIFEST.in` の `prune`・`exclude` は、setuptools-scm が足したファイルにも効く。`LICENSE` と `README.md` は後から必ず足される
+  - setuptools-scm の docs: git の file finder は index をもとに一覧を作り、`git archive` と同じく `export-ignore` に従う。追跡しているが配りたくないファイルは、`MANIFEST.in` の `exclude` などか、`.gitattributes` の `export-ignore` で外せる
+  - wheel への影響: pyproject で設定すると `include-package-data` は既定で true。setuptools は `MANIFEST.in` を当てた後の一覧（egg-info の SOURCES.txt）から、パッケージのディレクトリの中の `.py` 以外のファイルを package data として wheel に入れる（`build_py.analyze_manifest` は `.py` のモジュールを飛ばす）。`.py` のモジュールは `MANIFEST.in` と関係なく入る。そのため、パッケージの外を `prune`・`exclude` しても wheel は変わらない。`global-exclude` はパッケージの中のデータのファイルにも当たりうる。今 `src/yikit` で追跡しているのは `.py` だけ
+  - `exclude` のパターンは最上位からのパスに当たり、`*` は `/` をまたがない（distutils の `FileList`）
+  - 追跡しているファイル（2026-10-14、168 個、約 3.5 MB）: `examples/` 約 2.0 MB、`.kiro/` 約 640 KB、`tests/` 約 330 KB（参照画像を含む）、`src/` 約 240 KB、`.claude/` 約 200 KB、他は小さい。最上位は `.claude/`・`.gitattributes`・`.github/`・`.gitignore`・`.kiro/`・`.python-version`・`.vscode/`・`CHANGELOG.md`・`CLAUDE.md`・`LICENSE`・`README.md`・`docs_src/`・`examples/`・`jupytext.toml`・`mypy.ini`・`pyproject.toml`・`ruff.toml`・`src/`・`tests/`
+  - `docs_src/` は `conf.py`・`index.md`・`Makefile`・`make.bat`・`_static/.gitkeep` の 5 つ（約 4 KB）
+  - design の `MANIFEST.in` を setuptools の `FileList` で `git ls-files` の一覧に当てると、168 個が 66 個になり、最上位は `CHANGELOG.md`・`LICENSE`・`README.md`・`docs_src/`・`examples/`・`pyproject.toml`・`src/`・`tests/` だけ。残る dotfile は `docs_src/_static/.gitkeep` だけ
+- **Implications**: `MANIFEST.in` は最上位のディレクトリの `prune` と、最上位のファイルの `exclude` だけで書き、`global-exclude` は使わない。`docs_src/` は残す（docs のソースで、小さく、ネットにつながらない環境でも docs を作れる。`examples/` を残すのと同じ考え）。確かめは、実装のときの `FileList` の試しと、作者の承認の後の本物の sdist の一覧
+
+### dependabot の ngboost の `ignore`（作者の決定 D2、2026-10-14）
+- **Context**: Requirement 7.4。drop-legacy-compat は ngboost の上限を `<0.5.11` にする（0.5.11 で `set_params`・`get_params` が入れ子の名前を扱うようになり、yikit はまだ合わせていない）。0.5.11 への対応は後の版に送る
+- **Sources Consulted**: GitHub Docs の「Dependabot options reference」（`ignore`）、「Controlling which dependencies are updated by Dependabot」
+- **Findings**:
+  - `ignore` の項目は `dependency-name`・`versions`・`update-types`。`versions` は版か範囲で、例に `versions: [ ">=1.0.0" ]` がある
+  - `ignore` は version updates と security updates の両方に効く
+  - `increase-if-necessary` は、新しい版が宣言の範囲の外に出たときに範囲を広げる PR を出す。今の ngboost の行（`<0.5.9; python_version < '3.14'`）には、`>=0.5.11` の `ignore` があっても、0.5.9・0.5.10 まで広げる PR が来うる
+- **Implications**: pip の項目に `dependency-name: "ngboost"`、`versions: [">=0.5.11"]` と、理由の注記（drop-legacy-compat の上限の決定）を足す。0.5.9・0.5.10 への PR は止めない（drop-legacy-compat がタスク 1 で今の行を読み直す）
+
 ## Architecture Pattern Evaluation
 
 | Option | Description | Strengths | Risks / Limitations | Notes |
@@ -166,6 +204,10 @@
 | `fetch-depth: 0` をいつも使う（公式の例） | release と docs で常に全履歴を取る | 単純 | 同じコミットの rc の tag が選ばれることがある | 不採用 |
 | `fetch-depth` を ref で切り替える | tag の push は浅く、他は全履歴 | tag の種類によらず push された tag の版になる。手動実行も正しい開発版になる | 式が 1 行増える | 採用 |
 | 必須の checks のための集約の job を足す | `test` の結果をまとめる job を 1 つ足す | 版ごとの名前を必須にしなくてよい | python-template にない。今は必須の checks がない | 不採用（Risks に記録） |
+| optional なしを別の job にする | `test-no-optional`（matrix なし、3.14、`.[test]`） | 名前が `test (3.x)` とぶつからず、飛ばしても変わらない | job の手順が `test` と少し重なる | 採用（D1） |
+| optional なしを行列の `include` にする | `{python-version: "3.14", extras: "test"}` | 1 つの job の定義で済む | 元の 3.14 の組み合わせに足されて 6 つ目の job にならない。避けるには全組み合わせに鍵を持たせ、`test (3.x)` の名前が変わる | 不採用 |
+| sdist を `MANIFEST.in` で絞る | `prune`・`exclude` | sdist だけに効き、wheel と GitHub の Source code のアーカイブは変わらない | 最上位に開発用のファイルを足すたびに見直す | 採用（D3） |
+| sdist を `.gitattributes` の `export-ignore` で絞る | setuptools-scm の file finder が従う | 1 か所で済む | GitHub の Source code のアーカイブ（`git archive`）からも消える | 不採用 |
 
 ## Design Decisions
 
@@ -214,11 +256,28 @@
 - **Rationale**: HACK の注記どおり `Iterable[T]` にすると、公開のクラスの MRO から `Generic` が外れる。振る舞いを変えないことを優先する
 - **Follow-up**: なし
 
-### Decision: sdist に git で追跡しているファイルがすべて入ることを受け入れる
-- **Context**: setuptools-scm の file finder
-- **Selected Approach**: `MANIFEST.in` を足さない（python-template と同じ）。手元のビルドで sdist の中身を一覧にして確かめる
-- **Rationale**: wheel の中身は変わらない（`src/yikit` で追跡しているのは `.py` だけ）。sdist にテストや examples が入るのは害がない。追跡しているファイルは全部で約 3.6 MB（examples が約 2 MB）
-- **Trade-offs**: sdist に `.kiro/`・`.claude/`・`examples/` も入る。除きたくなったら `MANIFEST.in` の `prune` で外す（作者への確認事項）
+### Decision: `MANIFEST.in` で開発のためだけのファイルを sdist から外す（作者の決定 D3）
+- **Context**: Requirement 12。setuptools-scm の file finder は git で追跡しているすべてのファイルを sdist に入れる。前の版の design は python-template と同じく受け入れていたが、2026-10-14 の横断のレビューの後、作者が外すと決めた
+- **Alternatives Considered**:
+  1. 受け入れる（python-template と同じ）
+  2. `MANIFEST.in` の `prune`・`exclude`
+  3. `.gitattributes` の `export-ignore`
+- **Selected Approach**: 2。`prune` は `.claude`・`.github`・`.kiro`・`.vscode`、`exclude` は `CLAUDE.md`・`.gitattributes`・`.gitignore`・`.python-version`・`ruff.toml`・`mypy.ini`・`jupytext.toml`。`global-exclude` は使わない。`docs_src/` は残す
+- **Rationale**: setuptools は file finder の後に `MANIFEST.in` を当てるので、追跡しているファイルを外せる。パッケージの外だけを外すので wheel は変わらない。`export-ignore` は GitHub の Source code のアーカイブも変える。`docs_src/` は docs のソース（約 4 KB）で、sdist だけで docs を作れるので残す
+- **Trade-offs**: 最上位に開発用のファイルを足すたびに `MANIFEST.in` を見直す（Revalidation Triggers、tech.md の Release）
+- **Follow-up**: 実装のときに `FileList` で、作者の承認の後に本物の sdist で確かめる
+
+### Decision: optional の依存なしのテストは、3.14 の別の job にする（作者の決定 D1）
+- **Context**: Requirement 4.9・4.10
+- **Selected Approach**: `test-no-optional` job（`needs: changes`、`test` と同じ `if`、`ubuntu-latest`、3.14、`pip install ".[test]"`、`pytest -ra`、`name` なし）。3 つのテストのファイルの先頭の optuna の import を `pytest.importorskip("optuna")` の後に置く
+- **Rationale**: 行列の `include` では 6 つ目の job にならないか、`test (3.x)` の名前が変わる。matrix でない job は飛ばしても名前が変わらない。テストのファイルの手直しは import の場所だけで、optional の依存がそろった環境の結果を変えない
+- **Trade-offs**: CI の job が 1 つ増える（3.14 の行列の job と同じくらいの時間）。drop-legacy-compat は、この 3 つのファイルを直すときに `importorskip` を残す
+
+### Decision: dependabot で ngboost の 0.5.11 以上を無視する（作者の決定 D2）
+- **Context**: Requirement 7.4
+- **Selected Approach**: pip の項目に `ignore: [{dependency-name: "ngboost", versions: [">=0.5.11"]}]` と、drop-legacy-compat の上限の決定を指す注記
+- **Rationale**: `increase-if-necessary` は、0.5.11 が範囲の外にある限り、範囲を広げる PR を出し続ける。0.5.11 への対応は後の版に送ったので、その PR は要らない
+- **Trade-offs**: 0.5.11 以上の security updates の PR も来ない。対応するときに `ignore` を外す
 
 ## Synthesis
 - **Generalization**: release の build と docs は、どちらも「tag の push では push された tag の版、それ以外では最後の tag からの開発版」という同じ問題を持つ。checkout の `fetch-depth` に同じ式を使い、別々の工夫をしない
@@ -228,10 +287,12 @@
   - 同じ版の 2 回目は `pypa/gh-action-pypi-publish` の `skip-existing` を使う
   - 変更の判定は `dorny/paths-filter` を使う（python-template と同じ）
 - **Simplification**:
-  - 必須の checks のための集約の job、`MANIFEST.in`、`fallback_version`、setuptools-scm の `tag` の設定は置かない（今の要件に要らない）
+  - 必須の checks のための集約の job、`fallback_version`、setuptools-scm の `tag` の設定は置かない（今の要件に要らない）
+  - `MANIFEST.in` は最上位の `prune` と `exclude` だけにし、`global-exclude` や `include` を使わない
+  - optional なしの job は、手順を `test` と同じにし、入れる extra と Python の版だけを変える
   - CI の test job の checkout は既定のまま（版の値をテストで使わない）
   - `__init__.py` は python-template の形をそのまま使う
-- **使った skill**: kiro-spec-requirements・kiro-spec-design・kiro-spec-tasks の手順と規則だけ。他の skill は使っていない
+- **使った skill**: kiro-spec-requirements・kiro-spec-design・kiro-spec-tasks の手順と規則だけ。他の skill は使っていない。2026-10-14 の横断のレビューの後の手直し（D1〜D3 ほか）では、kiro-spec-design の design-review-gate と kiro-spec-tasks の tasks-generation の規則で、traceability・境界・タスクの番号と `_Requirements:_` を確かめ直した（subagent は使わず inline）
 
 ## Risks & Mitigations
 - 必須の checks を将来、版ごとの名前（`test (3.12)` など）で設定すると、テストを飛ばした実行で待ちのまま残る — 今は main に保護がない。設定するときは `changes` のように matrix でない job を必須にするか、結果をまとめる job を足す（tech.md に書く）
@@ -241,6 +302,9 @@
 - main から git で入れる人には、v0.5.0-rc.1 の tag までの間、版が `0.4.1.devN` に見える（0.5.0 を求める側からは選ばれない） — release-0.5.0 で rc の tag を早めに付ける
 - git の情報も PKG-INFO もない場所（GitHub の自動の Source code のアーカイブなど）ではビルドが失敗する — PyPI の sdist を使ってもらう。`fallback_version` は付けない（誤った版の配布物を作らないため）
 - Python 3.10 のサポートが 2026-10-31 に終わる — 3.10 は作者の決定で残す。setup-python が 3.10 を配らなくなったら行列から外す
+- 後で module の先頭に optional の依存の import を足すと `test-no-optional` が落ちる — tech.md の「テスト」の CI の項目に `pytest.importorskip` を使うと書く
+- 最上位に開発用のファイルを足したとき、`MANIFEST.in` に足し忘れると sdist に入る — tech.md の Release と Revalidation Triggers に書く
+- dependabot の ngboost の `ignore` で、0.5.11 以上の security updates の PR も来ない — 0.5.11 への対応（後の版）で外す
 
 ## References
 - [setuptools-scm: Configuration](https://setuptools-scm.readthedocs.io/en/latest/config/) — `version_file`、`write_to_source`、`write_to` の非推奨、環境変数
@@ -253,3 +317,10 @@
 - [actions/python-versions versions-manifest](https://github.com/actions/python-versions) — Ubuntu の各版に配っている Python
 - [yu9824/python-template](https://github.com/yu9824/python-template) — そろえる先
 - [PEP 639](https://peps.python.org/pep-0639/) — ライセンスの式とファイル
+- [setuptools: Controlling files in the distribution](https://setuptools.pypa.io/en/latest/userguide/miscellaneous.html) — `MANIFEST.in` の命令、既定で sdist に入るファイル
+- [setuptools: Data Files Support](https://setuptools.pypa.io/en/latest/userguide/datafiles.html) — `include-package-data` の既定（pyproject では true）と、`MANIFEST.in`・file finder と package data の関係
+- [setuptools-scm: Usage](https://setuptools-scm.readthedocs.io/en/latest/usage/) — git の file finder（index、`export-ignore`）と、`MANIFEST.in` で外すこと
+- [Running variations of jobs in a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/run-job-variations) — matrix の `include` が元の組み合わせに足される決まり
+- [Using jobs in a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-jobs) — `jobs.<job_id>` と `jobs.<job_id>.name`
+- [Dependabot options reference](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference) — `ignore`（version updates と security updates に効く）
+- [Controlling which dependencies are updated by Dependabot](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated) — `versions: [ ">=1.0.0" ]` の例

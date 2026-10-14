@@ -1,12 +1,14 @@
 # Implementation Plan
 
 - [ ] 1. 前提を確かめ、依存の宣言を消す分岐が要る版にそろえる
-  - packaging-and-ci が main に入っていることを確かめる（`requires-python = ">=3.10"`、`typing_extensions` の行がない、`ruff.toml` が `py310`、CI の行列が 3.10〜3.14）。入っていなければ作業を止めて作者に知らせる
+  - packaging-and-ci が main に入っていることを確かめる（`requires-python = ">=3.10"`、`typing_extensions` の行がない、`ruff.toml` が `py310`、CI の行列が 3.10〜3.14、CI に Python 3.14 で `.[test]` だけを入れる job がある）。入っていなければ作業を止めて作者に知らせる
+  - 手元の環境を確かめる: 作業ツリーに `src/yikit/_version.py` があり、yikit-dev で `yikit.__version__` が `"unknown"` でないこと。どちらかが満たされなければ、作者に承認を求め、packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1。setuptools-scm を入れ、build isolation を使わず依存も入れ直さずに editable を入れ直す）と同じ手順で入れ直す。承認がなければ何も入れず、基準で落ちる `tests/test_version.py` のテストを既知の失敗として Implementation Notes に書く（4.1 の判定から除く）
   - main から作業ブランチを切る。この spec の文書（`.kiro/specs/drop-legacy-compat/`）が main になければ、基準を取る前に作業ブランチにコミットする（Implementation Notes と CHANGELOG の材料は tasks.md に書くため）
   - 何かを変える前に、手元で `python -m pytest -ra --junitxml=<リポジトリの外の固定の場所>/baseline.xml` を実行し、テストごとの結果（node ID と passed・skipped・failed）をリポジトリの外に残す。置いた場所のパスも Implementation Notes に書く（4.1 が別の作業セッションで行われても読めるように、セッションごとに消える scratchpad には置かない）。全体とファイルごとの passed・skipped などの数と skip の理由の一覧、design の Validation Hooks の legacy grep の行数を Implementation Notes に記録する（2.5 と 4.1 で比べる基準。yikit-dev の editable は作業ツリーを読むので、後からは取り直せない）
-  - `dependencies` の scikit-learn・seaborn と、`optional` の lightgbm・ngboost・optuna・optuna-integration の行を design の DependencyDeclaration の表のとおりにする。ngboost は環境の条件を消して上限を `<0.5.11` にし、上限の理由の 1 行のコメントを付ける。他の行、他の extra、`[build-system]` などの節は変えない
-  - 完了の状態: `tomllib` で読んだ依存の行が design の表と一致し、`python_version` を含む行がなく、yikit-dev に入っている各ライブラリの版が新しい範囲を満たす（`packaging.requirements` で照らす。読み取りだけ）。基準の XML がリポジトリの外にあり、Implementation Notes に基準の数（全体とファイルごと）と grep の行数がある
-  - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2_
+  - 今の `pyproject.toml` の ngboost の行を読み直し、Implementation Notes に書く（この spec が始まる前に、dependabot の PR が `<0.5.9` を広げていることがある）。design の表の「今」の列を前提にしない
+  - `dependencies` の scikit-learn・seaborn と、`optional` の lightgbm・ngboost・optuna・optuna-integration の行を design の DependencyDeclaration の表の 0.5.0 の列のとおりにする。ngboost は、今の行がどれでも、環境の条件を消して `>=0.4,<0.5.11` にし、上限の理由の 1 行のコメントを付ける。他の行、`test`・`dev`・`docs` の extra、`[build-system]` などの節は変えない
+  - 完了の状態: `tomllib` で読んだ依存の行が design の表と一致し、`python_version` を含む行がなく、`test`・`dev`・`docs` の extra が変わっておらず、yikit-dev に入っている各ライブラリの版が新しい範囲を満たす（`packaging.requirements` で照らす。読み取りだけ）。基準の XML がリポジトリの外にあり、Implementation Notes に、手元の版のファイルの確認の結果（または既知の失敗）、読み直した ngboost の行、基準の数（全体とファイルごと）、grep の行数がある
+  - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 7.2_
 
 - [ ] 2. 古い版のための分岐を、ファイルのまとまりごとに消す
 - [ ] 2.1 (P) helpers と feature_selection から scikit-learn<1.0 と Boruta<0.4 の記述と判定を消す
@@ -68,11 +70,12 @@
   - _Requirements: 3.1, 3.3, 3.4, 3.5, 4.1, 4.2, 5.1, 5.2, 5.4_
 
 - [ ] 3. steering の tech.md と product.md を 0.5.0 の依存の方針に書き換える
-  - tech.md の互換性、Key Libraries、Core Technologies の Framework と Core deps の行を、design の SteeringDocs のとおりに書き換える（下限は消した分岐が要る版だけ、下限は CI で確かめない、古い環境は 0.4.x の系列、6 つのライブラリの下限と ngboost の上限とその理由、0.5.11 の扱い、dependabot の上限の PR の扱い）
+  - tech.md の互換性、Key Libraries、Core Technologies の Framework と Core deps の行を、design の CompatSteering のとおりに書き換える（下限は消した分岐が要る版だけ、下限は CI で確かめない、古い環境は 0.4.x の系列、6 つのライブラリの下限と ngboost の上限とその理由、0.5.11 への対応を後のリリースに回したこと、dependabot の ngboost の `ignore`、ngboost による pandas<3.0）。型のためだけの import の決まりは書き直さず、「型」の節を参照する
+  - tech.md の Key Technical Decisions の「optional extra に重い依存を寄せる」の理由から「古い環境」を外し、design の CompatSteering の文にする。項目の名前と他の項目は変えない
   - product.md の Target Use Cases と Value Proposition の古い環境についての 2 つの記述を書き換える。両方の `updated_at` を更新する
   - packaging-and-ci が持つ節（Language、型、コードの品質、テストの CI の項目、Development Environment、Release）と、他の節、structure.md、roadmap.md には触らない
-  - 完了の状態: tech.md と product.md に「1.0.0 まで上げない」「古い環境でも動く」の記述がなく、Key Libraries に 6 つのライブラリの下限（ngboost は上限も）と理由があり、`git diff -- .kiro/steering` で packaging-and-ci の節に変更がない
-  - _Requirements: 1.3, 2.4, 6.1, 6.2, 6.3_
+  - 完了の状態: tech.md と product.md に「1.0.0 まで上げない」「古い環境でも動く」「古い環境や軽い用途で」の記述がなく、Key Libraries に 6 つのライブラリの下限（ngboost は上限も）と理由、0.5.11 を後に回したことと dependabot の `ignore` があり、`git diff -- .kiro/steering` で packaging-and-ci の節と、Key Technical Decisions の他の項目に変更がない
+  - _Requirements: 1.3, 2.4, 6.1, 6.2, 6.3, 6.4_
 
 - [ ] 4. 統合の確認
 - [ ] 4.1 手元で静的検査・型検査・legacy grep・テストの全体を通し、基準と比べる
@@ -80,7 +83,7 @@
   - design の Validation Hooks の legacy grep を実行する
   - `python -m pytest -ra --junitxml=<1 と同じ場所>/after.xml` で全体を実行し、1 の基準の XML とテストの node ID ごとに比べる。違いが、消したテスト・足したテスト・古い版のための skip の分だけであることを確かめる
   - 各サブパッケージの `__init__.py` と `__all__` に変更がないことを `git diff` で確かめる
-  - 完了の状態: ruff と mypy がエラー 0 件、legacy grep の出力が `tests/test_boruta.py` の 1 行だけ、pytest に failed と error がなく、node ID ごとの違いの内訳（消した・足した・skip でなくなった）が Implementation Notes に書かれている
+  - 完了の状態: ruff と mypy がエラー 0 件、legacy grep の出力が `tests/test_boruta.py` の 1 行だけ、pytest に failed と error がなく（1 で既知の失敗とした `tests/test_version.py` のテストは除き、それが基準と同じ結果であることだけを見る）、node ID ごとの違いの内訳（消した・足した・skip でなくなった）が Implementation Notes に書かれている
   - _Requirements: 3.1, 3.2, 3.3, 3.5, 4.1, 4.2, 4.5, 5.1, 5.2, 5.3_
 
 - [ ] 4.2 作者の承認を得て ngboost 0.5.10 でテストを回し、0.5.11 の違いを記録する
@@ -91,27 +94,30 @@
   - 完了の状態: Implementation Notes に、入れた ngboost の版、0.5.10 での pytest の結果、0.5.11 で落ちたテストの一覧（または承認がなかったこと）が書かれ、上限の理由の記述がその結果と合っている
   - _Requirements: 2.2, 2.4, 7.2, 7.4_
 
-- [ ] 4.3 作業ブランチで CI を手動実行し、Python 3.10〜3.14 で通ることと、3.14 で ngboost のテストが走ることを確かめる
-  - 作業ブランチを push し、CI を手動実行する。下限の版を入れて試す job は足さず、tag も付けない
-  - 5 つの job の結果と、各 job の `pip install` の log から scikit-learn・lightgbm・ngboost・optuna・optuna-integration・seaborn・pandas の版を記録する。3.14 の job の skip の一覧に ngboost のテストがないことを確かめる
+- [ ] 4.3 作業ブランチで CI を手動実行し、Python 3.10〜3.14 と、optional の依存のない 3.14 で通ることと、3.14 で ngboost のテストが走ることを確かめる
+  - 作業ブランチを push し、CI を手動実行する。下限の版を入れて試す job は足さず、tag も付けない。workflow は変えない（packaging-and-ci が持つ）
+  - optional の依存を入れるテストの 5 つの job の結果と、各 job の `pip install` の log から scikit-learn・lightgbm・ngboost・optuna・optuna-integration・seaborn・pandas の版を記録する。3.14 の job の skip の一覧に ngboost のテストがないことを確かめる
+  - 同じ run で、packaging-and-ci の 3.14 の `.[test]` だけの job（作者が 2026-10-14 に決定。pandas 3 と、optional の依存がないときの動作を受け持つ）の結果を確かめる。log から pandas と scikit-learn の版を記録し、pandas 3 以上が入り、optional の依存が入っていないことを確かめる
   - 失敗したら原因を直す。分岐を残す必要があるとき（宣言した範囲で結果が変わるとき）や、コードの振る舞いを変える必要があるときは作者に相談する
-  - pandas 3 が CI のどの版でも入らなくなること（ngboost の依存の lifelines が pandas<3.0 を求める）を作者に報告し、その判断を Implementation Notes に書く。pandas 3 を CI で試し続けるための workflow の変更が要るなら、それは packaging-and-ci の側の作業で、この spec では判断を記録するだけにする
   - Implementation Notes の CHANGELOG の材料を、確かめた結果（CI で入った版、0.5.11 の扱い）で更新する
-  - 完了の状態: その run でテストの 5 つの job がすべて成功し、5 つの job のすべてに ngboost 0.5.10 が入り、3.14 の job で ngboost のテストが skip されていない。run の ID、各 job の版、pandas 3 についての作者の判断、更新した CHANGELOG の材料が Implementation Notes に書かれている
-  - _Requirements: 1.4, 2.1, 2.3, 4.4, 7.1, 7.3_
+  - 完了の状態: その run で、optional の依存を入れるテストの 5 つの job と、3.14 の `.[test]` だけの job がすべて成功し、5 つの job のすべてに ngboost 0.5.10 が入り、ngboost を入れる 3.14 の job で ngboost のテストが skip されていない。run の ID、各 job の版（`.[test]` だけの job の pandas を含む）、更新した CHANGELOG の材料が Implementation Notes に書かれている
+  - _Requirements: 1.4, 2.1, 2.3, 3.5, 4.4, 4.6, 7.1, 7.3_
 
 ## Implementation Notes
+- `tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py` は、packaging-and-ci（OptionalTestGuard）で先頭の optuna と yikit の import が `pytest.importorskip("optuna")` の後に移っている。2.2・2.3・2.4 でこの 3 つを直すときも、その順を保つ（optional の依存なしの job でテストを集められなくなるため）
 - 共通: 何かを入れる・ダウンロードする前（scratchpad への `pip download` や `pip install --target` も含む）に作者の承認を得る。`conductivity-prediction-old` には何も入れない。tag を付けず、下限の版を試す CI の job を作らない
 - 共通: packaging-and-ci と共有するファイル（`pyproject.toml`、`.kiro/steering/tech.md`、`src/yikit/visualize/_yyplot.py`）では、design の Boundary Commitments の行と節だけを触る
 - 共通: 書き換えたコメントや docstring が legacy grep（design の Validation Hooks）に掛からないようにする（例: 「ngboost 0.3」「scikit-learn < 1.0」と書かない）。ファイルを限って grep を実行すると、各タスクの完了を確かめられる
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
+- 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
+- 1: ngboost の行は、この spec の前に dependabot の PR で `<0.5.9` が広がっていることがある（packaging-and-ci の dependabot の `ignore` は 0.5.11 以上だけを止める）。読み直した行をここに書く
 - 2.x: `ruff.toml` では F401 が unfixable。使われなくなった import は手で消す（例: `_validation.py`・`_ensemble.py` の `re`・`sklearn`、`_search_space.py` の `BaseEstimator`、`_permutation_importance.py` の `is_argument`、テストの `sklearn`・`SelectorMixin`）
 - 2.5: 図のテストの参照画像は作り直さない（`--save-reference-figures` を使わない）
 - 2.7: `tests/test_ensemble.py` の import を塞ぐテストは、2.3 の前に `optuna_integration` だけを塞ぐと、optuna 5 の `optuna.integration` が名前のない `ModuleNotFoundError` を出し直して `cause.name in blocked` が落ちる
-- 0.5.11 への対応（この spec の外）の材料: 0.5.11 は `set_params` が入れ子の名前を `Base` に渡し、`get_params(deep=True)` が `Base__*` を返す。合わせるには、`ignores_nested_set_params` を振る舞いで判定し、`ParamDistributions` の警告と `EnsembleRegressor` の docstring を版に合わせ、`test_ngboost_detection_matches_its_set_params` などを見直す。0.5.11 の既定の木の `criterion` は `"squared_error"`
+- 0.5.11 への対応（この spec の外。後のリリースに回すと作者が 2026-10-14 に決定。`.github/dependabot.yml` の ngboost の `ignore` は packaging-and-ci が足す）の材料: 0.5.11 は `set_params` が入れ子の名前を `Base` に渡し、`get_params(deep=True)` が `Base__*` を返す。合わせるには、`ignores_nested_set_params` を振る舞いで判定し、`ParamDistributions` の警告と `EnsembleRegressor` の docstring を版に合わせ、`test_ngboost_detection_matches_its_set_params` などを見直す。0.5.11 の既定の木の `criterion` は `"squared_error"`
 - release-0.5.0 の CHANGELOG の材料:
   - 依存の下限を上げた: scikit-learn>=1.0（0.24.1 から。`feature_names_in_`・`get_feature_names_out`・`"squared_error"` を前提にする）、seaborn>=0.12（`barplot` の `errorbar`）、lightgbm>=4.0（LightGBM 3 の扱いをやめた）、ngboost>=0.4（0.3.6 から。`set_params` の扱い）、optuna>=3.2（3.0 から。optuna-integration 4.1 以上が `optuna.terminator` を使うため）、optuna-integration>=4.1（下限なしから。`OptunaSearchCV.predict` が普通のメソッド）
-  - ngboost は Python 3.14 でも入る。上限は `<0.5.9` から `<0.5.11` に上げた。0.5.11 は `set_params`・`get_params` の変更に yikit がまだ合わせていないので外している（入っていれば pip が 0.5.10 に下げる）
+  - ngboost は Python 3.14 でも入る。上限は `<0.5.9` から `<0.5.11` に上げた。0.5.11 は `set_params`・`get_params` の変更に yikit がまだ合わせていないので外している（入っていれば pip が 0.5.10 に下げる）。0.5.11 への対応は後のリリースで行う
   - `OptunaSearchCV` は optuna-integration からだけ使う。optuna-integration を入れずに optuna 3.x の `optuna.integration` で `EnsembleRegressor(opt=True)` を使っていた環境では ImportError になる（`pip install "yikit[optional]"` で入る）
   - 公開 API と、宣言した範囲の版での結果は変わらない。古い環境（Python 3.8・3.9、scikit-learn<1.0 など）は 0.4.x を使う
-  - 3.14 でも ngboost が入るので、lifelines を通じて pandas<3.0 になる（ngboost を入れた環境）
+  - 3.14 でも ngboost が入るので、lifelines を通じて pandas<3.0 になる（ngboost を入れた環境）。pandas 3 では、optional の依存を入れない 3.14 の CI の job で試している

@@ -67,8 +67,8 @@
   - 下限 `ngboost>=0.4`: `_build_ignores_nested_set_params` の比較を消すと、0.4.0 以降の `set_params` を前提にする。Student's t の skip も消せる
   - `log_likelihood` は 0.5.9〜0.5.11 でもソースの上では同じ値を返す。上限を決めるのは models の側で、0.5.11 の `set_params` の変更が「入れ子の名前は無視される」という `ignores_nested_set_params`・`ParamDistributions` の警告・`EnsembleRegressor` の docstring とずれる。0.5.11 では `OptunaSearchCV` で `Base__*` を探索すると実際に効くので、0.5.10 までと結果も変わる
   - 上限は `<0.5.11`。0.5.9・0.5.10 は Python 3.14 に対応しているので、環境の条件（`python_version < '3.14'`）を消しても 3.14 で ngboost が入る。上限を残したまま条件だけ消すと、3.14 では入る版がなくて解決に失敗するので、両方を同時に変える
-  - 0.5.11 への対応（入れ子の名前を渡すかどうかを振る舞いで判定し、警告と docstring を版に合わせる）は、この spec の外の作業として残す
-  - 3.14 でも ngboost が入ると、lifelines を通じて pandas<3.0 になる。CI のどの版でも pandas 3 は入らなくなる
+  - 0.5.11 への対応（入れ子の名前を渡すかどうかを振る舞いで判定し、警告と docstring を版に合わせる）は、この spec の外の作業として残す（後のリリースに回すと作者が 2026-10-14 に決定。下の「spec の間のレビューでの決定」）
+  - 3.14 でも ngboost が入ると、lifelines を通じて pandas<3.0 になる。optional を入れる CI の job では pandas 3 は入らなくなる（pandas 3 は packaging-and-ci の 3.14 の `.[test]` だけの job が受け持つ）
 
 ### optuna と optuna-integration の下限（3.2 と 4.1）
 - **Context**: import の代わりの場所と `predict` の上書きを消すのに要る版
@@ -90,6 +90,16 @@
   - matplotlib・joblib の分岐（matplotlib<3.10 の凡例、`LegendLocType`、joblib<1.3）は下限を書かないので残す
 - **Implications**: 下限を書くのは scikit-learn・seaborn・lightgbm・ngboost・optuna・optuna-integration の 6 つだけ（Boruta は今のまま）
 
+### spec の間のレビューでの決定（2026-10-14）
+- **Context**: packaging-and-ci との突き合わせで、作者に確かめた 3 点（D1〜D3）のうち、この spec に関わるもの
+- **Findings**:
+  - D1（CI）: packaging-and-ci が、Python 3.14 で `.[test]` だけ（optional の依存なし）を入れて pytest を回す job を 1 つ足す。ngboost を入れる job では lifelines が pandas<3.0 を求めるので、pandas 3 はこの job で試し、optional の依存がないときの動作もここで確かめる。job の形と名前は packaging-and-ci が決める
+  - D2（ngboost 0.5.11）: 0.5.0 は `ngboost>=0.4,<0.5.11`（Python の版の条件なし）のまま。0.5.11 の入れ子の `set_params`・`get_params` への対応は、どちらの spec でも行わず、後のリリースに回す。`.github/dependabot.yml` に ngboost の 0.5.11 以上の `ignore` を packaging-and-ci が足す（この spec の上限の決定を参照する）。この spec の作業の前に dependabot の PR が `<0.5.9` を 0.5.9・0.5.10 まで広げていることはありうる
+  - D3（sdist の中身）: packaging-and-ci の `MANIFEST.in`。この spec には関わらない
+  - 手元の環境: packaging-and-ci の後は `yikit.__version__` を `src/yikit/_version.py` から読み、ないと `tests/test_version.py` が落ちる。この spec の基準を取る前に、版のファイルがあることを確かめる
+  - steering の持ち分: `tech.md` の「型」の `TYPE_CHECKING` の決まりは packaging-and-ci が残す。Key Technical Decisions の「古い環境や軽い用途で」の句は、どちらの spec の持ち分でもなかったので、この spec が持つ。`test`・`dev`・`docs` の extra はどちらの spec も変えない
+- **Implications**: タスク 1 に手元の版のファイルの確認と ngboost の行の読み直しを、タスク 3 に Key Technical Decisions の句を、タスク 4.3 に `.[test]` だけの job の確認を足した（Requirement 4.6、6.4）。design の steering の部品の名前を CompatSteering にした（packaging-and-ci の PackagingSteering と分けるため）
+
 ### 使ったスキルと規則
 - kiro-spec-requirements、kiro-spec-design（design-principles、design-discovery-light、design-synthesis、design-review-gate）、kiro-spec-tasks（tasks-generation、tasks-parallel-analysis）の各ファイル。共有の文脈（`spec-0.5.0-context.md`）の決定と禁止事項（インストールとダウンロードをしない、spec のディレクトリの外に書かない）に従った。ソースは GitHub の raw のファイルと API を読むだけにした
 
@@ -110,8 +120,8 @@
   3. `<0.5.9` のまま、3.14 の除外も残す
 - **Selected Approach**: 2。0.5.9・0.5.10 は yikit が使う部分が 0.5.8 と同じで、3.14 に対応している
 - **Rationale**: 0.5.11 は `log_likelihood` には影響しないが、`set_params`・`get_params` の変更で yikit の判定・警告・docstring がずれ、`OptunaSearchCV` での探索の結果も変わる。合わせるには新しい判定と警告の変更が要り、この spec の範囲（新しい機能を足さない、宣言した範囲で振る舞いを変えない）を越える
-- **Trade-offs**: 最新の ngboost（0.5.11）を入れた環境では、pip が 0.5.10 に下げる。dependabot が上限を広げる PR を出すことがある
-- **Follow-up**: 作者の承認を得て、手元で 0.5.10 のテストを回す。0.5.11 で落ちるテストを記録し、対応の作業を作者に確認する
+- **Trade-offs**: 最新の ngboost（0.5.11）を入れた環境では、pip が 0.5.10 に下げる。0.5.11 以上へ上限を広げる dependabot の PR は、packaging-and-ci が足す `ignore` で出なくなる
+- **Follow-up**: 作者の承認を得て、手元で 0.5.10 のテストを回す。0.5.11 で落ちるテストを記録し、後のリリースの対応の材料にする（対応を後に回すことは作者が 2026-10-14 に決定）
 
 ### Decision: 下限を書く 6 つのライブラリと版
 - **Context**: Requirement 1。作者の決定は「消した分岐が要る分だけ」
@@ -129,7 +139,7 @@
 - **Alternatives Considered**: 1. 実行時に import する（numpy>=1.21 の下限が要る） 2. 型のための import として残し、numpy<1.21 のコメントだけを消す
 - **Selected Approach**: 2
 - **Rationale**: `from __future__ import annotations` の下では実行時に要らない。他のモジュール（`_gbdt.py`、`_ensemble.py`、`_validation.py`）も同じ書き方をしている。numpy に下限を書かないという作者の決定と合う
-- **Trade-offs**: なし（`tech.md` の「型」は packaging-and-ci が持ち、この spec では触らない）
+- **Trade-offs**: なし（`tech.md` の「型」は packaging-and-ci が持ち、「新しい版の numpy などにしかない型は `TYPE_CHECKING` の中で import する」の決まりを残す。この spec の「互換性」はそれを参照するだけで、書き直さない）
 
 ### Decision: `best_iteration_` は `estimator_.best_iteration_` から読む
 - **Context**: LightGBM 3 では `best_iteration_` が None のままになるので booster から読んでいた
@@ -141,8 +151,9 @@
 - 下限の版の組み合わせを CI で試さない — 各下限はソースや changelog で確かめた API だけに頼る。3.10 の job でも最新に近い版しか入らないことを tech.md に書く
 - ngboost 0.5.10 を手元で試していない（yikit-dev は 0.5.8） — 作者の承認のもとで入れて試すタスクを置く。承認がなくても、CI の 5 つの版が 0.5.10 を入れて試す
 - 3.14 の job で ngboost の図のテストが初めて走る — dev-foundation の比べ方（文字を消す、RMS 1.0）は版に左右されにくい。失敗したら原因を調べ、図の比べ方を変える必要があれば作者に相談する
-- 3.14 でも pandas<3.0 になる（lifelines） — pandas 3 を CI で試さなくなることを報告する（作者への確認事項）
-- dependabot が ngboost の上限を広げる PR を出す — 0.5.11 に対応するまでマージしないことを tech.md の Key Libraries に書く
+- 3.14 でも pandas<3.0 になる（lifelines） — packaging-and-ci の 3.14 の `.[test]` だけの job が pandas 3 を試す（作者が 2026-10-14 に決定）。タスク 4.3 でこの job が通ることを確かめる
+- dependabot が ngboost の上限を広げる PR を出す — 0.5.11 以上は packaging-and-ci が足す `ignore` で止まる。この spec の前に `<0.5.9` を広げる PR が入っていることはあるので、タスク 1 で今の行を読み直す。tech.md の Key Libraries に `ignore` と、0.5.11 を後に回したことを書く
+- 手元に `src/yikit/_version.py` がないと `tests/test_version.py` が落ちる — タスク 1 で確かめ、なければ作者の承認を得て入れ直す。承認がなければ既知の失敗として基準に記録し、4.1 の判定から除く
 - optuna-integration なしで optuna 3.2〜3.6 だけを入れていた利用者は、`opt=True` が ImportError になる — 案内のメッセージは今のまま。CHANGELOG の材料に書く
 
 ## References

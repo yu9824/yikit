@@ -3,16 +3,17 @@
 ## Project Description (Input)
 yikit 0.4.x は、作者の古いオフライン環境（Python 3.8）のために、古いビルドの書き方を続けている。`setuptools>=61` と表の形の `license`（新しい setuptools では 2027-02-18 に期限が切れる非推奨の書き方）を使い、版番号は `src/yikit/__init__.py` に手で書くので、リリースのたびに版を上げる PR が要り、tag と版がずれるおそれがある。CI はサポートの終わった 3.8・3.9 を含む 7 つの版を回し、そのために runner を `ubuntu-24.04` に固定している。
 
-0.5.0 では Python の下限を 3.10 に上げ、ビルドと CI を作者の python-template にそろえる。PEP 639 の `license` と `setuptools>=77.0.3` を使い、版番号は setuptools-scm で git の tag から決める（`vX.Y.Z` は `X.Y.Z`、`vX.Y.Z-rc.N` は `X.Y.ZrcN`）。CI・release・docs の workflow と dependabot を python-template にそろえ、ruff と mypy の対象を 3.10 にして、3.8・3.9 向けの書き分けを消す。steering の `tech.md` を 0.5.0 に合わせる。ライブラリの依存の下限と古い版のための分岐は drop-legacy-compat が持つ。詳しい背景は `brief.md` を参照。
+0.5.0 では Python の下限を 3.10 に上げ、ビルドと CI を作者の python-template にそろえる。PEP 639 の `license` と `setuptools>=77.0.3` を使い、版番号は setuptools-scm で git の tag から決める（`vX.Y.Z` は `X.Y.Z`、`vX.Y.Z-rc.N` は `X.Y.ZrcN`）。CI・release・docs の workflow と dependabot を python-template にそろえ、ruff と mypy の対象を 3.10 にして、3.8・3.9 向けの書き分けを消す。steering の `tech.md` を 0.5.0 に合わせる。2026-10-14 の作者の決定で、CI に optional の依存を入れない Python 3.14 の job を 1 つ足し、dependabot が ngboost の 0.5.11 以上を提案しないようにし、`MANIFEST.in` で sdist から開発のためだけのファイルを外す。ライブラリの依存の下限と古い版のための分岐は drop-legacy-compat が持つ。詳しい背景は `brief.md` を参照。
 
 ## Introduction
-yikit の作者が、0.5.0 から Python 3.10 以上だけを対象にし、tag を push するだけで正しい版番号の配布物を公開できるようにする。CI・release・docs の workflow と dependabot は python-template の書き方にそろえ、手元の ruff と mypy は Python 3.10 を対象にする。この spec は公開 API と計算の結果を変えない。変わるのは、入れられる Python の版、版番号の決まり方、ビルドと workflow の設定、手元の検査の対象の版である。Python 3.8・3.9 の環境は 0.4.x の系列が受け持つ。
+yikit の作者が、0.5.0 から Python 3.10 以上だけを対象にし、tag を push するだけで正しい版番号の配布物を公開できるようにする。CI・release・docs の workflow と dependabot は python-template の書き方にそろえ、手元の ruff と mypy は Python 3.10 を対象にする。この spec は公開 API と計算の結果を変えない。変わるのは、入れられる Python の版、版番号の決まり方、sdist の中身、ビルドと workflow の設定、手元の検査の対象の版である。Python 3.8・3.9 の環境は 0.4.x の系列が受け持つ。
 
 ## Boundary Context
-- **In scope**: 対応する Python の版の宣言、ライセンスとビルドの要件の宣言、版番号の決め方と `yikit.__version__`、CI・release・docs の workflow、dependabot、手元の ruff と mypy の対象の版と、Python 3.8・3.9 向けの書き分けの削除、steering（`tech.md`）のうち Python・型・コードの品質・CI・Release・開発環境の記述、README の Python の版の記述
-- **Out of scope**: ライブラリの依存の下限と上限、ngboost の条件、ライブラリの古い版のための分岐とそのテスト（drop-legacy-compat）、CHANGELOG と tag の作成とリリース（release-0.5.0）、下限の版を入れて試す CI の job（作らないと 2026-10-14 に決めた）、0.4.x の保守用ブランチ、CI での ruff・mypy の実行、PyPI・TestPyPI の trusted publishing の登録の変更
+- **In scope**: 対応する Python の版の宣言、ライセンスとビルドの要件の宣言、版番号の決め方と `yikit.__version__`、sdist の中身、CI・release・docs の workflow（optional の依存なしでテストする job を含む）と、optional の依存がない環境でテストが読み込めること、dependabot（ngboost の 0.5.11 以上を提案から外すことを含む）、手元の ruff と mypy の対象の版と、Python 3.8・3.9 向けの書き分けの削除、steering（`tech.md`）のうち Python・型・コードの品質・CI・Release・開発環境の記述、README の Python の版の記述
+- **Out of scope**: `pyproject.toml` の `[project] dependencies` と `optional` の extra にあるライブラリの行（下限・上限・ngboost の条件）と、ライブラリの古い版のための分岐とそのテスト（drop-legacy-compat）。`test`・`dev`・`docs` の extra は、この spec も drop-legacy-compat も変えない。ngboost 0.5.11 の `set_params`・`get_params` の変更への対応（2026-10-14 に作者が後の版に送ると決めた）。CHANGELOG と tag の作成とリリース（release-0.5.0）、下限の版を入れて試す CI の job（作らないと 2026-10-14 に決めた）、0.4.x の保守用ブランチ、CI での ruff・mypy の実行、PyPI・TestPyPI の trusted publishing の登録の変更
 - **Adjacent expectations**:
-  - drop-legacy-compat は、この spec の Python 3.10〜3.14 の CI と、3.10 を対象にした ruff・mypy の上で作業する。`pyproject.toml` の依存の行は drop-legacy-compat が触る。この spec が依存の行で触るのは、Python 3.10 未満のための `typing_extensions` の行だけ
+  - drop-legacy-compat は、この spec の Python 3.10〜3.14 の CI（optional の依存なしの 3.14 の job を含む）と、3.10 を対象にした ruff・mypy の上で作業する。`pyproject.toml` の `[project] dependencies` と `optional` の extra のライブラリの行は drop-legacy-compat が触る。この spec が依存の行で触るのは、Python 3.10 未満のための `typing_extensions` の行だけ
+  - drop-legacy-compat は ngboost の上限を `<0.5.11` にする（2026-10-14 の作者の決定）。この spec は、その決定に合わせて dependabot が ngboost の 0.5.11 以上を提案しないようにする
   - release-0.5.0 は、この spec の後に tag の push だけで 0.5.0 を出す。版を上げるコミットは作らない
   - PyPI と TestPyPI の trusted publishing は、今の release workflow のファイル名と環境の名前（`pypi`・`testpypi`）で登録されている。この spec はそれを前提にし、登録を変えない
 
@@ -61,6 +62,8 @@ yikit の作者が、0.5.0 から Python 3.10 以上だけを対象にし、tag 
 6. The CI shall リポジトリの内容と pull request を読む権限だけで動き、書き込みの権限を持たない
 7. The CI shall Python の版のために runner の OS の版を固定せず、GitHub が標準とする Ubuntu の runner で動く
 8. The CI shall ruff と mypy を実行しない（作者が手元で実行する）
+9. When テストに関わるファイルが変わっていたとき、または CI を手動実行したとき, the CI shall Python 3.14 で、optional の依存を入れずに test の依存だけを入れてテストを実行する job を、Python の版ごとのテストの job（`test (3.x)`）とは別の、ぶつからない名前で実行する
+10. If optional の依存が入っていない環境でテストを実行したとき, the yikit のテスト shall optional の依存を使うテストだけを skip し、テストの module の読み込みで失敗せずに、残りのテストを実行して通す
 
 ### Requirement 5: リリースの workflow
 **Objective:** As yikit の作者, I want tag を push するだけで正しい版番号の配布物が公開されること, so that リリースの手順を減らし、版の誤りを防げる
@@ -90,6 +93,7 @@ yikit の作者が、0.5.0 から Python 3.10 以上だけを対象にし、tag 
 1. When この spec の変更が入ったとき, the workflow（CI・release・docs）shall 2026-10-14 の時点で最新の major 版の GitHub Actions の部品を使う
 2. When workflow で使う GitHub Actions の部品に新しい版が出たとき, the dependabot shall それらの更新を1つの pull request にまとめて提案する
 3. The dependabot shall pip の依存の更新の方針（宣言の範囲内の新しい版では pull request を作らない）を変えない
+4. The dependabot shall ngboost の 0.5.11 以上の版への更新を提案せず、その設定に、外す理由（drop-legacy-compat が決めた上限 `<0.5.11`）を示す注記を持つ
 
 ### Requirement 8: 手元での静的検査と型検査の対象
 **Objective:** As yikit の開発者, I want ruff と mypy が Python 3.10 を対象に検査すること, so that 3.10 以上で使える書き方に揃い、古い版向けの書き分けが残らない
@@ -111,8 +115,8 @@ yikit の作者が、0.5.0 から Python 3.10 以上だけを対象にし、tag 
 **Objective:** As yikit の開発者と AI のエージェント, I want steering と README が 0.5.0 の決まりを示すこと, so that 後の作業（drop-legacy-compat、release-0.5.0）が古い前提で進まない
 
 #### Acceptance Criteria
-1. When この spec の変更が入ったとき, the steering（`tech.md`）shall Python の版、型の決まり、コードの品質（ruff・mypy の対象）、CI、Release の手順（tag と版番号の対応、手動実行の扱い、ビルドの要件）、開発環境の手順を 0.5.0 の内容で示す
-2. The steering の更新 shall `tech.md` の互換性と Key Libraries の節と `product.md` を変えない（drop-legacy-compat が持つ）
+1. When この spec の変更が入ったとき, the steering（`tech.md`）shall Python の版、型の決まり、コードの品質（ruff・mypy の対象）、CI（optional の依存なしの job を含む）、Release の手順（tag と版番号の対応、手動実行の扱い、ビルドの要件、sdist の中身）、開発環境の手順を 0.5.0 の内容で示す
+2. The steering の更新 shall `tech.md` のうち Core Technologies の Language の行、型、コードの品質、テストの CI の項目、Development Environment、Release の節だけを変え、Core Technologies の Framework・Core deps の行、互換性、Key Libraries、Key Technical Decisions の節と `product.md` を変えない（drop-legacy-compat が持つ）
 3. Where README に対応する Python の版の記述があるとき, the README shall 3.10 以上と示す
 
 ### Requirement 11: 環境と公開に影響する確認の扱い
@@ -122,3 +126,11 @@ yikit の作者が、0.5.0 から Python 3.10 以上だけを対象にし、tag 
 1. If 確かめるために手元の環境へパッケージを入れる（scratchpad へのダウンロードや `--target` への展開も含む）必要があるとき, the 開発の手順 shall 作者の承認を得てから行う
 2. If 確かめるために release workflow を手動実行して TestPyPI に公開するとき, the 開発の手順 shall 作者の確認を得てから行う
 3. The packaging-and-ci の作業 shall tag の作成とリリースを行わず、docs の公開先を書き換える手動実行もしない
+
+### Requirement 12: sdist の中身
+**Objective:** As yikit の作者, I want sdist に開発のためだけのファイルが入らないこと, so that AI のエージェントの指示や CI・エディタの設定を配らず、利用者と再配布する人に要るものだけを出せる
+
+#### Acceptance Criteria
+1. When sdist をビルドしたとき, the sdist shall 開発のためだけのファイル（`.kiro/`・`.claude/`・`CLAUDE.md`、`.github/`、`.vscode/`、リポジトリの最上位の `.gitignore`・`.gitattributes`・`.python-version`、`ruff.toml`・`mypy.ini`・`jupytext.toml`）を含まない
+2. When sdist をビルドしたとき, the sdist shall パッケージのソース（`src/` と生成された版のファイル）、`tests/`（参照画像を含む）、`examples/`、`docs_src/`、`LICENSE`、`README.md`、`CHANGELOG.md`、`pyproject.toml` を含む
+3. When sdist から wheel をビルドしたとき, the ビルド shall 成功し、wheel の中身は sdist の中身を絞る設定によって変わらない
