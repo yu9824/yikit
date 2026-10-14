@@ -117,7 +117,7 @@
   - _Requirements: 10.1, 10.2, 10.3_
 
 - [ ] 6. 統合の確認
-- [ ] 6.1 作業ブランチで CI を手動実行し、Python 3.10〜3.14 と optional の依存なしの job が通ることを確かめる
+- [x] 6.1 作業ブランチで CI を手動実行し、Python 3.10〜3.14 と optional の依存なしの job が通ることを確かめる
   - 作業ブランチを push し、CI を手動実行する。変更の判定の手順が飛ばされ、テストの 5 つの job と optional なしの job が走ることを確かめる
   - optional なしの job の `pip install` の log から、optional の依存（optuna・lightgbm・ngboost・Boruta・tqdm・colorlog）が入っておらず、pandas が 3 系であることを確かめる
   - 失敗したら原因を直す。コードの振る舞いを変える必要があるときは作者に相談する
@@ -132,6 +132,7 @@
   - 完了の状態: 2 つの run の ID と、公開した版、TestPyPI の値が Implementation Notes に書かれている
   - _Depends: 3.2_
   - _Requirements: 5.5, 5.6, 5.9, 11.2_
+  - _Blocked: 作者の決定（2026-10-14）で行わない。TestPyPI への公開は release-0.5.0 の `v0.5.0-rc.1` の tag で確かめる（手動実行の経路は確かめないまま残る）_
 
 ## Implementation Notes
 - 作者の決定（2026-10-14、実装の開始時）:
@@ -161,6 +162,7 @@
   - wheel の一覧: v0.4.0（setuptools 84 で作り直し、PyPI の 0.4.0 の wheel と同じ 83,421 bytes）が 29 個、v0.5.0 が 30 個で、差は `yikit/_version.py` だけ。ライセンスは setuptools 84 ではどちらも `.dist-info/licenses/LICENSE` にあり、design の「ライセンスのファイルの差」は出ない。中身が変わったモジュールは `git diff v0.4.0 b69c88d -- src` の 4 つと同じ。オフラインの `pip install --dry-run` で、Python 3.8・3.9 は 0.4.0、3.10・3.14 は 0.5.0 を選ぶ
   - sdist: 78 ファイル。最上位は `CHANGELOG.md`・`LICENSE`・`MANIFEST.in`・`PKG-INFO`・`README.md`・`docs_src`・`examples`・`pyproject.toml`・`setup.cfg`・`src`・`tests`。外すもの 11 種は 0 件。追跡しているファイルから外すものを除いた 68 個に、`PKG-INFO`・`setup.cfg`・`src/yikit/_version.py`（`'0.5.0'`）と egg-info の 7 個を足した数と一致。wheel のパッケージのファイルは追跡している `src/yikit` の 24 個と `_version.py` だけで、MANIFEST.in は wheel を変えない。sdist から wheel のビルドも通る
   - 展開した sdist の tests で pytest: 702 passed・542 warnings（rootdir は展開した sdist、yikit は editable）
+- 6.1 の結果（2026-10-15、作者の決定で手動実行の代わりに PR #37 の CI、run 38608922267）: `changes` と `test (3.10)`〜`test (3.14)`、`test-no-optional` の 7 つがすべて成功。check の名前 `test-no-optional` は `test (3.x)` とぶつからない。`test-no-optional` は Python 3.14 で pandas 3.0.6・scikit-learn 1.9.1・numpy 2.5.4 が入り、optional の依存（optuna・lightgbm・ngboost・Boruta・tqdm・colorlog）は入っていない。298 passed・105 skipped。`test (3.10)` は scikit-learn 1.7.2・pandas 2.3.3・numpy 2.2.6・ngboost 0.5.8 で 703 passed、`test (3.14)` は pandas 3.0.6 で 643 passed・59 skipped（ngboost は marker でまだ入らない）。CI の版は `0.1.dev1+g<hash>`（浅い clone）
 - 4.2・4.3: 浅い clone は `git init` の後に `git fetch --no-tags --depth=1 file://<clone> +refs/tags/<tag>:refs/tags/<tag>` と `git checkout <tag>` で作る（ローカルのパスでは `--depth` が効かないので `file://` を使う）。`v0.4.0` の wheel は、その tag を checkout した clone で `python -m build --wheel --no-isolation` すれば、yikit-dev の setuptools 84 だけで作れる。展開した sdist でのテストは `python -m pytest -ra -p no:cacheprovider <展開した場所>/tests` で、yikit は yikit-dev の editable のものが読まれる
 - 作者か release-0.5.0 に渡す確認（この spec のタスクにしない）:
   - 同じコミットに annotated の rc の tag と lightweight の正式版の tag があると、全履歴のビルド（release と docs の branch での手動実行、手元のビルドと editable）で `git describe` が rc の tag を選ぶ（3.2 のレビューと 4.2 で再現）。tag のコミットそのものでも `0.5.0` ではなく `0.5.0rc1` になり、その後は `0.5.1.devN` ではなく `0.5.0rc2.devN` になる。どちらも PEP 440 で `0.5.0` より小さく、3.3 が成り立たない。release の直後に main で docs を手動実行すると、公開中の docs が `0.5.0rc1` の版で上書きされる。tag の push のビルド（深さ 1、push した tag だけ）には影響しない
