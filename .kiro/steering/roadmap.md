@@ -57,7 +57,7 @@ yikit 0.4.0 を出すための残りの作業です。0.4.0-rc.0 はすでに Py
 - [x] module-quality -- モデル以外のモジュール（helpers・logging・metrics・feature_selection・visualize）の英語の docstring とテスト。Dependencies: dev-foundation
 - [x] optuna-tuning -- 探索範囲の共通ファイル、入れ子の解決、RecommendedParams、モデルの追加と削除、`Objective` が利用者の引数を上書きしない扱い。Dependencies: dev-foundation
 - [x] ensemble-on-sklearn -- EnsembleRegressor を sklearn の Voting・Stacking で作り直す。Dependencies: optuna-tuning
-- [ ] packaging-and-ci -- 0.5.0。Python>=3.10、PEP 639 の license と setuptools>=77、setuptools-scm で tag から版を決める、CI・release・docs の workflow と dependabot を python-template にそろえる、ruff・mypy の対象を 3.10 にして 3.8・3.9 向けの書き分けを消す。Dependencies: none。spec は 2026-10-14 に作成済み（実装は未着手）
+- [x] packaging-and-ci -- 0.5.0。Python>=3.10、PEP 639 の license と setuptools>=77、setuptools-scm で tag から版を決める、CI・release・docs の workflow と dependabot を python-template にそろえる、ruff・mypy の対象を 3.10 にして 3.8・3.9 向けの書き分けを消す。Dependencies: none。2026-10-15 に実装した（PR #37）。TestPyPI の手動実行（タスク 6.2）は作者の決定で行わず、release-0.5.0 の rc の tag で確かめる
 - [ ] drop-legacy-compat -- 0.5.0。scikit-learn<1.0・LightGBM 3・ngboost 0.3・optuna 3.0〜3.6 と古い optuna-integration・seaborn<0.12 のための分岐とテストを消し、依存の下限をそれに必要な分だけ上げる。ngboost の 3.14 での除外と `<0.5.9` の上限を見直す。Dependencies: packaging-and-ci。spec は 2026-10-14 に作成済み（実装は未着手）
 
 ## Phase 2: 0.5.0

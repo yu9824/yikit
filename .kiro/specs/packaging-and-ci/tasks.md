@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. 基盤: ビルドの宣言と版番号の出どころ
+- [x] 1. 基盤: ビルドの宣言と版番号の出どころ
 - [x] 1.1 パッケージの宣言を、Python 3.10 以上・PEP 639 のライセンス・tag からの版に切り替える
   - 何かを変える前に、手元で `python -m pytest -ra` を実行し、passed・skipped・failed などの数を Implementation Notes に記録する（2.2・2.3・4.1 で比べる基準。yikit-dev の editable は常に作業ツリーの `src` を読むので、後からは取り直せない）
   - 対応する Python を 3.10 以上にし、分類を 3.10〜3.14 にする。Python 3.10 未満のための `typing_extensions` の依存の行を消す。他の依存の行（`dependencies` と `optional` のライブラリの下限など）は触らない（drop-legacy-compat が持つ）。`test`・`dev`・`docs` の extra も変えない
@@ -25,7 +25,7 @@
   - 完了の状態: `pytest tests/test_version.py` で、版の代わりの値のテストが通り、版のファイルのテストは「版のファイルがない、入れ直す」という案内で失敗する（4.1 の入れ直しの後に通る）。`ruff check` と `ruff format --check` がこのテストのファイルでエラー 0 件
   - _Requirements: 3.4, 3.5_
 
-- [ ] 2. 手元の検査とテストを、Python 3.10 と optional の依存なしの CI に合わせる
+- [x] 2. 手元の検査とテストを、Python 3.10 と optional の依存なしの CI に合わせる
 - [x] 2.1 ruff と mypy の対象を Python 3.10 にする
   - ruff の対象の版を 3.10 にする。規則・除外・必須の import・行の長さは変えない
   - mypy の対象の版を 3.10 にする。対象のファイルと `ignore_missing_imports` は変えない
@@ -45,7 +45,7 @@
   - 完了の状態: 塞いだ pytest で collection の error と failed が 0 件で、skip の理由が optional の依存がないことだけ。塞がない `python -m pytest -ra` の結果が、`tests/test_version.py` のテストを除いて 1.1 の基準と同じ数。`ruff check src tests` と `ruff format --check src tests` がエラー 0 件。塞いだ pytest の passed・skipped の数を Implementation Notes に書く
   - _Requirements: 4.10, 9.2_
 
-- [ ] 3. workflow・dependabot・sdist の設定を、python-template と作者の決定（2026-10-14）に合わせる
+- [x] 3. workflow・dependabot・sdist の設定を、python-template と作者の決定（2026-10-14）に合わせる
 - [x] 3.1 (P) CI を、変更の判定の job、Python 3.10〜3.14 のテストの job、optional の依存なしの job にする
   - 変更の判定の job を足す: pull request を読む権限を足し、全履歴で checkout し、手動実行では判定を飛ばす。判定の対象のパスは今の起動の条件と同じ一覧
   - テストの job は判定の結果か手動実行のときだけ走り、`ubuntu-latest` で 3.10〜3.14 の 5 つの版を、ある版の失敗で他を止めずに、test と optional の依存を入れて `pytest -ra` で回す
@@ -86,7 +86,7 @@
   - _Boundary: SdistManifest_
   - _Requirements: 12.1, 12.2, 12.3_
 
-- [ ] 4. 手元でのビルドと版の確認（作者の承認が要る）
+- [x] 4. 手元でのビルドと版の確認（作者の承認が要る）
 - [x] 4.1 作者の承認を得て setuptools-scm を入れ、editable を入れ直して、テストと検査を通す
   - 作者に、yikit-dev に setuptools-scm（10.1 以上。依存の vcs-versioning を含む）を入れる承認を求める。承認がなければ 4.1〜4.3 を行わずに 5 と 6 に進む。そのときは、手元で確かめられなかった要件（2.4、3.4 の手元での確認、3.6、9.3、12.1〜12.3 の本物の sdist での確認（3.5 の試しは済んでいる）、および 4.2 の版の対応）を最後の報告に書く（6.1・6.2 の CI と手動実行で確かめられるのは一部だけ）。build isolation を使うビルドやインストール（setuptools-scm を取りに行く）は、承認がない限り実行しない。承認がないときは 4.1〜4.3 のチェックを付けずに残し、理由を Implementation Notes に書く
   - 入れ直しは build isolation を使わず、依存も入れ直さない（`--no-build-isolation --no-deps`）。他のダウンロードを起こさない
