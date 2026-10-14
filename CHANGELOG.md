@@ -2,6 +2,10 @@
 
 Notable changes to yikit. Git tags use `vX.Y.Z-rc.N`, and PyPI shows the same versions as `X.Y.ZrcN`.
 
+## [0.4.0] - 2026-10-14
+
+The first stable release of 0.4. There are no changes since 0.4.0-rc.1. If you upgrade from 0.3.x, read [0.4.0-rc.1](#040-rc1---2026-10-14) and [0.4.0-rc.0](#040-rc0---2026-01-28).
+
 ## [0.4.0-rc.1] - 2026-10-14
 
 This release candidate makes these changes:
@@ -145,5 +149,6 @@ Many of these changes break existing code, and they are marked **Breaking**. If 
 - `get_dist_figure` is exported only when ngboost is installed, and `get_learning_curve_gb` only when ngboost or LightGBM is installed.
 - Python 3.13 and 3.14 are supported, and Python 3.7 and 3.8 are dropped (3.8 is restored in 0.4.0-rc.1). ngboost is not installed on Python 3.14.
 
+[0.4.0]: https://github.com/yu9824/yikit/compare/v0.4.0-rc.1...v0.4.0
 [0.4.0-rc.1]: https://github.com/yu9824/yikit/compare/v0.4.0-rc.0...v0.4.0-rc.1
 [0.4.0-rc.0]: https://github.com/yu9824/yikit/compare/v0.3.19...v0.4.0-rc.0
