@@ -108,7 +108,7 @@
   - 完了の状態: METADATA の該当の行、wheel の一覧の差、sdist の中身の一覧（最上位と、外したもの・残したものの照らし合わせ）、展開した sdist での pytest の数が Implementation Notes に書かれ、design の BuildMetadata と SdistManifest の契約どおり
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.4, 9.3, 11.1, 12.1, 12.2, 12.3_
 
-- [ ] 5. steering の tech.md の該当の節を 0.5.0 に合わせ、README を確かめる
+- [x] 5. steering の tech.md の該当の節を 0.5.0 に合わせ、README を確かめる
   - Core Technologies の Language、型、コードの品質、テストの CI の項目、Development Environment、Release を design の PackagingSteering のとおりに書き換える（tag と版番号の対応、手動実行の扱い、editable の入れ直し、optional の依存なしの job とテストで `importorskip` を使うこと、必須の checks を設定するときの注意、sdist を絞る設定と、最上位にファイルを足したときの見直し、workflow のファイル名と trusted publishing の関係を含む）。`updated_at` を更新する
   - 型の節の「新しい版の numpy などにしかない型は `TYPE_CHECKING` の中で import する」は残す（drop-legacy-compat の互換性の節が参照する）
   - Core Technologies の Framework・Core deps、互換性、Key Libraries、Key Technical Decisions、その他の節と `product.md` には触らない（drop-legacy-compat が持つか、どちらの spec も触らない）
