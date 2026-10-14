@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. 基盤: ビルドの宣言と版番号の出どころ
-- [ ] 1.1 パッケージの宣言を、Python 3.10 以上・PEP 639 のライセンス・tag からの版に切り替える
+- [x] 1.1 パッケージの宣言を、Python 3.10 以上・PEP 639 のライセンス・tag からの版に切り替える
   - 何かを変える前に、手元で `python -m pytest -ra` を実行し、passed・skipped・failed などの数を Implementation Notes に記録する（2.2・2.3・4.1 で比べる基準。yikit-dev の editable は常に作業ツリーの `src` を読むので、後からは取り直せない）
   - 対応する Python を 3.10 以上にし、分類を 3.10〜3.14 にする。Python 3.10 未満のための `typing_extensions` の依存の行を消す。他の依存の行（`dependencies` と `optional` のライブラリの下限など）は触らない（drop-legacy-compat が持つ）。`test`・`dev`・`docs` の extra も変えない
   - ライセンスを SPDX の式 `Apache-2.0` で宣言し、ライセンスのファイルを配布物に含める。3.8 のための表の形とそのコメントを消す
@@ -11,7 +11,7 @@
   - 完了の状態: `python -c "import tomllib; ..."` で読んだ pyproject の `requires-python`・`license`・`license-files`・classifiers・`[build-system]`・`[tool.setuptools_scm]` が design のとおりで、`[tool.setuptools.dynamic]` と `typing_extensions` の行がなく、`git diff` で他の依存の行と `test`・`dev`・`docs` の extra に変更がない
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.7_
 
-- [ ] 1.2 `yikit.__version__` を、生成された版のファイルから読むようにする
+- [x] 1.2 `yikit.__version__` を、生成された版のファイルから読むようにする
   - 版のファイルがあればそこから読み、なければ `"unknown"` にする。ファイルの有無で分け、import の例外を握りつぶさない（python-template と同じ形）
   - 手で書いた版番号を消す。docstring とライセンス・作者などの値は残す
   - 生成される版のファイルを、場所を限って git の追跡から外す
@@ -134,9 +134,14 @@
   - _Requirements: 5.5, 5.6, 5.9, 11.2_
 
 ## Implementation Notes
+- 作者の決定（2026-10-14、実装の開始時）:
+  - 4.1〜4.3 は build isolation を使う。一時的なビルド用の環境に setuptools・setuptools-scm をダウンロードするのは承認済み。yikit-dev には setuptools-scm を入れず、変えるのは yikit の editable の入れ直し（`pip install -e . --no-deps`、isolation あり）だけ。手元のビルドは `python -m build`（isolation あり）。タスクの本文の `--no-build-isolation`・`--no-isolation` の代わりにこれを使う
+  - 6.1 は、作業の最後に開く PR の CI で確かめる（手動実行の代わり）
+  - 6.2 は行わない。TestPyPI への公開は release-0.5.0 の `v0.5.0-rc.1` の tag で確かめる（手動実行の経路は確かめないまま残る）
 - 共通: 何かを入れる・ダウンロードする前（scratchpad への `pip download` や `pip install --target` も含む）に作者の承認を得る。setuptools-scm を入れるまで `pip install -e .` を実行しない（build isolation で setuptools-scm を取りに行くため）
 - 共通: 本物のリポジトリに tag を付けない。docs の workflow を手動実行しない（`force_orphan` で公開中の docs を書き換える）
 - 共通: drop-legacy-compat はこの spec の後に、同じ `pyproject.toml`・`tech.md`・`src/yikit/visualize/_yyplot.py` と、2.3 で触る 3 つのテストのファイルを触る。この spec では design の Boundary Commitments の行と節だけを触る。drop-legacy-compat は 4.1（editable の入れ直し）の手順を参照している（番号を変えない）
+- 1.1 の基準（2026-10-14、変更の前、yikit-dev の Python 3.12.15・pytest 9.1.1）: `python -m pytest -ra -p no:cacheprovider` で 700 collected、700 passed・0 skipped・0 failed・0 error・0 xfail・542 warnings（optional の依存がすべて入った環境）
 - 1.3・4.1: リポジトリの最上位に古い `yikit.egg-info`（0.3.15、gitignore されている）があり、最上位で `python -m pytest` や `python -c` を実行すると `importlib.metadata.version("yikit")` がこれを読む。版の比較は `yikit._version` とする
 - 2.2: `ruff.toml` では F401 が unfixable。自動修正の後に残る `import sys` は手で消す（`--fixable F401` を CLI で付けてもよい）。UP036 の修正は `--unsafe-fixes` が要る
 - 2.3: 塞ぎ方は `sys.modules[name] = None`（`import` は `ModuleNotFoundError`、`importlib.util.find_spec` は None を返す）。`PYTHONDONTWRITEBYTECODE=1` と `-p no:cacheprovider` を付け、リポジトリに cache を残さない。2026-10-14 の変更の前は、3 つのファイルが集める段階で失敗し、残りは 296 passed・102 skipped だった。`importorskip` の後の import には `# noqa: E402` を付ける

@@ -214,3 +214,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# setuptools-scm generated version file
+src/yikit/_version.py
