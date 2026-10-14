@@ -7,50 +7,62 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - '**/*.py'
-      - 'tests/**'
-      - 'packages/**'
-      - '.github/workflows/CI.yml'
-      - 'pyproject.toml'
-      - 'setup.py'
-      - 'setup.cfg'
-      - 'requirements*.txt'
-      - 'tox.ini'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'src/**'
-      - '**/*.py'
-      - 'tests/**'
-      - 'packages/**'
-      - '.github/workflows/CI.yml'
-      - 'pyproject.toml'
-      - 'setup.py'
-      - 'setup.cfg'
-      - 'requirements*.txt'
-      - 'tox.ini'
 
 jobs:
+  # Decide here instead of with `on.<event>.paths`: a workflow skipped by
+  # `paths` leaves required checks pending, while a job skipped by `if` passes.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - uses: dorny/paths-filter@v4
+      id: filter
+      if: github.event_name != 'workflow_dispatch'
+      with:
+        filters: |
+          code:
+            - 'src/**'
+            - '**/*.py'
+            - 'tests/**'
+            - 'packages/**'
+            - '.github/workflows/CI.yml'
+            - 'pyproject.toml'
+            - 'setup.py'
+            - 'setup.cfg'
+            - 'requirements*.txt'
+            - 'tox.ini'
+
   test:
-    runs-on: ubuntu-24.04
-    # Pinned: setup-python does not publish Python 3.8/3.9 builds for ubuntu-26.04.
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-      # max-parallel: 7
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      # max-parallel: 5
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
     # - name: Add conda to system path
@@ -60,6 +72,27 @@ jobs:
     - name: Install dependencies
       run: |
         pip install ".[test,optional]"
+    - name: Test with pytest
+      run: |
+        pytest -ra
+
+  # Tests without the optional extra (and with pandas 3).
+  # No `name` and no matrix: the check is named by the job ID, which does
+  # not clash with `test (3.x)` and stays the same when the job is skipped.
+  test-no-optional:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+    - name: Setup Python 3.14
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.14"
+    - name: Install dependencies
+      run: |
+        pip install ".[test]"
     - name: Test with pytest
       run: |
         pytest -ra

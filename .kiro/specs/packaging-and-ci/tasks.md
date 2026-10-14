@@ -46,7 +46,7 @@
   - _Requirements: 4.10, 9.2_
 
 - [ ] 3. workflow・dependabot・sdist の設定を、python-template と作者の決定（2026-10-14）に合わせる
-- [ ] 3.1 (P) CI を、変更の判定の job、Python 3.10〜3.14 のテストの job、optional の依存なしの job にする
+- [x] 3.1 (P) CI を、変更の判定の job、Python 3.10〜3.14 のテストの job、optional の依存なしの job にする
   - 変更の判定の job を足す: pull request を読む権限を足し、全履歴で checkout し、手動実行では判定を飛ばす。判定の対象のパスは今の起動の条件と同じ一覧
   - テストの job は判定の結果か手動実行のときだけ走り、`ubuntu-latest` で 3.10〜3.14 の 5 つの版を、ある版の失敗で他を止めずに、test と optional の依存を入れて `pytest -ra` で回す
   - optional の依存なしの job を、行列ではない別の job として足す: テストの job と同じ判定の条件で走り、Python 3.14 で test の依存だけを入れて `pytest -ra` を回す。job の名前は書かず、job の ID（`test-no-optional`）が check の名前になるようにする
@@ -152,6 +152,7 @@
 - 3.5: `FileList` は `from setuptools._distutils.filelist import FileList`。`git ls-files` の一覧を `extend` し、`MANIFEST.in` のコメントでない各行を `process_template_line` に渡す。2026-10-14 の追跡しているファイルでは 168 個が 66 個になった。本物の sdist には、これに `PKG-INFO`・`setup.cfg`・`MANIFEST.in`・`src/yikit.egg-info/`・`src/yikit/_version.py` が加わる
 - 4.2・4.3: 浅い clone は `git init` の後に `git fetch --no-tags --depth=1 file://<clone> +refs/tags/<tag>:refs/tags/<tag>` と `git checkout <tag>` で作る（ローカルのパスでは `--depth` が効かないので `file://` を使う）。`v0.4.0` の wheel は、その tag を checkout した clone で `python -m build --wheel --no-isolation` すれば、yikit-dev の setuptools 84 だけで作れる。展開した sdist でのテストは `python -m pytest -ra -p no:cacheprovider <展開した場所>/tests` で、yikit は yikit-dev の editable のものが読まれる
 - 作者か release-0.5.0 に渡す確認（この spec のタスクにしない）:
+  - CI の `concurrency`（`cancel-in-progress: true`、今のまま）と job の中の判定の組み合わせ: main にコードの push N の実行中にコード以外だけの push N+1 が来ると、N の実行が取り消され、N+1 は差分にコードがないのでテストを飛ばす。N のコードは PR の CI で通っているが、main の上では走らない。気になるなら `cancel-in-progress: ${{ github.event_name == 'pull_request' }}` にする（3.1 のレビューの指摘。design は concurrency を変えないと決めている）
   - テストを飛ばす判定（4.1・4.4）: PR の差分全体を比べるので、マージの前には観察できない。マージの後、コード以外のファイルだけを変える main への最初の push（例: release-0.5.0 の CHANGELOG）で、`test` と `test-no-optional` が skipped・実行が success になることを見る。この spec の中では、3.1 の静的な確認（`on` に `paths` がなく、テストの job に `if` がある）で代える
   - tag の push での公開（5.1〜5.4）: rc の tag（`v0.5.0-rc.1`）で PyPI・TestPyPI・pre-release の GitHub Release、正式版の tag で PyPI・TestPyPI・GitHub Release に出ること（release-0.5.0 が行う）
   - docs の版（6.1・6.2）: 正式版の tag で公開された docs の版が tag の版であること（release-0.5.0 の v0.5.0 で見る）
