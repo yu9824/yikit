@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.20.0
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: Python 3.9.13 ('yikit')
 #     language: python
@@ -13,33 +13,54 @@
 # ---
 
 # %%
-from yikit.models import GBDTRegressor, EnsembleRegressor
-from sklearn.ensemble import RandomForestRegressor
 import numpy as np
+import optuna
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
-from sklearn.datasets import load_diabetes
-import pickle
 from joblib import Parallel, delayed
+from sklearn.datasets import load_diabetes
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import LinearSVR
+
+from yikit.helpers import tqdm_joblib
+from yikit.models import EnsembleRegressor, GBDTRegressor
+
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 # %%
 SEED = 334
 
 # %%
 diabetes = load_diabetes()
-X = pd.DataFrame(diabetes['data'], columns = diabetes['feature_names'])
-y = pd.Series(diabetes['target'])
+X = pd.DataFrame(diabetes["data"], columns=diabetes["feature_names"])
+y = pd.Series(diabetes["target"])
 
 # %%
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = SEED)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=SEED
+)
 
 # %%
-methods = ('average', 'blending', 'stacking')
+methods = ("average", "blending", "stacking")
+
 
 def f(method):
-    model = EnsembleRegressor(estimators = [RandomForestRegressor(n_estimators = 100, random_state = SEED), GBDTRegressor(random_state = SEED)], random_state = SEED, method = method, boruta = False, n_jobs=-1)
+    model = EnsembleRegressor(
+        estimators=(
+            make_pipeline(StandardScaler(), LinearSVR(max_iter=10000)),
+            GBDTRegressor(n_jobs=1),
+        ),
+        method=method,
+        random_state=SEED,
+        n_trials=20,
+    )
     model.fit(X_train, y_train)
-    print('{0}: {1:.4f}'.format(method, mean_squared_error(model.predict(X_test), y_test, squared = False)))
+    rmse = np.sqrt(mean_squared_error(y_test, model.predict(X_test)))
+    return method, rmse
 
-Parallel(n_jobs=-1)(delayed(f)(method) for method in methods)
+
+with tqdm_joblib(total=len(methods)):
+    results = Parallel(n_jobs=-1)(delayed(f)(method) for method in methods)
+pd.Series(dict(results), name="RMSE")
