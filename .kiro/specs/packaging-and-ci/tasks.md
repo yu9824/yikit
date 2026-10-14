@@ -71,7 +71,7 @@
   - _Boundary: DocsWorkflow_
   - _Requirements: 6.1, 6.2, 7.1, 11.3_
 
-- [ ] 3.4 (P) dependabot に GitHub Actions の更新を加え、ngboost の 0.5.11 以上を提案から外す
+- [x] 3.4 (P) dependabot に GitHub Actions の更新を加え、ngboost の 0.5.11 以上を提案から外す
   - GitHub Actions の項目（週ごと、`chore: `、上限 5、すべてを 1 つにまとめる group）を足す
   - pip の項目に、ngboost の 0.5.11 以上を無視する `ignore` を足し、理由（0.5.11 の `set_params`・`get_params` の変更に yikit がまだ合わせておらず、drop-legacy-compat が上限を `<0.5.11` にした。2026-10-14 の作者の決定）の英語の注記を付ける。pip の項目の他の設定は変えない
   - 完了の状態: dependabot の設定が YAML として読め、github-actions の項目に group があり、pip の項目の `ignore` が `dependency-name: "ngboost"` と `versions: [">=0.5.11"]` で注記があり、`git diff` で pip の項目の他の行に変更がない

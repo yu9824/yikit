@@ -14,3 +14,24 @@ updates:
     commit-message:
       prefix: "chore: "
     open-pull-requests-limit: 5
+    ignore:
+      # ngboost 0.5.11 passes nested names in set_params/get_params, which
+      # yikit does not support yet. drop-legacy-compat caps ngboost<0.5.11
+      # (author's decision, 2026-10-14); remove this entry when yikit
+      # supports it.
+      - dependency-name: "ngboost"
+        versions: [">=0.5.11"]
+
+  # GitHub Actions ("/" makes Dependabot look in .github/workflows)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore: "
+    open-pull-requests-limit: 5
+    # Actions rarely break when bumped together, so group them into one PR.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
