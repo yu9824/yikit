@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import numbers
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -65,23 +67,24 @@ def test_boruta(X_regression, y_regression):
         n_jobs=1,
     )
     selector.fit(X, y)
-    assert np.allclose(
-        selector.support_,
-        np.array(
-            [
-                True,
-                True,
-                False,
-                True,
-                True,
-                True,
-                True,
-                True,
-                True,
-                True,
-            ]
-        ),
-    )
+
+    # All 10 features are informative. Nine are confirmed with a clear
+    # margin (78 or more of the 99 iterations score a hit; 67 confirm).
+    # Feature 2 has the smallest coefficient (14.8) and stays tentative
+    # with about half the hits (43-53; 32 or fewer reject). boruta keeps a
+    # tentative feature if its median importance is above the median
+    # shadow threshold, and for feature 2 they differ by less than 3e-4
+    # (about 2%), so the rounding of the random forest decides it. Since
+    # the shuffle seeds of perc="auto" are drawn up front, which changed
+    # the random streams of the fit, feature 2 is dropped in one
+    # environment and kept in another (the Linux CI, and scikit-learn
+    # 0.24.1), where support_ then becomes all True because no feature is
+    # rejected. So only the rank of feature 2 is
+    # checked: 2 either way, as the tentative feature or as the only
+    # rejected one.
+    is_clear = np.arange(X.shape[1]) != 2
+    assert selector.support_[is_clear].all()
+    np.testing.assert_array_equal(selector.ranking_, np.where(is_clear, 1, 2))
 
 
 def test_fit_transform_with_auto_perc_selects_the_same_features_as_fit():
@@ -227,3 +230,235 @@ def test_clone_of_a_fitted_selector_keeps_auto_perc():
 
     assert cloned.get_params()["perc"] == "auto"
     assert not hasattr(cloned, "perc_")
+
+
+def test_get_support_with_weak_includes_confirmed_and_tentative_features():
+    # A short run with a low percentile leaves some features tentative.
+    selector = _make_selector(perc=50, max_iter=10).fit(X_SMALL, y_SMALL)
+    confirmed, tentative = selector.support_, selector.support_weak_
+    assert confirmed.any() and tentative.any(), (
+        "The fit must have confirmed and tentative features for this test: "
+        f"support_={confirmed}, support_weak_={tentative}"
+    )
+
+    weak_mask = selector.get_support(weak=True)
+    mask = selector.get_support()
+
+    assert weak_mask.dtype == bool and weak_mask.shape == (X_SMALL.shape[1],)
+    np.testing.assert_array_equal(weak_mask, confirmed | tentative)
+    np.testing.assert_array_equal(mask, confirmed)
+    # The masks select the columns that ``transform`` keeps.
+    np.testing.assert_array_equal(
+        selector.transform(X_SMALL, weak=True), X_SMALL[:, weak_mask]
+    )
+    np.testing.assert_array_equal(
+        selector.transform(X_SMALL), X_SMALL[:, mask]
+    )
+
+
+# --- scikit-learn conventions, random state and display ----------------------
+
+
+class _RecordingProgressBar:
+    """Stand-in for ``tqdm`` that records how BorutaPy uses it."""
+
+    def __init__(self, *args, **kwargs):
+        self.kwargs = kwargs
+        self.n = 0
+        self.closed = False
+
+    def update(self, n=1):
+        self.n += n
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture
+def progress_bars(monkeypatch):
+    """Record the progress bars that BorutaPy makes for its iterations.
+
+    BorutaPy shows them only when tqdm is installed, so the tests that use
+    this fixture are skipped without tqdm.
+    """
+    pytest.importorskip("tqdm")
+    from yikit.feature_selection import _wrapper
+
+    bars: list[_RecordingProgressBar] = []
+
+    def make_progress_bar(*args, **kwargs):
+        bar = _RecordingProgressBar(*args, **kwargs)
+        bars.append(bar)
+        return bar
+
+    monkeypatch.setattr(_wrapper, "tqdm", make_progress_bar)
+    return bars
+
+
+class _MessageList(logging.Handler):
+    """Logging handler that keeps the messages it handles."""
+
+    def __init__(self):
+        super().__init__()
+        self.messages: list[str] = []
+
+    def emit(self, record):
+        self.messages.append(record.getMessage())
+
+
+@pytest.fixture
+def boruta_messages():
+    """Yield the messages logged by the BorutaPy module during the test."""
+    from yikit.feature_selection import _wrapper
+
+    handler = _MessageList()
+    level = _wrapper.logger.level
+    _wrapper.logger.setLevel(logging.INFO)
+    _wrapper.logger.addHandler(handler)
+    try:
+        yield handler.messages
+    finally:
+        _wrapper.logger.removeHandler(handler)
+        _wrapper.logger.setLevel(level)
+
+
+def _fitted_result(selector: BorutaPy) -> dict:
+    """Return copies of the fitted attributes that a fit decides."""
+    return {
+        "perc_": selector.perc_,
+        "support_": selector.support_.copy(),
+        "support_weak_": selector.support_weak_.copy(),
+        "ranking_": selector.ranking_.copy(),
+    }
+
+
+def _assert_same_result(actual: dict, expected: dict) -> None:
+    """Check that two results of ``_fitted_result`` are the same."""
+    assert actual["perc_"] == expected["perc_"]
+    for name in ("support_", "support_weak_", "ranking_"):
+        np.testing.assert_array_equal(actual[name], expected[name])
+
+
+@pytest.mark.parametrize(
+    "random_state",
+    [SEED, None, pytest.param(np.random.RandomState(SEED), id="RandomState")],
+)
+def test_random_state_is_kept_as_passed(random_state):
+    selector = _make_selector(perc="auto", random_state=random_state)
+    assert selector.get_params()["random_state"] is random_state
+
+    selector.fit(X_SMALL, y_SMALL)
+
+    assert selector.get_params()["random_state"] is random_state
+    assert selector.random_state is random_state
+
+
+def test_fitting_twice_with_an_int_random_state_gives_the_same_result():
+    selector = _make_selector(perc="auto")
+
+    first = _fitted_result(selector.fit(X_SMALL, y_SMALL))
+    second = _fitted_result(selector.fit(X_SMALL, y_SMALL))
+    cloned = _fitted_result(clone(selector).fit(X_SMALL, y_SMALL))
+
+    assert selector.support_.any()
+    _assert_same_result(second, first)
+    _assert_same_result(cloned, first)
+
+
+def test_auto_perc_does_not_depend_on_n_jobs():
+    max_shuf = 50
+    selectors = {
+        n_jobs: _make_selector(
+            perc="auto", n_jobs=n_jobs, max_shuf=max_shuf
+        ).fit(X_SMALL, y_SMALL)
+        for n_jobs in (1, 2)
+    }
+
+    assert selectors[2].perc_ == selectors[1].perc_
+    pears = np.asarray(selectors[2].pears_)
+    np.testing.assert_array_equal(pears, np.asarray(selectors[1].pears_))
+    # Each shuffle has its own seed, so the workers do not repeat one.
+    assert pears.shape == (max_shuf, X_SMALL.shape[1])
+    assert len(np.unique(pears, axis=0)) == max_shuf
+
+
+def test_set_params_verbose_takes_effect_on_the_next_fit(
+    progress_bars, boruta_messages
+):
+    max_iter = 20
+    selector = _make_selector(perc=80, verbose=0, max_iter=max_iter)
+
+    selector.fit(X_SMALL, y_SMALL)
+    assert progress_bars == []
+    assert boruta_messages == []
+
+    # verbose=1 with tqdm: a progress bar, and only the summary is logged.
+    selector.set_params(verbose=1).fit(X_SMALL, y_SMALL)
+    assert len(progress_bars) == 1
+    assert progress_bars[0].kwargs["total"] == max_iter
+    assert progress_bars[0].n == max_iter
+    assert progress_bars[0].closed
+    assert len(boruta_messages) == 1
+    assert "BorutaPy finished running" in boruta_messages[0]
+
+    # verbose=2: a progress bar, and every iteration is logged too.
+    del boruta_messages[:]
+    selector.set_params(verbose=2).fit(X_SMALL, y_SMALL)
+    assert len(progress_bars) == 2
+    assert progress_bars[1].closed
+    assert len(boruta_messages) > 1
+    assert all("Confirmed" in message for message in boruta_messages)
+
+    # verbose=0 again: no progress bar and nothing logged.
+    del boruta_messages[:]
+    selector.set_params(verbose=0).fit(X_SMALL, y_SMALL)
+    assert len(progress_bars) == 2
+    assert boruta_messages == []
+
+
+@pytest.mark.parametrize("random_state", [SEED, None])
+def test_an_error_in_fit_closes_the_progress_bar_and_restores_parameters(
+    progress_bars, random_state
+):
+    selector = _make_selector(
+        perc="auto",
+        verbose=1,
+        estimator=_FailingRegressor(),
+        n_estimators=10,
+        random_state=random_state,
+    )
+
+    # boruta 0.4.3 re-raises the estimator's error as a ValueError that
+    # contains the original message.
+    with pytest.raises(
+        (RuntimeError, ValueError), match="fit failed on purpose"
+    ):
+        selector.fit(X_SMALL, y_SMALL)
+
+    assert [bar.closed for bar in progress_bars] == [True]
+    assert selector.perc == "auto"
+    assert selector.get_params()["random_state"] is random_state
+
+
+def test_a_fit_with_a_numeric_perc_removes_the_attributes_of_auto_perc():
+    selector = _make_selector(perc="auto").fit(X_SMALL, y_SMALL)
+    assert hasattr(selector, "r_ccmax_")
+    assert hasattr(selector, "pears_")
+
+    selector.set_params(perc=80).fit(X_SMALL, y_SMALL)
+
+    assert selector.perc_ == 80
+    assert not hasattr(selector, "r_ccmax_")
+    assert not hasattr(selector, "pears_")
+
+
+def test_a_fitted_selector_with_a_progress_bar_can_be_pickled():
+    pytest.importorskip("tqdm")
+    selector = _make_selector(perc=80, verbose=1).fit(X_SMALL, y_SMALL)
+
+    restored = pickle.loads(pickle.dumps(selector))
+
+    np.testing.assert_array_equal(restored.support_, selector.support_)
+    np.testing.assert_array_equal(
+        restored.transform(X_SMALL), selector.transform(X_SMALL)
+    )

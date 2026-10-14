@@ -22,26 +22,45 @@ COLORS = Bunch(
 )
 
 
-def set_font(fontfamily: str | None = None, fontsize: int = 13):
-    """Set matplotlib font family and size.
+def set_font(fontfamily: str | None = None, fontsize: float = 13) -> None:
+    """Set the global font family and font size of matplotlib.
 
-    This function configures the default font family and size for matplotlib plots.
-    If no font family is specified, it uses a platform-appropriate default.
+    This changes ``matplotlib.pyplot.rcParams["font.family"]`` and
+    ``rcParams["font.size"]`` for the rest of the session: every text
+    created afterwards uses them, and they are not restored. To change them
+    only for a block of code, wrap it in :func:`matplotlib.rc_context`; to
+    change them only while a function runs, decorate it with
+    :func:`with_custom_matplotlib_settings`.
 
     Parameters
     ----------
     fontfamily : str or None, default=None
-        Font family to use. If None, uses platform default:
-        - macOS: 'Helvetica'
-        - Windows/Linux: 'DejaVu Sans'
-    fontsize : int, default=13
-        Font size to use for all text elements.
+        The font family. None means "Helvetica" on macOS and "DejaVu Sans"
+        on other platforms. The name is not checked here: when a figure is
+        drawn with a font that is not installed, matplotlib warns and falls
+        back to its default font.
+    fontsize : float, default=13
+        The default font size in points. Sizes such as "medium" or "large"
+        of the labels are relative to it.
+
+    See Also
+    --------
+    with_custom_matplotlib_settings : Set the font only while a function
+        runs.
 
     Examples
     --------
+    >>> import matplotlib.pyplot as plt
     >>> from yikit.visualize import set_font
-    >>> set_font(fontfamily="Arial", fontsize=14)
-    >>> # Now all matplotlib plots will use Arial font at size 14
+    >>> set_font(fontfamily="Arial", fontsize=14)  # doctest: +SKIP
+
+    The settings stay changed after the call; ``matplotlib.rc_context``
+    restores them at the end of the block.
+
+    >>> with plt.rc_context():
+    ...     set_font(fontfamily="DejaVu Sans", fontsize=14)
+    ...     print(plt.rcParams["font.family"], plt.rcParams["font.size"])
+    ['DejaVu Sans'] 14.0
     """
     if fontfamily is None:
         fontfamily = _default_fontfamily()
@@ -50,52 +69,55 @@ def set_font(fontfamily: str | None = None, fontsize: int = 13):
     plt.rcParams["font.family"] = fontfamily
 
 
-def _default_fontfamily():
+def _default_fontfamily() -> str:
     if platform.system() == "Darwin":
         return "Helvetica"
-    else:  # Window or Linux
+    else:  # Windows or Linux
         return "DejaVu Sans"
 
 
 def with_custom_matplotlib_settings(
-    fontfamily: str | None = None, fontsize: int = 13, restore: bool = True
-):
-    """Decorator to apply custom matplotlib settings temporarily.
+    fontfamily: str | None = None, fontsize: float = 13, restore: bool = True
+) -> Callable[[F], F]:
+    """Return a decorator that sets the font while the function runs.
 
-    This decorator applies custom font family and size settings to matplotlib
-    for the duration of the decorated function execution. After execution,
-    the original settings are restored if `restore=True`.
+    The decorated function runs with the global font family and font size
+    of matplotlib (``rcParams["font.family"]`` and ``rcParams["font.size"]``)
+    set to ``fontfamily`` and ``fontsize``. With ``restore=True`` the
+    previous values of these two settings are restored when the function
+    returns or raises; other settings changed inside the function are not
+    restored.
 
     Parameters
     ----------
-    fontfamily : str or None, optional
-        Font family to use. If None, uses platform default:
-        - macOS: 'Helvetica'
-        - Windows/Linux: 'DejaVu Sans'
-        Default is None.
-    fontsize : int, optional
-        Font size to use for all text elements. Default is 13.
-    restore : bool, optional
-        Whether to restore original matplotlib settings after function execution.
-        Default is True.
+    fontfamily : str or None, default=None
+        The font family. None means "Helvetica" on macOS and "DejaVu Sans"
+        on other platforms (see :func:`set_font`).
+    fontsize : float, default=13
+        The default font size in points.
+    restore : bool, default=True
+        Whether to restore the previous font family and font size after the
+        call. If False, the settings stay changed as with :func:`set_font`.
 
     Returns
     -------
     Callable
-        Decorator function that wraps the target function.
+        A decorator that wraps a function, keeping its name and docstring.
+
+    See Also
+    --------
+    set_font : Set the font for the rest of the session.
 
     Examples
     --------
-    >>> from yikit.visualize import with_custom_matplotlib_settings
     >>> import matplotlib.pyplot as plt
-    >>>
-    >>> @with_custom_matplotlib_settings(fontfamily="Helvetica", fontsize=14)
-    ... def plot_data():
-    ...     plt.plot([1, 2, 3], [1, 4, 9])
-    ...     return plt.gcf()
-    >>>
-    >>> fig = plot_data()  # Uses Helvetica font at size 14
-    >>> # After function execution, original settings are restored
+    >>> from yikit.visualize import with_custom_matplotlib_settings
+    >>> @with_custom_matplotlib_settings(fontfamily="DejaVu Sans", fontsize=14)
+    ... def font_size():
+    ...     return plt.rcParams["font.size"]
+    >>> with plt.rc_context({"font.size": 10}):
+    ...     print(font_size(), plt.rcParams["font.size"])
+    14.0 10.0
     """
     if fontfamily is None:
         fontfamily = _default_fontfamily()
@@ -103,21 +125,21 @@ def with_custom_matplotlib_settings(
     def decorator(func: F) -> F:
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # 現在の設定を保存
+            # Save the current settings.
             if restore:
                 original_font_size = plt.rcParams["font.size"]
                 original_font_family = plt.rcParams["font.family"]
 
-            # 設定を適用
+            # Apply the settings.
             plt.rcParams["font.size"] = fontsize
             plt.rcParams["font.family"] = fontfamily
 
             try:
-                # 関数を実行
+                # Run the function.
                 result = func(*args, **kwargs)
                 return result
             finally:
-                # 設定を復元
+                # Restore the settings, also when the function raised.
                 if restore:
                     plt.rcParams["font.size"] = original_font_size
                     plt.rcParams["font.family"] = original_font_family

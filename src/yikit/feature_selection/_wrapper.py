@@ -1,4 +1,9 @@
-"""
+"""Wrapper method of feature selection: :class:`BorutaPy`.
+
+The selector extends ``boruta.BorutaPy`` of scikit-learn-contrib/boruta_py,
+so this module imports boruta at the top and :mod:`yikit.feature_selection`
+imports it only when boruta is installed.
+
 Copyright © 2021 yu9824
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +44,218 @@ else:
 logger = get_child_logger(__name__)
 
 
+def _shuffled_pearsonrs(
+    X: np.ndarray, y: np.ndarray, seed: int
+) -> array[float]:
+    """Return the Pearson correlations of the shuffled features with ``y``.
+
+    The samples (rows) of ``X`` are shuffled with a RandomState made from
+    ``seed``, so a job of ``BorutaPy._calc_auto_perc`` needs only the seed.
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        The input samples.
+    y : ndarray of shape (n_samples,)
+        The target values.
+    seed : int
+        The seed of the shuffle.
+
+    Returns
+    -------
+    array.array of shape (n_features,)
+        The correlation of each shuffled feature with ``y`` (float32).
+    """
+    X_shuffled = np.asarray(shuffle(X, random_state=seed))
+    return array(
+        "f",
+        [pearsonr(X_shuffled[:, i], y)[0] for i in range(X_shuffled.shape[1])],
+    )
+
+
+#: Fitted attributes that only a fit with ``perc="auto"`` sets.
+_AUTO_PERC_ATTRIBUTES = ("pears_", "r_ccmax_")
+
+
 class BorutaPy(boruta.BorutaPy):
+    """Boruta all-relevant feature selection with an automatic percentile.
+
+    This class extends ``boruta.BorutaPy`` of scikit-learn-contrib/boruta_py
+    (BSD 3-Clause License), and this docstring is adapted from the one of
+    boruta. Boruta is an all-relevant feature selection method: it tries to
+    find all the features that carry information usable for prediction,
+    rather than a compact subset on which a model has a minimal error. In
+    each iteration, ``estimator`` is fitted on the features and on their
+    shuffled copies (the shadow features), and a feature scores a hit when
+    its importance is above the ``perc`` percentile of the importances of
+    the shadow features. The features with significantly many hits are
+    confirmed, and those with significantly few hits are rejected. With
+    ``two_step=True``, the p-values are corrected with the Benjamini
+    Hochberg FDR across the features still in the selection in each
+    iteration, and then with Bonferroni across the iterations.
+
+    Compared with boruta, this class adds:
+
+    - ``perc="auto"`` (the default), which sets the percentile from the
+      largest Pearson correlation between shuffled features and the target
+      (see ``perc`` and ``max_shuf``), in both ``fit`` and
+      ``fit_transform`` (and therefore in a
+      :class:`~sklearn.pipeline.Pipeline`);
+    - ``n_estimators="auto"`` as the default;
+    - a progress bar (tqdm, when installed) and the logger of yikit instead
+      of ``print`` (see ``verbose``);
+    - ``transform`` of a :class:`pandas.DataFrame` without ``return_df``,
+      which returns a NumPy array of the selected columns.
+
+    It follows the conventions of scikit-learn: the parameters are stored
+    as passed (``get_params`` returns them, also after a fit), and they are
+    read in every fit. Pruned trees with a depth of 3 to 7 are recommended
+    as ``estimator``.
+
+    Parameters
+    ----------
+    estimator : object
+        A supervised estimator with a ``fit`` method that sets
+        ``feature_importances_``. Important features must have high absolute
+        values in ``feature_importances_``. boruta sets ``n_estimators``
+        and ``random_state`` of this estimator in each iteration.
+    n_estimators : int or "auto", default="auto"
+        The number of estimators of ``estimator``. If "auto", it is set in
+        each iteration from the number of features that are not rejected
+        and the ``max_depth`` of ``estimator`` (10 when it is None), so
+        that fewer trees are used as features are rejected.
+    perc : float or "auto", default="auto"
+        The percentile of the importances of the shadow features that a
+        feature must exceed to score a hit. 100 is the maximum, as in the
+        original Boruta; it tends to be too strict. A lower ``perc``
+        selects more features, including more irrelevant ones. If "auto",
+        it is calculated from the data in every fit as
+        ``100 * (1 - r_ccmax_)``, where ``r_ccmax_`` is the largest Pearson
+        correlation between randomly shuffled features and the target (see
+        ``max_shuf``). The value used is stored in ``perc_``; this
+        parameter is never overwritten, so ``get_params`` and
+        :func:`~sklearn.base.clone` keep "auto".
+    alpha : float, default=0.05
+        The level at which the corrected p-values are rejected in both
+        correction steps.
+    two_step : bool, default=True
+        Whether to use the two-step correction. If False, only the
+        Bonferroni correction of the original Boruta is used.
+    max_iter : int, default=100
+        The maximum number of iterations.
+    random_state : int, RandomState instance or None, default=None
+        Controls the shuffles of ``perc="auto"``, the shuffles of the
+        shadow features and the ``random_state`` given to ``estimator``.
+        The value is stored as passed, and each fit makes its random number
+        generator from it with :func:`~sklearn.utils.check_random_state`.
+        Pass an int to get the same result in every fit (also of a clone).
+        A RandomState instance is used and advanced, and None uses the
+        global random number generator of NumPy.
+    verbose : int, default=1
+        Controls what is shown during a fit. It is read at the start of
+        each fit, so ``set_params(verbose=...)`` applies to the next fit.
+
+        - 0: nothing.
+        - 1: a progress bar of the iterations (and of the shuffles of
+          ``perc="auto"``) when tqdm is installed, otherwise the iteration
+          number is logged. The value of ``perc="auto"`` and a summary at
+          the end are logged.
+        - 2: as 1, and the numbers of confirmed, tentative and rejected
+          features are logged in each iteration.
+    max_shuf : int, default=10000
+        The number of shuffles used to calculate ``r_ccmax_`` when ``perc``
+        is "auto". Each shuffle has its own seed, drawn from
+        ``random_state`` before the shuffles are split among the jobs, so
+        ``perc_`` does not depend on ``n_jobs``.
+    n_jobs : int or None, default=None
+        The number of jobs that run the shuffles of ``perc="auto"`` in
+        parallel with joblib. None means 1 unless in a
+        ``joblib.parallel_backend`` context, and -1 means all processors.
+
+    Attributes
+    ----------
+    n_features_ : int
+        The number of selected (confirmed) features.
+    support_ : ndarray of shape (n_features,)
+        The mask of the selected features; only the confirmed ones are
+        True.
+    support_weak_ : ndarray of shape (n_features,)
+        The mask of the tentative features, which have not gained enough
+        support during the ``max_iter`` iterations.
+    ranking_ : ndarray of shape (n_features,)
+        The ranking of the features: 1 for the confirmed features, 2 for
+        the tentative ones, and from 3 (2 when there are no tentative
+        features) for the rejected ones, based on their importances through
+        the iterations.
+    importance_history_ : ndarray of shape (n_iterations + 1, n_features)
+        The importances of the features in each iteration, after a first
+        row of zeros. A feature has NaN in the iterations after it was
+        rejected.
+    perc_ : float or int
+        The percentile used in the last fit: the float calculated from the
+        data when ``perc="auto"``, otherwise ``perc`` itself as passed.
+    r_ccmax_ : float
+        The largest Pearson correlation between the shuffled features and
+        the target. Only set by a fit with ``perc="auto"``.
+    pears_ : list of array.array of shape (n_features,)
+        The Pearson correlations between the shuffled features and the
+        target, one array for each of the ``max_shuf`` shuffles. Only set
+        by a fit with ``perc="auto"``.
+
+    See Also
+    --------
+    FilterSelector : Remove features that are highly correlated with
+        another feature.
+
+    References
+    ----------
+    Kursa M., Rudnicki W., "Feature Selection with the Boruta Package",
+    Journal of Statistical Software, Vol. 36, Issue 11, Sep 2010.
+    https://doi.org/10.18637/jss.v036.i11
+
+    scikit-learn-contrib/boruta_py:
+    https://github.com/scikit-learn-contrib/boruta_py
+
+    Examples
+    --------
+    The first 3 of the 6 features are informative. The small ``max_iter``
+    and ``max_shuf`` only keep this example fast:
+
+    >>> from sklearn.datasets import make_regression
+    >>> from sklearn.ensemble import RandomForestRegressor
+    >>> from yikit.feature_selection import BorutaPy
+    >>> X, y = make_regression(
+    ...     n_samples=100,
+    ...     n_features=6,
+    ...     n_informative=3,
+    ...     shuffle=False,
+    ...     random_state=334,
+    ... )
+    >>> selector = BorutaPy(
+    ...     RandomForestRegressor(max_depth=5, n_jobs=1, random_state=334),
+    ...     max_iter=20,
+    ...     max_shuf=100,
+    ...     verbose=0,
+    ...     random_state=334,
+    ... )
+    >>> X_selected = selector.fit_transform(X, y)
+    >>> selector.support_
+    array([ True,  True,  True, False, False, False])
+    >>> X_selected.shape
+    (100, 3)
+
+    ``perc="auto"`` is resolved in ``perc_``, and the parameters keep the
+    passed values, so a fit of a clone gives the same result:
+
+    >>> from sklearn.base import clone
+    >>> selector.get_params()["perc"], selector.get_params()["random_state"]
+    ('auto', 334)
+    >>> bool(0 < selector.perc_ < 100)
+    True
+    >>> bool(clone(selector).fit(X, y).perc_ == selector.perc_)
+    True
+    """
+
     def __init__(
         self,
         estimator,
@@ -53,158 +269,6 @@ class BorutaPy(boruta.BorutaPy):
         max_shuf: int = 10000,
         n_jobs: int | None = None,
     ):
-        """
-        This docstring is modified from and uses parts of scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
-        https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
-
-        Improved Python implementation of the Boruta R package.
-        The improvements of this implementation include:
-        - Faster run times:
-            Thanks to scikit-learn's fast implementation of the ensemble methods.
-        - Scikit-learn like interface:
-            Use BorutaPy just like any other scikit learner: fit, fit_transform and
-            transform are all implemented in a similar fashion.
-        - Modularity:
-            Any ensemble method could be used: random forest, extra trees
-            classifier, even gradient boosted trees.
-        - Two step correction:
-            The original Boruta code corrects for multiple testing in an overly
-            conservative way. In this implementation, the Benjamini Hochberg FDR is
-            used to correct in each iteration across active features. This means
-            only those features are included in the correction which are still in
-            the selection process. Following this, each that passed goes through a
-            regular Bonferroni correction to check for the repeated testing over
-            the iterations.
-        - Percentile:
-            Instead of using the max values of the shadow features the user can
-            specify which percentile to use. This gives a finer control over this
-            crucial parameter. For more info, please read about the perc parameter.
-        - Automatic tree number:
-            Setting the n_estimator to 'auto' will calculate the number of trees
-            in each itartion based on the number of features under investigation.
-            This way more trees are used when the training data has many feautres
-            and less when most of the features have been rejected.
-        - Ranking of features:
-            After fitting BorutaPy it provides the user with ranking of features.
-            Confirmed ones are 1, Tentatives are 2, and the rejected are ranked
-            starting from 3, based on their feautre importance history through
-            the iterations.
-        We highly recommend using pruned trees with a depth between 3-7.
-        For more, see the docs of these functions, and the examples below.
-        Original code and method by: Miron B Kursa, https://m2.icm.edu.pl/boruta/
-        Boruta is an all relevant feature selection method, while most other are
-        minimal optimal; this means it tries to find all features carrying
-        information usable for prediction, rather than finding a possibly compact
-        subset of features on which some classifier has a minimal error.
-        Why bother with all relevant feature selection?
-        When you try to understand the phenomenon that made your data, you should
-        care about all factors that contribute to it, not just the bluntest signs
-        of it in context of your methodology (yes, minimal optimal set of features
-        by definition depends on your classifier choice).
-        Parameters
-        ----------
-        estimator : object
-            A supervised learning estimator, with a 'fit' method that returns the
-            feature_importances_ attribute. Important features must correspond to
-            high absolute values in the feature_importances_.
-        n_estimators : int or string, default = "auto"
-            If int sets the number of estimators in the chosen ensemble method.
-            If 'auto' this is determined automatically based on the size of the
-            dataset. The other parameters of the used estimators need to be set
-            with initialisation.
-        perc : int, float or 'auto', default = 'auto'
-            Instead of the max we use the percentile defined by the user, to pick
-            our threshold for comparison between shadow and real features. The max
-            tend to be too stringent. This provides a finer control over this. The
-            lower perc is the more false positives will be picked as relevant but
-            also the less relevant features will be left out. The usual trade-off.
-            If 'auto', the percentile is calculated from the data in every
-            fit, through both ``fit`` and ``fit_transform`` (and therefore
-            inside a :class:`~sklearn.pipeline.Pipeline`), as
-            ``100 * (1 - r_ccmax_)``, where ``r_ccmax_`` is the largest
-            Pearson correlation between randomly shuffled features and the
-            target (see ``max_shuf``). The resolved value is stored in
-            ``perc_``; this parameter is never overwritten, so
-            ``get_params`` and ``clone`` keep 'auto'.
-        alpha : float, default = 0.05
-            Level at which the corrected p-values will get rejected in both
-            correction steps.
-        two_step : Boolean, default = True
-            If you want to use the original implementation of Boruta with Bonferroni
-            correction only set this to False.
-        max_iter : int, default = 100
-            The number of maximum iterations to perform.
-        random_state : int, RandomState instance or None; default=None
-            If int, random_state is the seed used by the random number generator;
-            If RandomState instance, random_state is the random number generator;
-            If None, the random number generator is the RandomState instance used
-            by `np.random`.
-        verbose : int, default=1
-            Controls verbosity of output:
-            - 0: no output
-            - 1: displays iteration number | if tqdm package exists, progress bar
-            - 2: which features have been selected already
-        max_shuf : int, default=10000
-            How many times to calculate the Pearson coefficient when `perc` is 'auto'.
-        n_jobs : int, default=None
-            The number of jobs to run in parallel for both `fit` and `predict`.
-            If -1, then the number of jobs is set to the number of cores.
-
-
-        Attributes
-        ----------
-        n_features_ : int
-            The number of selected features.
-        support_ : array of shape [n_features]
-            The mask of selected features - only confirmed ones are True.
-        support_weak_ : array of shape [n_features]
-            The mask of selected tentative features, which haven't gained enough
-            support during the max_iter number of iterations..
-        ranking_ : array of shape [n_features]
-            The feature ranking, such that ``ranking_[i]`` corresponds to the
-            ranking position of the i-th feature. Selected (i.e., estimated
-            best) features are assigned rank 1 and tentative features are assigned
-            rank 2.
-        importance_history_ : array-like, shape [n_features, n_iters]
-            The calculated importance values for each feature across all iterations.
-        perc_ : int or float
-            The percentile used in the last fit: the value calculated from
-            the data when ``perc='auto'``, otherwise ``perc`` itself.
-        Examples
-        --------
-
-        import pandas as pd
-        from sklearn.ensemble import RandomForestClassifier
-        from boruta import BorutaPy
-
-        # load X and y
-        X = pd.read_csv('examples/test_X.csv', index_col=0).values
-        y = pd.read_csv('examples/test_y.csv', header=None, index_col=0).values
-        y = y.ravel()
-
-        # define random forest classifier, with utilising all cores and
-        # sampling in proportion to y labels
-        rf = RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=5)
-
-        # define Boruta feature selection method
-        feat_selector = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=1)
-
-        # find all relevant features - 5 features should be selected
-        feat_selector.fit(X, y)
-
-        # check selected features - first 5 features are selected
-        feat_selector.support_
-
-        # check ranking of features
-        feat_selector.ranking_
-
-        # call transform() on X to filter it down to selected features
-        X_filtered = feat_selector.transform(X)
-        References
-        ----------
-        [1] Kursa M., Rudnicki W., "Feature Selection with the Boruta Package"
-            Journal of Statistical Software, Vol. 36, Issue 11, Sep 2010
-        """
         self.max_shuf = max_shuf
         self.n_jobs = n_jobs
         super().__init__(
@@ -217,28 +281,22 @@ class BorutaPy(boruta.BorutaPy):
             random_state=random_state,
             verbose=verbose,
         )
-        self.random_state = check_random_state(random_state)  # type: ignore[has-type]
-
-        # Decide on progress display based on availability of tqdm and verbosity
-        self._use_tqdm = is_installed("tqdm") and self.verbose > 0
-        self._use_logging = (not self._use_tqdm) or self.verbose > 1
 
     def fit(self, X, y):
-        """
-        This docstring uses the same one as scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
-        https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
+        """Fit the Boruta feature selection with ``estimator``.
 
-        Fits the Boruta feature selection with the provided estimator.
+        This docstring is adapted from the one of
+        scikit-learn-contrib/boruta_py (BSD 3-Clause License).
 
-        ``perc='auto'`` is resolved in ``_fit``, the same path that
+        ``perc="auto"`` is resolved in ``_fit``, the same path that
         ``fit_transform`` takes. The resolved value is stored in ``perc_``
         and the ``perc`` parameter is left unchanged.
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, n_features]
+        X : array-like of shape (n_samples, n_features)
             The training input samples.
-        y : array-like, shape = [n_samples]
+        y : array-like of shape (n_samples,)
             The target values.
 
         Returns
@@ -252,18 +310,22 @@ class BorutaPy(boruta.BorutaPy):
         """Resolve ``perc`` and run the Boruta feature selection of boruta.
 
         boruta calls this method from both ``fit`` and ``fit_transform``, so
-        ``perc='auto'`` is resolved on both paths, including inside a
+        ``perc="auto"`` is resolved on both paths, including inside a
         :class:`~sklearn.pipeline.Pipeline`. The resolved percentile is
-        stored in ``perc_``. boruta reads ``self.perc`` directly, so it holds
-        ``perc_`` only while boruta's ``_fit`` runs; the original value (for
-        example ``'auto'``) is restored afterwards, also when an error is
-        raised.
+        stored in ``perc_``. The display settings are read from ``verbose``
+        and a random number generator is made from ``random_state`` in
+        every fit. boruta reads ``self.perc`` and ``self.random_state``
+        (and replaces ``self.random_state`` with a RandomState), so they
+        hold ``perc_`` and the generator of this fit only while boruta's
+        ``_fit`` runs. The passed values (for example "auto" and an int)
+        are restored afterwards, and the progress bar is closed, also when
+        an error is raised.
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, n_features]
+        X : array-like of shape (n_samples, n_features)
             The training input samples.
-        y : array-like, shape = [n_samples]
+        y : array-like of shape (n_samples,)
             The target values.
 
         Returns
@@ -272,20 +334,32 @@ class BorutaPy(boruta.BorutaPy):
             The fitted selector.
         """
         X, y = check_X_y(X, y)
+        # Decide on progress display based on availability of tqdm and
+        # verbosity
+        self._use_tqdm = is_installed("tqdm") and self.verbose > 0
+        self._use_logging = (not self._use_tqdm) or self.verbose > 1
+
+        random_state = check_random_state(self.random_state)
         if self.perc == "auto":
-            self.perc_ = self._calc_auto_perc(X, y)
+            self.perc_ = self._calc_auto_perc(X, y, random_state)
         else:
             self.perc_ = self.perc
+            for name in _AUTO_PERC_ATTRIBUTES:
+                if hasattr(self, name):  # left by a fit with perc="auto"
+                    delattr(self, name)
 
         if self._use_tqdm:
             self._pbar = tqdm(total=self.max_iter, desc="BorutaPy")
-
-        perc = self.perc
-        self.perc = self.perc_
+        passed_perc, passed_random_state = self.perc, self.random_state
+        self.perc, self.random_state = self.perc_, random_state
         try:
             return super()._fit(X, y)
         finally:
-            self.perc = perc
+            self.perc, self.random_state = passed_perc, passed_random_state
+            if self._use_tqdm:
+                self._pbar.close()
+                # A progress bar may not be picklable.
+                del self._pbar
 
     def _transform(self, X, weak=False, return_df=False):
         """Reduce ``X`` to the selected features, also for a DataFrame.
@@ -301,7 +375,7 @@ class BorutaPy(boruta.BorutaPy):
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, n_features]
+        X : array-like of shape (n_samples, n_features)
             The input samples.
         weak : bool, default=False
             If True, the tentative features are also selected.
@@ -310,9 +384,15 @@ class BorutaPy(boruta.BorutaPy):
 
         Returns
         -------
-        X : array-like, shape = [n_samples, n_features_]
-            ``X`` reduced to the selected features: a NumPy array for a
-            DataFrame without ``return_df``, otherwise the type of boruta.
+        X_selected : ndarray or DataFrame of shape (n_samples, n_selected)
+            ``X`` reduced to the ``n_selected`` selected features: a NumPy
+            array for a DataFrame without ``return_df``, otherwise what
+            boruta returns.
+
+        Raises
+        ------
+        ValueError
+            If the selector is not fitted yet (raised by boruta).
         """
         if return_df:
             return super()._transform(X, weak, return_df)
@@ -322,66 +402,70 @@ class BorutaPy(boruta.BorutaPy):
         return super()._transform(X, weak)
 
     def get_support(self, weak: bool = False) -> np.ndarray:
-        """Get a mask, or integer index, of the features selected.
+        """Return a boolean mask of the selected features.
+
+        The mask marks the same features as the columns that
+        ``transform(X, weak=weak)`` keeps.
 
         Parameters
         ----------
-        weak : bool, optional
-            If set to True, the tentative features are also included in the support mask.
-            If False, only confirmed features are included. By default False.
+        weak : bool, default=False
+            If False, only the confirmed features are True (``support_``).
+            If True, the tentative features are also True
+            (``support_ | support_weak_``).
 
         Returns
         -------
-        support : array of shape [n_features]
-            A boolean mask of the features selected. If `weak=True`, includes both
-            confirmed and tentative features. If `weak=False`, includes only confirmed
-            features.
+        support : ndarray of shape (n_features,)
+            The boolean mask of the selected features. With
+            ``weak=False``, this is ``support_`` itself (not a copy).
+
+        Raises
+        ------
+        sklearn.exceptions.NotFittedError
+            If the selector is not fitted yet.
         """
         check_is_fitted(self, "support_")
         if weak:
-            return self.support_weak_
-        else:
-            return self.support_
+            return self.support_ | self.support_weak_
+        return self.support_
 
-    def _calc_auto_perc(self, X, y) -> float:
-        """
-        This docstring is based on scikit-learn-contrib/boruta_py, which is a class inheritor under the BSD 3 clause license.
-        https://github.com/scikit-learn-contrib/boruta_py/blob/master/boruta/boruta_py.py
+    def _calc_auto_perc(
+        self, X: np.ndarray, y: np.ndarray, random_state: np.random.RandomState
+    ) -> float:
+        """Calculate ``perc`` from the data when it is "auto".
 
-        Calculate the `perc` parameter automatically when set to 'auto'.
+        This docstring is based on the one of scikit-learn-contrib/boruta_py
+        (BSD 3-Clause License).
 
-        This method determines the percentile threshold by examining the maximum
-        Pearson correlation coefficient that can occur by chance when features are
-        randomly shuffled. By shuffling features multiple times and calculating
-        correlations with the target, we estimate the spurious correlation that
-        would occur randomly, and use this to automatically set an appropriate
-        percentile threshold.
+        The percentile is set from the largest Pearson correlation that
+        occurs by chance between the features and the target: the samples
+        of ``X`` are shuffled ``max_shuf`` times, and the correlations of
+        the shuffled features with ``y`` are stored in ``pears_`` and their
+        maximum in ``r_ccmax_``. One seed for each shuffle is drawn from
+        ``random_state`` before the shuffles are split among the
+        ``n_jobs`` jobs, and each job makes its own RandomState from the
+        seed. So the result does not depend on ``n_jobs``, and no two jobs
+        repeat the same shuffle.
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, n_features]
+        X : ndarray of shape (n_samples, n_features)
             The training input samples.
-        y : array-like, shape = [n_samples]
+        y : ndarray of shape (n_samples,)
             The target values.
+        random_state : RandomState
+            The random number generator of this fit, which the seeds are
+            drawn from.
 
         Returns
         -------
         float
-            The calculated `perc` value, representing the percentile threshold
-            for comparison between shadow and real features.
+            The percentile, ``100 * (1 - r_ccmax_)``.
         """
-
-        def _get_pearsonrs(X: np.ndarray) -> array[float]:
-            X_shuffled = shuffle(X, random_state=self.random_state)
-            assert isinstance(X_shuffled, np.ndarray)
-            return array(
-                "f",
-                [
-                    pearsonr(X_shuffled[:, i], y)[0]
-                    for i in range(X_shuffled.shape[1])
-                ],
-            )
-
+        seeds = random_state.randint(
+            np.iinfo(np.int32).max, size=self.max_shuf
+        )
         # Calculate correlations with randomly shuffled features to determine
         # the maximum spurious correlation that can occur by chance.
         with tqdm_joblib(
@@ -389,35 +473,37 @@ class BorutaPy(boruta.BorutaPy):
         ):
             parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
             self.pears_ = parallel(
-                delayed(_get_pearsonrs)(X) for _ in range(self.max_shuf)
+                delayed(_shuffled_pearsonrs)(X, y, int(seed)) for seed in seeds
             )
 
         self.r_ccmax_ = np.nanmax(self.pears_, axis=None).item()
         perc = 100 * (1 - self.r_ccmax_)
         if self.verbose > 0:
-            logger.info(f"Assgigned perc = {perc:.1f}\n")
+            logger.info(f"Assigned perc = {perc:.1f}\n")
         return perc
 
     def _print_results(self, dec_reg, _iter, flag):
-        """Print the results of the Boruta feature selection process.
+        """Show the progress of an iteration or the result at the end.
 
-        This method displays the current status of feature selection, including
-        the number of confirmed, tentative, and rejected features at each iteration.
-        The output format depends on the verbosity level and whether tqdm is available.
+        boruta calls this method when ``verbose`` is positive: with
+        ``flag=0`` in each iteration and with ``flag=1`` once at the end.
+        Instead of printing like boruta, this override advances the progress
+        bar when tqdm is used (and closes it at the end), and writes to the
+        logger of yikit: the result at the end always, and the progress of
+        each iteration only when no progress bar is shown or ``verbose`` is
+        2 or more.
 
         Parameters
         ----------
-        dec_reg : array-like
-            Decision registry array indicating the status of each feature:
-            - 1: confirmed features
-            - 0: tentative features (still under consideration)
-            - -1: rejected features
+        dec_reg : ndarray of shape (n_features,)
+            The decision of each feature so far: 1 for confirmed, 0 for
+            undecided, and -1 for rejected.
         _iter : int
-            Current iteration number.
+            The number of the current iteration.
         flag : int
-            Status flag:
-            - 0: feature selection is still in progress
-            - non-zero: Boruta has finished running and tentative features have been filtered
+            0 while the selection runs; any other value once it has
+            finished and the tentative features have been settled in
+            ``support_`` and ``support_weak_``.
         """
         n_iter = str(_iter) + " / " + str(self.max_iter)
         n_confirmed = np.where(dec_reg == 1)[0].shape[0]

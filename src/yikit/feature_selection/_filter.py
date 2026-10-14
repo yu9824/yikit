@@ -1,4 +1,8 @@
-"""
+"""Filter method of feature selection: :class:`FilterSelector`.
+
+The selector removes features that are strongly correlated with other
+features, judging from their Pearson correlations alone (no estimator).
+
 Copyright © 2021 yu9824
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +20,8 @@ limitations under the License.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from joblib import Parallel, delayed
 from scipy.stats import pearsonr
@@ -25,12 +31,89 @@ from sklearn.utils import check_array
 from sklearn.utils.validation import check_is_fitted
 
 from yikit.helpers import is_installed, tqdm_joblib
+from yikit.helpers._validation import feature_names_of
 from yikit.logging import get_child_logger
 
 logger = get_child_logger(__name__)
 
 
 class FilterSelector(SelectorMixin, BaseEstimator):
+    """Remove features that are strongly correlated with other features.
+
+    A pair of features is strongly correlated when the absolute value of
+    their Pearson correlation coefficient is larger than ``r`` and its
+    p-value is smaller than ``alpha``, so a strong negative correlation
+    counts as well as a strong positive one. The feature in the largest
+    number of strongly correlated pairs is removed (the first one on ties),
+    and this is repeated with the remaining features until no strongly
+    correlated pair is left.
+
+    A constant feature is treated as uncorrelated with every other feature,
+    so it is never removed by this selector.
+
+    Parameters
+    ----------
+    r : float, default=0.9
+        The threshold of the absolute value of the correlation coefficient.
+        Pairs whose absolute correlation is larger than this are tested for
+        significance and may be removed.
+    alpha : float, default=0.05
+        The significance level. The correlation of a pair is significant
+        when its p-value is smaller than this. It is recommended not to
+        change it without a specific reason.
+    verbose : bool or int, default=True
+        If positive, show the progress of computing the p-values: a tqdm
+        progress bar when tqdm is installed, otherwise log messages.
+    n_jobs : int or None, default=None
+        The number of jobs to compute the p-values in parallel with joblib.
+        None means 1 unless in a ``joblib.parallel_backend`` context; -1
+        means all the processors.
+
+    Attributes
+    ----------
+    corr_ : numpy.ndarray of shape (n_features_in_, n_features_in_, 2)
+        ``corr_[i, j, 0]`` is the Pearson correlation coefficient of the
+        features ``i`` and ``j`` and ``corr_[i, j, 1]`` is its p-value. The
+        p-values are computed only for the pairs whose absolute correlation
+        is larger than ``r``; the others are 1.0. The diagonal holds 1.0
+        and 0.0, and a pair with a constant feature holds 0.0 and 1.0.
+    support_ : numpy.ndarray of shape (n_features_in_,)
+        The boolean mask of the selected (kept) features.
+    n_features_in_ : int
+        The number of features seen during ``fit``.
+    feature_names_in_ : numpy.ndarray of shape (n_features_in_,)
+        The names of the features seen during ``fit``. Defined only when
+        ``X`` has feature names that are all strings (with scikit-learn
+        1.0 or later).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import pandas as pd
+    >>> from yikit.feature_selection import FilterSelector
+    >>> rng = np.random.RandomState(334)
+    >>> x = rng.normal(size=50)
+    >>> X = pd.DataFrame(
+    ...     {
+    ...         "a": x,
+    ...         "b": x + 0.1 * rng.normal(size=50),
+    ...         "c": -x + 0.1 * rng.normal(size=50),
+    ...         "d": rng.normal(size=50),
+    ...     }
+    ... )
+
+    ``a``, ``b`` and ``c`` are strongly correlated with each other (``c``
+    negatively), so only one of them is kept.
+
+    >>> selector = FilterSelector(verbose=False).fit(X)
+    >>> selector.get_support()
+    array([False, False,  True,  True])
+    >>> selector.get_feature_names_out()  # scikit-learn >= 1.0
+    array(['c', 'd'], dtype=object)
+    >>> selector.transform(X).shape
+    (50, 2)
+    """
+
     def __init__(
         self,
         r: float = 0.9,
@@ -38,209 +121,180 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         verbose: int | bool = True,
         n_jobs: int | None = None,
     ):
-        """
-        Filter method for feature selection using correlation coefficient and significance.
-
-        Parameters
-        ----------
-        r : float, optional
-            The correlation coefficient threshold. Features with a correlation higher than this value
-            will be considered highly correlated and thus will be subject to removal. Default is 0.9.
-        alpha : float, optional
-            Significance level. If the p-value is lower than this threshold,
-            the correlation coefficient is considered statistically significant.
-            It is recommended not to change this without a specific reason. Default is 0.05.
-        verbose : bool or int, optional
-            Whether to show progress during batch processing. Default is True.
-        n_jobs : int, optional
-            Number of jobs to run in parallel. If None, 1 is used.
-            If -1, all CPUs are used. Default is None.
-        """
         self.r = r
         self.alpha = alpha
         self.verbose = verbose
         self.n_jobs = n_jobs
 
-    def fit(self, X, y=None):
-        """
-        Fit the FilterSelector.
-
-        This method identifies features in `X` that are highly correlated (above correlation threshold `r`
-        and with significant p-value below `alpha`). Features that are highly correlated with others
-        will be recursively removed, keeping only minimally redundant features.
+    def fit(self, X: Any, y: Any = None) -> FilterSelector:
+        """Find the features to keep.
 
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Feature matrix. Can be a pandas DataFrame, 2D numpy array, or 2D list.
-        y : Ignored
-            Not used, present for API consistency.
+            The feature matrix, such as a pandas DataFrame or a 2D numpy
+            array.
+        y : None
+            Ignored. Present for API consistency.
 
         Returns
         -------
-        self : object
-            Returns the instance itself.
+        self : FilterSelector
+            The fitted selector.
         """
-        # Convert and validate X as np.ndarray
-        X: np.ndarray = check_array(X)
+        feature_names = feature_names_of(X)
+        X_checked = check_array(X)
+        n_features = X_checked.shape[1]
 
-        # Store the number of features for later use
-        n_features = X.shape[1]
-
-        # Prepare a tensor to store correlation coefficients and p-values.
-        # [i, j, 0] is corr coef, [i, j, 1] is p-value
-        self.corr_ = np.empty((n_features, n_features, 2), dtype=float)
-
-        # Prepare a list of sets. Each i-th set holds features highly correlated with i-th feature.
-        pairs_highly_correlated: tuple[set[int]] = tuple(
-            set() for _ in range(n_features)
-        )
-
-        # Decide on progress display based on availability of tqdm and verbosity
         use_tqdm = is_installed("tqdm") and self.verbose > 0
         use_logging = not is_installed("tqdm") and self.verbose > 0
 
-        # Compute correlation matrix in one go (p-values are computed later as needed)
-        corr_matrix = np.corrcoef(X.T)
+        corr_matrix = _correlation_matrix(X_checked)
+        # (i, j) with i < j, in row-major order.
+        pairs = np.argwhere(np.triu(np.abs(corr_matrix) > self.r, k=1))
 
-        # Fill corr_ array with coefficients and set diagonal
-        for i in range(n_features):
-            self.corr_[i, i, 0] = 1.0
-            self.corr_[i, i, 1] = 0.0
-            for j in range(i + 1, n_features):
-                corr_value = corr_matrix[i, j]
-                self.corr_[i, j, 0] = corr_value
-                self.corr_[j, i, 0] = corr_value
-
-        # Identify pairs that need p-value computation (correlation above threshold)
-        pairs_to_compute: set[tuple[int, int]] = set()
-        for i in range(n_features):
-            for j in range(i + 1, n_features):
-                if corr_matrix[i, j] > self.r:
-                    pairs_to_compute.add((i, j))
-
-        # Compute p-values in parallel for those pairs that need it
-        if pairs_to_compute:
-
-            def _compute_pvalue(
-                pair_idx: tuple[int, int],
-            ) -> tuple[int, int, float]:
-                """
-                Compute the p-value for the Pearson correlation between two features given by the indices.
-
-                Parameters
-                ----------
-                pair_idx : tuple of int
-                    Indices (i, j) of the feature pair.
-
-                Returns
-                -------
-                tuple
-                    (i, j, p-value)
-                """
-                i, j = pair_idx
-                _, p_value = pearsonr(X[:, i], X[:, j])
-                return (i, j, p_value)
-
-            # Compute p-values using parallel processing, with optional progress bar if available
+        if len(pairs) > 0:
+            tasks = (
+                delayed(_pearson_p_value)(X_checked[:, i], X_checked[:, j])
+                for i, j in pairs
+            )
+            parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
             if use_tqdm:
                 with tqdm_joblib(
-                    total=len(pairs_to_compute),
-                    desc="computing p-values",
-                    silent=False,
+                    total=len(pairs), desc="computing p-values", silent=False
                 ):
-                    parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
-                    pvalue_results = parallel(
-                        delayed(_compute_pvalue)(pair_idx)
-                        for pair_idx in pairs_to_compute
-                    )
+                    p_values = np.array(parallel(tasks), dtype=float)
             else:
-                parallel = Parallel(n_jobs=self.n_jobs, verbose=0)
-                pvalue_results = parallel(
-                    delayed(_compute_pvalue)(pair_idx)
-                    for pair_idx in pairs_to_compute
-                )
-
-            # Store p-value results in the corr_ tensor, and update highly correlated feature sets
-            for i, j, p_value in pvalue_results:
-                self.corr_[i, j, 1] = p_value
-                self.corr_[j, i, 1] = p_value
-                if (
-                    p_value < self.alpha
-                ):  # If correlation is high and p-value is significant
-                    pairs_highly_correlated[i].add(j)
-                    pairs_highly_correlated[j].add(i)
+                p_values = np.array(parallel(tasks), dtype=float)
         else:
+            p_values = np.empty(0, dtype=float)
             if use_logging:
-                logger.info("No pairs with correlation above threshold.")
-
-        # For pairs below correlation threshold, assign default p-value of 1.0
-        for i in range(n_features):
-            for j in range(i + 1, n_features):
-                if corr_matrix[i, j] <= self.r:
-                    self.corr_[i, j, 1] = 1.0
-                    self.corr_[j, i, 1] = 1.0
+                logger.info(
+                    "No pairs with an absolute correlation above the "
+                    "threshold."
+                )
 
         if use_logging:
             logger.info(
-                f"Finished! Processed {n_features} features, computed {len(pairs_to_compute)} p-values."
+                f"Finished! Processed {n_features} features, "
+                f"computed {len(pairs)} p-values."
             )
 
-        def _delete_recursive(
-            pairs_highly_correlated: list[set[int]],
-            boolean: np.ndarray = np.ones(n_features, dtype=bool),
-        ) -> np.ndarray:
-            """
-            Recursively remove features with the highest number of highly correlated pairs.
+        corr = np.empty((n_features, n_features, 2), dtype=float)
+        corr[:, :, 0] = corr_matrix
+        corr[:, :, 1] = 1.0
+        diagonal = np.arange(n_features)
+        corr[diagonal, diagonal, 1] = 0.0
+        corr[pairs[:, 0], pairs[:, 1], 1] = p_values
+        corr[pairs[:, 1], pairs[:, 0], 1] = p_values
 
-            At each step, find the feature involved in the largest number of highly correlated pairs,
-            remove it (by setting its mask to False), and repeat until there are no more such pairs.
+        support = _remove_correlated(pairs[p_values < self.alpha], n_features)
 
-            Parameters
-            ----------
-            pairs_highly_correlated : List[Set]
-                List of sets, where each set contains the indices of features highly correlated with the i-th feature.
-            boolean : np.ndarray, optional
-                Boolean mask for features (True if the feature is kept), by default all True.
-
-            Returns
-            -------
-            np.ndarray
-                Boolean mask of selected (kept) features.
-            """
-            order_pair = np.array(
-                [len(s) for s in pairs_highly_correlated], dtype=int
-            )
-
-            # If there are no more high correlation connections, stop recursion
-            if np.sum(order_pair) == 0:
-                return boolean
-
-            # Identify the feature with the largest number of highly correlated connections
-            i_max = np.argmax(order_pair)
-
-            # Remove connections to this feature from all other sets
-            pairs_highly_correlated = [
-                p.difference({i_max}) for p in pairs_highly_correlated
-            ]
-
-            # Mark the feature as removed and set its mask to False
-            pairs_highly_correlated[i_max] = set()
-            boolean[i_max] = False
-            return _delete_recursive(pairs_highly_correlated, boolean)
-
-        self.support_ = _delete_recursive(pairs_highly_correlated)
-
+        self.corr_ = corr
+        self.support_ = support
+        self.n_features_in_ = n_features
+        if feature_names is not None:
+            self.feature_names_in_ = feature_names
+        elif hasattr(self, "feature_names_in_"):
+            # Do not keep the names of a previous fit.
+            del self.feature_names_in_
         return self
 
     def _get_support_mask(self) -> np.ndarray:
-        """
-        Get the boolean mask indicating which features are selected.
+        """Get the boolean mask of the selected features.
 
         Returns
         -------
-        np.ndarray
-            Boolean mask array of shape (n_features,), where True means the feature is selected.
+        numpy.ndarray of shape (n_features_in_,)
+            The mask; True means that the feature is selected.
         """
         check_is_fitted(self, "support_")
         return self.support_
+
+
+def _correlation_matrix(X: np.ndarray) -> np.ndarray:
+    """Return the Pearson correlation matrix of the columns of ``X``.
+
+    Constant columns are found explicitly (with ``==``, like
+    ``scipy.stats.pearsonr``) and get a correlation of 0.0 with every other
+    column, because their correlation is undefined and ``numpy.corrcoef``
+    returns NaN, or a meaningless value when the mean is rounded, for them.
+
+    Parameters
+    ----------
+    X : numpy.ndarray of shape (n_samples, n_features)
+        The checked feature matrix.
+
+    Returns
+    -------
+    numpy.ndarray of shape (n_features, n_features)
+        The correlation matrix with 1.0 on the diagonal.
+    """
+    n_features = X.shape[1]
+    constant = np.all(X == X[0], axis=0)
+    if np.all(constant):
+        # Also covers a single sample, for which numpy.corrcoef warns.
+        return np.eye(n_features)
+    # There are at least two samples here. Dividing by a zero standard
+    # deviation (of a constant column, or one whose variance underflows)
+    # gives NaN, which is treated as no correlation.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        corr = np.atleast_2d(np.corrcoef(X, rowvar=False))
+    corr = np.where(np.isnan(corr), 0.0, corr)
+    corr[constant, :] = 0.0
+    corr[:, constant] = 0.0
+    np.fill_diagonal(corr, 1.0)
+    return corr
+
+
+def _pearson_p_value(x: np.ndarray, y: np.ndarray) -> float:
+    """Return the p-value of the Pearson correlation of ``x`` and ``y``.
+
+    Parameters
+    ----------
+    x, y : numpy.ndarray of shape (n_samples,)
+        Two non-constant features.
+
+    Returns
+    -------
+    float
+        The two-sided p-value of ``scipy.stats.pearsonr``.
+    """
+    return float(pearsonr(x, y)[1])
+
+
+def _remove_correlated(pairs: np.ndarray, n_features: int) -> np.ndarray:
+    """Remove features until no strongly correlated pair is left.
+
+    The feature in the largest number of the remaining pairs is removed
+    (the one with the smallest index on ties), and its pairs are dropped.
+    This is repeated until no pair is left. A loop is used instead of
+    recursion so that any number of features can be removed.
+
+    Parameters
+    ----------
+    pairs : numpy.ndarray of shape (n_pairs, 2)
+        The indices of the strongly correlated pairs of features.
+    n_features : int
+        The number of features.
+
+    Returns
+    -------
+    numpy.ndarray of shape (n_features,)
+        The boolean mask of the kept features.
+    """
+    neighbors: list[set[int]] = [set() for _ in range(n_features)]
+    for i, j in pairs.tolist():
+        neighbors[i].add(j)
+        neighbors[j].add(i)
+    degrees = np.array([len(s) for s in neighbors], dtype=int)
+    support = np.ones(n_features, dtype=bool)
+    while np.any(degrees > 0):
+        i_max = int(np.argmax(degrees))
+        for j in neighbors[i_max]:
+            neighbors[j].discard(i_max)
+            degrees[j] -= 1
+        neighbors[i_max] = set()
+        degrees[i_max] = 0
+        support[i_max] = False
+    return support
