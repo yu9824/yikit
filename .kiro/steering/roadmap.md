@@ -49,7 +49,7 @@ yikit 0.4.0 を出すための残りの作業です。0.4.0-rc.0 はすでに Py
 - [x] gbdt-fix -- GBDTRegressor の修正。LightGBM 3 と 4 の両方で動く callback 方式の early stopping、`X_train` で学習する、`**kwargs` をやめる、LightGBM 4.7 で非推奨になった `eval_set` への対応、テストと英語の docstring。optuna-tuning の探索範囲の表の GBDTRegressor の行の引数で学習できることもテストする（optuna-tuning のテストは GBDTRegressor を学習させない）。`**kwargs` をやめた後も、表の5つの名前（`n_estimators`・`min_child_weight`・`colsample_bytree`・`subsample`・`num_leaves`）はコンストラクタの引数に残す（`apply_params` が名前を検査するため）。修正の範囲が1つのクラスに収まるので spec にしない。Dependencies: dev-foundation
 - [x] release-0.4.0 -- examples の更新（作り直した EnsembleRegressor と探索範囲に合わせる。`wip/0.4.0-draft` の simulate の例を参考にする）、CHANGELOG.md の作成、版番号を 0.4.0-rc.1 にしてタグ、確認の後に 0.4.0、licond への版番号の連絡。リリースの作業なので spec にしない。Dependencies: すべての spec と gbdt-fix。2026-10-14 に 0.4.0 を公開した（PR #35・#36）。licond への連絡は残っている
 - [ ] release-0.5.0 -- 0.5.0 の CHANGELOG、rc の tag、確認の後に v0.5.0 の tag。setuptools-scm にした後は版を上げる PR が要らない。リリースの作業なので spec にしない。Dependencies: packaging-and-ci、drop-legacy-compat
-  - CHANGELOG の材料: 2つの spec の tasks.md の Implementation Notes にある（Python の下限、版番号の決め方、sdist の中身、optional なしの CI の job、上げた依存の下限とその理由、ngboost の上限、optuna-integration が必須になること）
+  - CHANGELOG の材料: 2つの spec の tasks.md の Implementation Notes にある（Python の下限、版番号の決め方、sdist の中身、optional なしの CI の job、上げた依存の下限とその理由、ngboost の上限、`OptunaSearchCV` は optuna-integration からだけ使うこと。`EnsembleRegressor(opt=True)` などに optuna-integration が要る）
   - packaging-and-ci から引き継ぐ確認: コードを含まない push で CI のテストが飛ばされ成功と出ること、rc と正式版の tag の push で PyPI・TestPyPI・GitHub Release に正しい版で出ること（同じ commit に2つの tag があるときも）、正式版の tag で docs に正しい版が出ること、dependabot の更新が group にまとまること
 
 ## Specs (dependency order)
@@ -118,6 +118,7 @@ yikit 0.4.0 を出すための残りの作業です。0.4.0-rc.0 はすでに Py
     - `packaging-and-ci` は Core Technologies の Language の行、型、コードの品質、テストの CI の項、Development Environment、Release を持つ
     - `drop-legacy-compat` は Core Technologies の Framework と Core deps の行、互換性、Key Libraries、Key Technical Decisions の「古い環境」の記述、`product.md` を持つ
   - `src/yikit/visualize/_yyplot.py`: `packaging-and-ci` は `sys.version_info` の分岐と import を、`drop-legacy-compat` は `NDArray` のコメントと docstring を持つ
+  - `tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py`: `packaging-and-ci` は先頭の optuna と yikit の import の順（optional の依存なしで集められるようにする）を、`drop-legacy-compat` はそれ以外の行を持つ
   - `.github/dependabot.yml`: `packaging-and-ci` が持つ。ngboost>=0.5.11 を無視する設定も `packaging-and-ci` が入れる（上限は `drop-legacy-compat` が決める）
   - CI の job: 下限は API の入った版で決め、CI では確かめない。3.10 の job に入る少し古い版で動くことは、`drop-legacy-compat` の分岐の一覧の「残す」の行で確かめる。3.14 の `.[test]` だけの job（`packaging-and-ci`）は、ngboost が 3.14 に入った後の pandas 3 と、optional なしの状態を確かめる
   - 手元の環境: `drop-legacy-compat` を始める前に、`yikit-dev` を setuptools-scm で入れ直しておく（`packaging-and-ci` の手元のビルドのタスク。入れるには作者の承認が要る）

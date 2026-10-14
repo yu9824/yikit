@@ -38,6 +38,7 @@
 - ngboost 0.5.11 以降に yikit を合わせるコードの変更（後のリリースに回す。作者が 2026-10-14 に決定）
 - `.github/dependabot.yml`（ngboost の 0.5.11 以上を無視する `ignore` の行は、この spec の上限の決定を参照して packaging-and-ci が足す）、CI の workflow（Python 3.14 で `.[test]` だけを入れる job を含む。packaging-and-ci）
 - `examples/`、`docs_src/`、`README.md`（版の分岐や記述がないことを確かめた）
+- `tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py` の先頭の optuna と yikit の import の順（packaging-and-ci の OptionalTestGuard。この spec はそれ以外の行を直し、順を保つ）
 
 ### Allowed Dependencies
 - packaging-and-ci が main に入っていること（Python>=3.10、CI の 3.10〜3.14、ruff の `py310`・mypy の `3.10`、`typing_extensions` の行の削除、setuptools-scm での版、`.github/dependabot.yml` の ngboost の `ignore`）
@@ -62,7 +63,7 @@
 - 分岐は 3 つの形で入っている: 版の番号の比較（`sklearn.__version__` の正規表現）、引数・属性の有無（`inspect.signature`、`is_argument`、`hasattr`、`set_params` の同一性）、import の代わりの場所（`try/except ImportError`）。どれも 1 つの関数か 1 つの import の中に閉じていて、公開 API の形を変えない
 - `helpers/_validation.py` の `feature_names_of` と `models/_ensemble.py` の `_feature_names` は、版の判定を含めて同じ処理を 2 か所に持っている（module-quality と ensemble-on-sklearn が別々に入れた）
 - テストは、版を差し替える（`monkeypatch.setattr(sklearn, "__version__", ...)`）、署名を差し替える（`_FIT_PARAMETERS`）、古い親のクラスを真似る（`_PropertyPredictSearchCV`）、入っている版で skip する、の 4 つの形で古い版を扱っている
-- packaging-and-ci は同じ `pyproject.toml` と `tech.md` と `visualize/_yyplot.py` を触るが、触る行と節は分かれている（Boundary Commitments）。この spec はその後に実装するので、作業のときの衝突はない
+- packaging-and-ci は同じ `pyproject.toml` と `tech.md` と `visualize/_yyplot.py`、`tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py` を触るが、触る行と節は分かれている（Boundary Commitments）。この spec はその後に実装するので、作業のときの衝突はない
 
 ### Architecture Pattern & Boundary Map
 
@@ -235,7 +236,7 @@ flowchart TD
 | 4.3 | 消した処理の前提を確かめる | TuningSearch、SearchSpace、GBDTModel | `predict` のテスト、`set_params` の判定のテスト、`best_iteration_` のテスト | Sweeps |
 | 4.4 | CI の 3.10〜3.14 で通る | 全体 | CI の手動実行 | CI |
 | 4.5 | ruff・mypy が 0 件 | 全体 | 手元の検査 | Local |
-| 4.6 | optional なしの 3.14 の job で通る | 全体 | packaging-and-ci の 3.14 の `.[test]` だけの job の手動実行 | CI |
+| 4.6 | optional なしの 3.14 の job で通る | 全体 | 手元で optional の依存を塞いだ pytest、packaging-and-ci の `test-no-optional` の手動実行 | 手元の検査、CI |
 | 5.1 | 公開 API を変えない | 7 つの Sweep | 公開の名前と引数 | Local |
 | 5.2 | 範囲の中で同じ結果 | 7 つの Sweep | 既存のテストの数の比較 | Local |
 | 5.3 | 結果が変わる分岐は残す | 7 つの Sweep | 分岐の一覧の判断 | Sweeps |
@@ -529,7 +530,7 @@ class OptunaSearchRegressor(OptunaSearchCV):
 
 ### CI
 - 作業ブランチで CI を手動実行し、3.10〜3.14 の 5 つの job が通り、3.14 の job で ngboost のテストが skip されないことを確かめる（1.4、2.1、2.3、4.4）
-- 同じ run で、packaging-and-ci の 3.14 の `.[test]` だけの job が通ることを確かめる（4.6）。この job の名前や形（別の job か matrix の `include` か）は packaging-and-ci が決める
+- 同じ run で、packaging-and-ci の 3.14 の `.[test]` だけの job が通ることを確かめる（4.6）。この job は packaging-and-ci の `test-no-optional`（matrix でない別の job）
 
 ### Validation Hooks
 - 古い版の記述を探す `grep`（`src/yikit` と `tests` に対して実行する）:

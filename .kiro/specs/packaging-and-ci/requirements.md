@@ -116,7 +116,7 @@ yikit の作者が、0.5.0 から Python 3.10 以上だけを対象にし、tag 
 
 #### Acceptance Criteria
 1. When この spec の変更が入ったとき, the steering（`tech.md`）shall Python の版、型の決まり、コードの品質（ruff・mypy の対象）、CI（optional の依存なしの job を含む）、Release の手順（tag と版番号の対応、手動実行の扱い、ビルドの要件、sdist の中身）、開発環境の手順を 0.5.0 の内容で示す
-2. The steering の更新 shall `tech.md` のうち Core Technologies の Language の行、型、コードの品質、テストの CI の項目、Development Environment、Release の節だけを変え、Core Technologies の Framework・Core deps の行、互換性、Key Libraries、Key Technical Decisions の節と `product.md` を変えない（drop-legacy-compat が持つ）
+2. The steering の更新 shall `tech.md` のうち Core Technologies の Language の行、型、コードの品質、テストの CI の項目、Development Environment、Release の節だけを変え、Core Technologies の Framework・Core deps の行、互換性、Key Libraries、Key Technical Decisions の節と `product.md` を変えない（drop-legacy-compat が持つ。Key Technical Decisions は「optional extra に重い依存を寄せる」の理由の句だけを drop-legacy-compat が直し、他の項目はどちらも触らない）
 3. Where README に対応する Python の版の記述があるとき, the README shall 3.10 以上と示す
 
 ### Requirement 11: 環境と公開に影響する確認の扱い

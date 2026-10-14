@@ -39,7 +39,7 @@
 - `pyproject.toml` の `[project] dependencies` と `[project.optional-dependencies] optional` のライブラリの行（`typing_extensions` の行を除く）と、ngboost の上限と marker（drop-legacy-compat）。`test`・`dev`・`docs` の extra は、この spec も drop-legacy-compat も変えない
 - ngboost 0.5.11 の `set_params`・`get_params` の変更への対応（作者の決定で後の版に送る。上限 `<0.5.11` は drop-legacy-compat が決める）
 - ライブラリの版による分岐と、その注記・テスト（`NDArray` の `TYPE_CHECKING`、LightGBM・ngboost・seaborn・scikit-learn・optuna の分岐、`tests/test_visualize.py` の LightGBM 4.6 の注記など。drop-legacy-compat）。`tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py` でこの spec が触るのは module の先頭の optuna の import だけで、他の行は drop-legacy-compat が触る
-- `tech.md` の「互換性」「Key Libraries」「Key Technical Decisions」の節、Core Technologies の Framework・Core deps の行、`product.md`（drop-legacy-compat）。Architecture と sklearn の estimator の決まりは、どちらの spec も触らない
+- `tech.md` の「互換性」「Key Libraries」の節、Key Technical Decisions の「optional extra に重い依存を寄せる」の理由の句、Core Technologies の Framework・Core deps の行、`product.md`（drop-legacy-compat）。Key Technical Decisions の他の項目は、どちらの spec も触らない。Architecture と sklearn の estimator の決まりは、どちらの spec も触らない
 - CHANGELOG、tag、PyPI への公開、licond への連絡（release-0.5.0）
 - `docs_src/conf.py`（`yikit.__version__` を読むので変えない）、`.github/release.yml`（リリースノートの分類。変えない）
 - `dummy_tqdm` などの公開のクラスの定義（基底のクラスを含む）
