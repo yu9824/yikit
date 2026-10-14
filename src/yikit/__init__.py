@@ -6,7 +6,7 @@ for machine learning workflows.
 
 from __future__ import annotations
 
-__version__ = "0.4.0-rc.1"
+__version__ = "0.4.0"
 __license__ = "Apache-2.0"
 __author__ = "yu9824"
 __copyright__ = "Copyright © 2025 yu9824"
