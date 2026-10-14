@@ -18,7 +18,7 @@
   - 完了の状態: 初期化のモジュールに版番号の文字列がなく、`git check-ignore -v src/yikit/_version.py` が `.gitignore` の行を示し、手元の今の環境で `import yikit` が失敗せずに `__version__` が `"unknown"` になる。`ruff check` と `ruff format --check` が初期化のモジュールでエラー 0 件で、`pytest tests/test_public_api.py` が通る
   - _Requirements: 3.4, 3.5, 3.6, 3.7, 9.1_
 
-- [ ] 1.3 版番号の読み方のテストを加える
+- [x] 1.3 版番号の読み方のテストを加える
   - インストールした yikit の隣に版のファイルがあり、`__version__` がそのファイルの版と同じで、PEP 440 の版として読めることを確かめる。版のファイルがないときは、入れ直し（editable の再インストール）を案内するメッセージで失敗させる
   - 初期化のモジュールを、版のファイルのない別名のパッケージとして一時ディレクトリから読み込むと、import に失敗せず `__version__` が `"unknown"` になることを確かめる
   - 版の比較に `importlib.metadata` を使わない（手元の最上位の古い `yikit.egg-info` が誤った版を返すため）。docstring とコメントは英語で書く
