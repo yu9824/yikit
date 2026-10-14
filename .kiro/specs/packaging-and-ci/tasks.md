@@ -87,7 +87,7 @@
   - _Requirements: 12.1, 12.2, 12.3_
 
 - [ ] 4. 手元でのビルドと版の確認（作者の承認が要る）
-- [ ] 4.1 作者の承認を得て setuptools-scm を入れ、editable を入れ直して、テストと検査を通す
+- [x] 4.1 作者の承認を得て setuptools-scm を入れ、editable を入れ直して、テストと検査を通す
   - 作者に、yikit-dev に setuptools-scm（10.1 以上。依存の vcs-versioning を含む）を入れる承認を求める。承認がなければ 4.1〜4.3 を行わずに 5 と 6 に進む。そのときは、手元で確かめられなかった要件（2.4、3.4 の手元での確認、3.6、9.3、12.1〜12.3 の本物の sdist での確認（3.5 の試しは済んでいる）、および 4.2 の版の対応）を最後の報告に書く（6.1・6.2 の CI と手動実行で確かめられるのは一部だけ）。build isolation を使うビルドやインストール（setuptools-scm を取りに行く）は、承認がない限り実行しない。承認がないときは 4.1〜4.3 のチェックを付けずに残し、理由を Implementation Notes に書く
   - 入れ直しは build isolation を使わず、依存も入れ直さない（`--no-build-isolation --no-deps`）。他のダウンロードを起こさない
   - 完了の状態: `src/yikit/_version.py` ができて `git status` に出ず、`python -m pytest -ra` の全体が通って、1.1 の基準に `tests/test_version.py` のテストを足した数になり、`ruff check src tests`・`ruff format --check src tests`・`mypy` がエラー 0 件
@@ -151,6 +151,7 @@
 - 3.4: この spec が main に入った時点では、ngboost の行はまだ `<0.5.9; python_version < '3.14'` なので、dependabot が 0.5.9・0.5.10 まで広げる PR を出すことがある。`ignore` はそれを止めない（drop-legacy-compat がタスク 1 で今の行を読み直す）
 - 3.5: `FileList` は `from setuptools._distutils.filelist import FileList`。`git ls-files` の一覧を `extend` し、`MANIFEST.in` のコメントでない各行を `process_template_line` に渡す。2026-10-14 の追跡しているファイルでは 168 個が 66 個になった。本物の sdist には、これに `PKG-INFO`・`setup.cfg`・`MANIFEST.in`・`src/yikit.egg-info/`・`src/yikit/_version.py` が加わる
 - 3.5 の結果（2026-10-15）: `MANIFEST.in` は design の SdistManifest と同じ。`FileList` の試しで、追跡しているファイル 169 個が 67 個（`MANIFEST.in` を含めて 68 個）になった（168 → 66 からの 1 個の差は 1.3 の `tests/test_version.py`）。最上位は `CHANGELOG.md`・`LICENSE`・`README.md`・`docs_src`・`examples`・`pyproject.toml`・`src`・`tests`（と `MANIFEST.in`）、`src/yikit` は 24 個で `git ls-files src/yikit` と同じ。sdist から wheel を作るときに MANIFEST.in をもう一度当てるので、"no previously-included files ... found" の log が 11 行出る（Python の警告ではなく、2.4 の対象外）
+- 4.1 の結果（2026-10-15）: build isolation ありの `pip install -e . --no-deps` で入れ直した。ビルド用の環境には setuptools 84.0.0・setuptools-scm 10.3.4・vcs-versioning 2.6.0・packaging 26.3 が入り、yikit-dev で変わったのは yikit の editable だけ（setuptools-scm は yikit-dev に入っていない）。版は `0.4.1.dev15+g439f1eeb9.d20261014`（`.d<日付>` は作者のコミットしていない `.vscode/settings.json` で作業ツリーが dirty なため。日付は UTC）。pytest 702 passed・542 warnings・failed 0、optional を塞いだ pytest 298 passed・105 skipped・failed 0、ruff・mypy（`_version.py` を含む 25 ファイル）0 件。生成された `_version.py` は ruff の `src tests` では gitignore で外れる（名指しすると引用符の差で format の指摘が出るが、契約の外）。editable の `_version.py` は入れ直すまで版が変わらない（5 の Development Environment に書く）
 - 4.2・4.3: 浅い clone は `git init` の後に `git fetch --no-tags --depth=1 file://<clone> +refs/tags/<tag>:refs/tags/<tag>` と `git checkout <tag>` で作る（ローカルのパスでは `--depth` が効かないので `file://` を使う）。`v0.4.0` の wheel は、その tag を checkout した clone で `python -m build --wheel --no-isolation` すれば、yikit-dev の setuptools 84 だけで作れる。展開した sdist でのテストは `python -m pytest -ra -p no:cacheprovider <展開した場所>/tests` で、yikit は yikit-dev の editable のものが読まれる
 - 作者か release-0.5.0 に渡す確認（この spec のタスクにしない）:
   - 同じコミットに annotated の rc の tag と lightweight の正式版の tag があると、後の全履歴のビルド（手動実行、docs の手動実行、手元のビルド）で `git describe` が rc の tag を選び、版が `0.5.1.devN` ではなく `0.5.0rc2.devN` になる（3.2 のレビューで再現）。tag の push のビルド（深さ 1）には影響しない。release-0.5.0 では、正式版の tag も annotated にして rc の後に作るか、tag の後に main のビルドの版を確かめる

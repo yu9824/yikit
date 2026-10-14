@@ -43,7 +43,7 @@
 ### Allowed Dependencies
 - packaging-and-ci が main に入っていること（Python>=3.10、CI の 3.10〜3.14、ruff の `py310`・mypy の `3.10`、`typing_extensions` の行の削除、setuptools-scm での版、`.github/dependabot.yml` の ngboost の `ignore`）
 - packaging-and-ci の 3.14 の `.[test]` だけの job（作者が 2026-10-14 に決定）: Python 3.14 で optional の依存を入れずに pytest を回す。ngboost を入れる job では lifelines が pandas<3.0 を求めるので、pandas 3 と、optional の依存がないときの動作はこの job が受け持つ。この spec はタスク 4.3 で、この job と、ngboost を入れる 3.14 の job の両方が通ることを確かめる（4.6、2.3）
-- 手元の yikit-dev: 作業ツリーに `src/yikit/_version.py` があり、`yikit.__version__` が `"unknown"` でないこと（packaging-and-ci の editable の入れ直しのタスク、今の番号で 4.1 が済んでいること）。なければ、作者の承認を得てから同じ手順（setuptools-scm を入れ、`--no-build-isolation --no-deps` で editable を入れ直す）で入れ直す。承認がなければ入れ直さず、`tests/test_version.py` の失敗を基準の既知の失敗として記録し、タスク 4.1 の判定から除く
+- 手元の yikit-dev: 作業ツリーに `src/yikit/_version.py` があり、`yikit.__version__` が `"unknown"` でないこと（packaging-and-ci の editable の入れ直しのタスク、今の番号で 4.1 が済んでいること）。なければ、作者の承認を得てから同じ手順（build isolation ありの `pip install -e . --no-deps`。一時的なビルド用の環境に setuptools-scm を取りに行き、yikit-dev には入れない。2026-10-14 の作者の決定）で入れ直す。承認がなければ入れ直さず、`tests/test_version.py` の失敗を基準の既知の失敗として記録し、タスク 4.1 の判定から除く
 - packaging-and-ci の OptionalTestGuard: `tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py` の先頭で、optuna と yikit の import を `pytest.importorskip("optuna")` の後に置いている（optional の依存なしの job でテストを集められるようにするため）。この spec がこの 3 つのファイルを直すとき（タスク 2.2・2.3・2.4）も、その順を崩さない
 - `models` → `helpers`（`yikit.helpers._validation.feature_names_of`）。structure.md の依存の向き（models は基盤だけに依存する）に合う。逆向き（helpers → models）は作らない
 - 新しいライブラリは足さない。手元で ngboost 0.5.10（と、調べるためだけの 0.5.11）を入れるのは作者の承認の後
