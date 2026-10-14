@@ -64,7 +64,7 @@
   - _Boundary: ReleaseWorkflow_
   - _Requirements: 3.1, 3.2, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 7.1_
 
-- [ ] 3.3 (P) docs の checkout を、tag の版が正しく決まる形にする
+- [x] 3.3 (P) docs の checkout を、tag の版が正しく決まる形にする
   - checkout の深さを release と同じ式にし、すべての tag を取る指定を消す。actions を design の版にする。起動の条件、権限、Sphinx の手順、公開の手順は変えない
   - docs の workflow を手動実行しない（公開中の docs を書き換えるため）
   - 完了の状態: `actionlint .github/workflows/docs.yml` の指摘が 0 件で、checkout に `fetch-tags` がなく、`fetch-depth` が release と同じ式

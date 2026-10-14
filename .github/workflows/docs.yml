@@ -15,12 +15,18 @@ jobs:
     runs-on: ubuntu-latest
     # runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      # Same depth as the release build job. Tag refs (push or manual): fetch
+      # only that tag (depth 1), so the docs get its version even if an rc tag
+      # points to the same commit. Do not ask checkout to fetch tags: it then
+      # fetches all tags even in a shallow clone. Other refs (manual runs on a
+      # branch): fetch all history and tags (depth 0) to get a dev version.
+      # Keep `&& 1 || 0` in this order: 0 is falsy, so `&& 0 || 1` would
+      # always give 1.
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
-          fetch-depth: 0  # fetch all commits
-          fetch-tags: true
-      - uses: actions/setup-python@v5
+          fetch-depth: ${{ startsWith(github.ref, 'refs/tags/') && 1 || 0 }}
+      - uses: actions/setup-python@v7
       - name: Install dependencies
         run: |
           pip install ".[docs,optional]"
