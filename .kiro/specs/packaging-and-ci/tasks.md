@@ -78,7 +78,7 @@
   - _Boundary: DependabotConfig_
   - _Requirements: 7.2, 7.3, 7.4_
 
-- [ ] 3.5 (P) sdist から開発のためだけのファイルを外す設定を足す
+- [x] 3.5 (P) sdist から開発のためだけのファイルを外す設定を足す
   - design の SdistManifest の中身で、リポジトリの最上位に `MANIFEST.in` を足す（AI のエージェントの設定と仕様、GitHub とエディタの設定、最上位の dotfile、手元の検査と examples の同期の設定を外す。`global-exclude` は使わない）
   - `docs_src/`・`tests/`・`examples/`・`CHANGELOG.md` などは残す
   - setuptools-scm を入れずに確かめる: yikit-dev の setuptools の `FileList` で、`git ls-files` の一覧に `MANIFEST.in` の各行を当てる
@@ -150,6 +150,7 @@
 - 3.2: 上書きの環境変数は `SETUPTOOLS_SCM_OVERRIDES_FOR_YIKIT: '{local_scheme = "no-local-version-strict"}'`。`fetch-depth` の式は `${{ startsWith(github.ref, 'refs/tags/') && 1 || 0 }}`（0 は偽なので、`&& 0 || 1` の順にしない）
 - 3.4: この spec が main に入った時点では、ngboost の行はまだ `<0.5.9; python_version < '3.14'` なので、dependabot が 0.5.9・0.5.10 まで広げる PR を出すことがある。`ignore` はそれを止めない（drop-legacy-compat がタスク 1 で今の行を読み直す）
 - 3.5: `FileList` は `from setuptools._distutils.filelist import FileList`。`git ls-files` の一覧を `extend` し、`MANIFEST.in` のコメントでない各行を `process_template_line` に渡す。2026-10-14 の追跡しているファイルでは 168 個が 66 個になった。本物の sdist には、これに `PKG-INFO`・`setup.cfg`・`MANIFEST.in`・`src/yikit.egg-info/`・`src/yikit/_version.py` が加わる
+- 3.5 の結果（2026-10-15）: `MANIFEST.in` は design の SdistManifest と同じ。`FileList` の試しで、追跡しているファイル 169 個が 67 個（`MANIFEST.in` を含めて 68 個）になった（168 → 66 からの 1 個の差は 1.3 の `tests/test_version.py`）。最上位は `CHANGELOG.md`・`LICENSE`・`README.md`・`docs_src`・`examples`・`pyproject.toml`・`src`・`tests`（と `MANIFEST.in`）、`src/yikit` は 24 個で `git ls-files src/yikit` と同じ。sdist から wheel を作るときに MANIFEST.in をもう一度当てるので、"no previously-included files ... found" の log が 11 行出る（Python の警告ではなく、2.4 の対象外）
 - 4.2・4.3: 浅い clone は `git init` の後に `git fetch --no-tags --depth=1 file://<clone> +refs/tags/<tag>:refs/tags/<tag>` と `git checkout <tag>` で作る（ローカルのパスでは `--depth` が効かないので `file://` を使う）。`v0.4.0` の wheel は、その tag を checkout した clone で `python -m build --wheel --no-isolation` すれば、yikit-dev の setuptools 84 だけで作れる。展開した sdist でのテストは `python -m pytest -ra -p no:cacheprovider <展開した場所>/tests` で、yikit は yikit-dev の editable のものが読まれる
 - 作者か release-0.5.0 に渡す確認（この spec のタスクにしない）:
   - 同じコミットに annotated の rc の tag と lightweight の正式版の tag があると、後の全履歴のビルド（手動実行、docs の手動実行、手元のビルド）で `git describe` が rc の tag を選び、版が `0.5.1.devN` ではなく `0.5.0rc2.devN` になる（3.2 のレビューで再現）。tag の push のビルド（深さ 1）には影響しない。release-0.5.0 では、正式版の tag も annotated にして rc の後に作るか、tag の後に main のビルドの版を確かめる

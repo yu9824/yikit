@@ -1,0 +1,12 @@
+# setuptools-scm puts every git-tracked file into the sdist first;
+# these lines then drop the files that only matter for developing yikit.
+# Kept: src, tests, examples, docs_src, LICENSE, README.md, CHANGELOG.md,
+# pyproject.toml. The wheel only takes files inside src/yikit, so do not
+# add global-exclude here.
+prune .claude
+prune .github
+prune .kiro
+prune .vscode
+exclude CLAUDE.md
+exclude .gitattributes .gitignore .python-version
+exclude ruff.toml mypy.ini jupytext.toml
