@@ -100,7 +100,7 @@
   - 完了の状態: 各ビルドの配布物のファイル名（または失敗）が Implementation Notes に書かれ、design の「tag と版の対応」と一致する
   - _Requirements: 3.1, 3.2, 3.3, 5.4, 5.5, 6.2, 11.1, 11.3_
 
-- [ ] 4.3 配布物のメタデータと中身を、0.4.0 の配布物と比べて確かめる
+- [x] 4.3 配布物のメタデータと中身を、0.4.0 の配布物と比べて確かめる
   - 4.2 の `v0.5.0` の wheel の METADATA に、`Metadata-Version: 2.4`、`License-Expression: Apache-2.0`、`License-File: LICENSE`、`Requires-Python: >=3.10`、3.10〜3.14 の classifiers があり、`typing_extensions` がないことを確かめる。ビルドの log にライセンスの非推奨の警告がないことも確かめる
   - 同じ clone の `v0.4.0` から作った wheel とファイルの一覧を比べ、違いが版のファイルとライセンスのファイルだけであることを確かめる（`v0.4.0` には sdist を絞る設定がないので、その設定が wheel を変えないことの確認にもなる）
   - `v0.5.0` の sdist の中身の一覧を取り、design の SdistManifest で外すものがなく、残すもの（生成された版のファイルと、テストの参照画像を含む）があることを確かめる。sdist から wheel のビルドが通ったことも確かめる
@@ -156,6 +156,11 @@
   - push した tag だけを深さ 1 で取った clone、上書きあり（release と同じ）: `v0.5.0-rc.1`（annotated）→ `yikit-0.5.0rc1.tar.gz`・`yikit-0.5.0rc1-py3-none-any.whl`、`v0.5.0`（lightweight）→ `yikit-0.5.0.tar.gz`・`yikit-0.5.0-py3-none-any.whl`。PKG-INFO・METADATA・`_version.py` の版も同じ
   - 全履歴で v0.5 の tag が `v0.5.0` だけの clone に 1 コミット: 上書きなし `0.5.1.dev1+g5b9877f5b`、上書きあり `0.5.1.dev1`（sdist と wheel）。追跡しているファイルを変えたまま上書きありでビルドすると `DirtyWorkingTreeError` で失敗し、配布物はできない（上書きなしでは `0.5.1.dev1+g5b9877f5b.d20261014`）
   - 全履歴で `v0.5.0-rc.1`（annotated）と `v0.5.0`（lightweight）が同じコミットにある clone: tag のコミットで `0.5.0rc1`、1 コミット後に上書きあり `0.5.0rc2.dev1`・なし `0.5.0rc2.dev1+gb5ff8fe27`。正式版も annotated にして rc より後の日時で作った clone では 1 コミット後が `0.5.1.dev1`（渡す確認の対策）
+- 4.3 の結果（2026-10-15）:
+  - `v0.5.0` の wheel の METADATA: `Metadata-Version: 2.4`・`License-Expression: Apache-2.0`・`License-File: LICENSE`・`Requires-Python: >=3.10`、classifiers は `3` と 3.10〜3.14、`typing_extensions` なし（sdist の PKG-INFO も同じ）。ビルドの log にライセンスの非推奨の警告はない（対照の v0.4.0 のビルドでは TOML の表の形の license の `SetuptoolsDeprecationWarning` が 4 回出る）
+  - wheel の一覧: v0.4.0（setuptools 84 で作り直し、PyPI の 0.4.0 の wheel と同じ 83,421 bytes）が 29 個、v0.5.0 が 30 個で、差は `yikit/_version.py` だけ。ライセンスは setuptools 84 ではどちらも `.dist-info/licenses/LICENSE` にあり、design の「ライセンスのファイルの差」は出ない。中身が変わったモジュールは `git diff v0.4.0 b69c88d -- src` の 4 つと同じ。オフラインの `pip install --dry-run` で、Python 3.8・3.9 は 0.4.0、3.10・3.14 は 0.5.0 を選ぶ
+  - sdist: 78 ファイル。最上位は `CHANGELOG.md`・`LICENSE`・`MANIFEST.in`・`PKG-INFO`・`README.md`・`docs_src`・`examples`・`pyproject.toml`・`setup.cfg`・`src`・`tests`。外すもの 11 種は 0 件。追跡しているファイルから外すものを除いた 68 個に、`PKG-INFO`・`setup.cfg`・`src/yikit/_version.py`（`'0.5.0'`）と egg-info の 7 個を足した数と一致。wheel のパッケージのファイルは追跡している `src/yikit` の 24 個と `_version.py` だけで、MANIFEST.in は wheel を変えない。sdist から wheel のビルドも通る
+  - 展開した sdist の tests で pytest: 702 passed・542 warnings（rootdir は展開した sdist、yikit は editable）
 - 4.2・4.3: 浅い clone は `git init` の後に `git fetch --no-tags --depth=1 file://<clone> +refs/tags/<tag>:refs/tags/<tag>` と `git checkout <tag>` で作る（ローカルのパスでは `--depth` が効かないので `file://` を使う）。`v0.4.0` の wheel は、その tag を checkout した clone で `python -m build --wheel --no-isolation` すれば、yikit-dev の setuptools 84 だけで作れる。展開した sdist でのテストは `python -m pytest -ra -p no:cacheprovider <展開した場所>/tests` で、yikit は yikit-dev の editable のものが読まれる
 - 作者か release-0.5.0 に渡す確認（この spec のタスクにしない）:
   - 同じコミットに annotated の rc の tag と lightweight の正式版の tag があると、全履歴のビルド（release と docs の branch での手動実行、手元のビルドと editable）で `git describe` が rc の tag を選ぶ（3.2 のレビューと 4.2 で再現）。tag のコミットそのものでも `0.5.0` ではなく `0.5.0rc1` になり、その後は `0.5.1.devN` ではなく `0.5.0rc2.devN` になる。どちらも PEP 440 で `0.5.0` より小さく、3.3 が成り立たない。release の直後に main で docs を手動実行すると、公開中の docs が `0.5.0rc1` の版で上書きされる。tag の push のビルド（深さ 1、push した tag だけ）には影響しない
@@ -171,5 +176,5 @@
   - Python 3.10 以上が必要（3.8・3.9 では pip が 0.4.x を選ぶ）
   - 版番号は setuptools-scm が git の tag から決める（`vX.Y.Z` → `X.Y.Z`、`vX.Y.Z-rc.N` → `X.Y.ZrcN`）。`__version__` はインストールのときに作られる `_version.py` から読み、インストールしていないソースでは `"unknown"`。main から入れると、次の tag までは `X.Y.(Z+1).devN` の版になる
   - ライセンスを PEP 639 の式（`License-Expression: Apache-2.0`）で宣言し、`typing_extensions` の依存をなくした
-  - sdist から開発のためだけのファイル（`.kiro/`・`.claude/`・`CLAUDE.md`・`.github/`・`.vscode/`、開発の設定と dotfile）を外した。`tests/`・`examples/`・`docs_src/` は残る。wheel の中身は変わらない
+  - sdist に `tests/conftest.py`・`tests/imgs/`（参照画像）・`examples/`・`docs_src/`・`CHANGELOG.md` が新しく入り、展開した sdist だけでテストが通るようになった（0.4.0 の sdist は setuptools の既定のファイルだけで、これらがなかった）。setuptools-scm は追跡しているファイルをすべて sdist に入れるので、開発のためだけのファイル（`.kiro/`・`.claude/`・`CLAUDE.md`・`.github/`・`.vscode/`、開発の設定と dotfile）は `MANIFEST.in` で外している。wheel の中身は変わらない（`_version.py` が加わるだけ）
   - CI に、Python 3.14 で optional の依存を入れずにテストする job を足した（optional の依存がないときの動作と pandas 3 を確かめる）
