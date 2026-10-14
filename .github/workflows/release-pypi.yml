@@ -1,6 +1,25 @@
 name: Publish Python 🐍 distribution 📦
 run-name: ${{ github.workflow }} (${{ github.ref_name }})
 
+# Unlike CI, never cancel a running release: stopping it halfway can leave a
+# PyPI upload or a GitHub Release half done. A later run on the same ref waits
+# until the running one has finished.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Set to "true" to publish to PyPI and TestPyPI.
+  # Note: env context is unavailable in job-level `if` and `environment.url`,
+  # so these values are forwarded via the build job's outputs as a workaround.
+  PUBLISH_PYPI: "true"
+  PYPI_PACKAGE_NAME: "yikit"
+
+permissions:
+  contents: read
+
+# Keep this file name and the environment names `pypi` / `testpypi`:
+# trusted publishing on PyPI and TestPyPI is registered with them.
 on:
   workflow_dispatch:
   push:
@@ -12,18 +31,38 @@ jobs:
   build:
     name: Build distribution 📦
     runs-on: ubuntu-latest
+    outputs:
+      publish_pypi: ${{ steps.check.outputs.publish_pypi }}
+      package_name: ${{ steps.check.outputs.package_name }}
+    env:
+      # PyPI and TestPyPI reject local versions (`+g<hash>`). Drop them, and
+      # fail the build if tracked files are modified.
+      SETUPTOOLS_SCM_OVERRIDES_FOR_YIKIT: '{local_scheme = "no-local-version-strict"}'
 
     steps:
-    - uses: actions/checkout@v4
+    # Forward env variables as job outputs so they can be referenced in
+    # job-level `if` conditions and `environment.url` of downstream jobs.
+    - id: check
+      run: |
+        echo "publish_pypi=${{ env.PUBLISH_PYPI }}" >> "$GITHUB_OUTPUT"
+        echo "package_name=${{ env.PYPI_PACKAGE_NAME }}" >> "$GITHUB_OUTPUT"
+    # Tag push: fetch only the pushed tag (depth 1), so the version is that
+    # tag even if another tag (e.g. an rc) points to the same commit.
+    # Other refs (manual runs): fetch all history and tags (depth 0) to get
+    # a dev version after the last tag. Keep `&& 1 || 0` in this order:
+    # 0 is falsy, so `&& 0 || 1` would always give 1.
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: ${{ startsWith(github.ref, 'refs/tags/') && 1 || 0 }}
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
 
     - name: Install pypa/build
-      run: pip install .[dev]
+      run: pip install ".[dev]"
     - name: Build a binary wheel and a source tarball
       run: python3 -m build
     - name: Store the distribution packages
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: python-package-distributions
         path: dist/
@@ -31,19 +70,23 @@ jobs:
   publish-to-pypi:
     name: >-
       Publish Python 🐍 distribution 📦 to PyPI
-    # Only publish to PyPI on tag pushes with version tags or release candidates
-    if: startsWith(github.ref, 'refs/tags/') && (!contains(github.ref_name, '-') || contains(github.ref_name, 'rc'))
+    # Publish only on stable/rc version tags (e.g. v1.2.3, v1.2.3-rc.1)
+    # when PUBLISH_PYPI is true.
+    if: >-
+      startsWith(github.ref, 'refs/tags/') &&
+      (!contains(github.ref_name, '-') || contains(github.ref_name, 'rc')) &&
+      needs.build.outputs.publish_pypi == 'true'
     needs:
     - build
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/yikit # FIXME: Replace 'yikit' with your PyPI project name
+      url: https://pypi.org/p/${{ needs.build.outputs.package_name }}
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
     steps:
     - name: Download all the dists
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: python-package-distributions
         path: dist/
@@ -54,7 +97,7 @@ jobs:
     name: >-
       Sign the Python 🐍 distribution 📦 with Sigstore
       and upload them to GitHub Release
-    # only publish to PyPI on tag pushes
+    # Run on any tag push regardless of PUBLISH_PYPI.
     if: startsWith(github.ref, 'refs/tags/')
     needs:
     - build
@@ -66,12 +109,12 @@ jobs:
 
     steps:
     - name: Download all the dists
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: python-package-distributions
         path: dist/
     - name: Sign the dists with Sigstore
-      uses: sigstore/gh-action-sigstore-python@v3.0.0
+      uses: sigstore/gh-action-sigstore-python@v3.5.0
       with:
         inputs: >-
           ./dist/*.tar.gz
@@ -80,9 +123,9 @@ jobs:
       id: prerelease
       run: |
         if [[ "${GITHUB_REF#refs/tags/}" == *-* ]]; then
-          echo "pre_release=true" >> $GITHUB_OUTPUT
+          echo "pre_release=true" >> "$GITHUB_OUTPUT"
         else
-          echo "pre_release=false" >> $GITHUB_OUTPUT
+          echo "pre_release=false" >> "$GITHUB_OUTPUT"
         fi
     - name: Create GitHub Release
       env:
@@ -106,20 +149,26 @@ jobs:
 
   publish-to-testpypi:
     name: Publish Python 🐍 distribution 📦 to TestPyPI
+    # Publish on any tag push (including pre-releases) and on manual runs
+    # when PUBLISH_PYPI is true. A manual run builds a dev version; running
+    # it again on the same commit skips the version already on TestPyPI.
+    if: >-
+      needs.build.outputs.publish_pypi == 'true' &&
+      (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     needs:
     - build
     runs-on: ubuntu-latest
 
     environment:
-      name: testpypi  # FIXME: Replace 'yikit' with your PyPI project name
-      url: https://test.pypi.org/p/yikit
+      name: testpypi
+      url: https://test.pypi.org/p/${{ needs.build.outputs.package_name }}
 
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     steps:
     - name: Download all the dists
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: python-package-distributions
         path: dist/
@@ -127,3 +176,4 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         repository-url: https://test.pypi.org/legacy/
+        skip-existing: ${{ github.event_name == 'workflow_dispatch' }}

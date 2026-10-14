@@ -55,7 +55,7 @@
   - _Boundary: CIWorkflow_
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 7.1_
 
-- [ ] 3.2 (P) release を python-template の形にし、tag と手動実行で正しい版を作る
+- [x] 3.2 (P) release を python-template の形にし、tag と手動実行で正しい版を作る
   - 実行中を取り消さない `concurrency`、読み取りだけの既定の権限、公開するかどうかとパッケージの名前を build の job の outputs で渡す仕組み（公開する設定）、PyPI・GitHub Release・TestPyPI の公開の条件と job ごとの権限を、design の契約どおりにする
   - build の job は、tag の ref では push された tag だけを浅く、それ以外では全履歴で checkout し、ローカル版を外して汚れたツリーでは失敗する上書きの環境変数を付ける
   - TestPyPI へは tag の push と手動実行で出し、手動実行のときだけ同じ版を飛ばす。`$GITHUB_OUTPUT` を引用符で囲む。actions を design の版にする
@@ -152,6 +152,8 @@
 - 3.5: `FileList` は `from setuptools._distutils.filelist import FileList`。`git ls-files` の一覧を `extend` し、`MANIFEST.in` のコメントでない各行を `process_template_line` に渡す。2026-10-14 の追跡しているファイルでは 168 個が 66 個になった。本物の sdist には、これに `PKG-INFO`・`setup.cfg`・`MANIFEST.in`・`src/yikit.egg-info/`・`src/yikit/_version.py` が加わる
 - 4.2・4.3: 浅い clone は `git init` の後に `git fetch --no-tags --depth=1 file://<clone> +refs/tags/<tag>:refs/tags/<tag>` と `git checkout <tag>` で作る（ローカルのパスでは `--depth` が効かないので `file://` を使う）。`v0.4.0` の wheel は、その tag を checkout した clone で `python -m build --wheel --no-isolation` すれば、yikit-dev の setuptools 84 だけで作れる。展開した sdist でのテストは `python -m pytest -ra -p no:cacheprovider <展開した場所>/tests` で、yikit は yikit-dev の editable のものが読まれる
 - 作者か release-0.5.0 に渡す確認（この spec のタスクにしない）:
+  - 同じコミットに annotated の rc の tag と lightweight の正式版の tag があると、後の全履歴のビルド（手動実行、docs の手動実行、手元のビルド）で `git describe` が rc の tag を選び、版が `0.5.1.devN` ではなく `0.5.0rc2.devN` になる（3.2 のレビューで再現）。tag の push のビルド（深さ 1）には影響しない。release-0.5.0 では、正式版の tag も annotated にして rc の後に作るか、tag の後に main のビルドの版を確かめる
+  - `.python-version`（3.12.8）は、release と docs の setup-python が読む。actions/python-versions に ubuntu 26.04 向けの 3.12.8 がないので、`ubuntu-latest` が 26.04 に移ると release と docs の job が失敗しうる（前からある問題。3.2 のレビューの指摘）。release-0.5.0 の前に `ubuntu-latest` の中身を確かめ、必要なら `.python-version` を `3.12` にする
   - CI の `concurrency`（`cancel-in-progress: true`、今のまま）と job の中の判定の組み合わせ: main にコードの push N の実行中にコード以外だけの push N+1 が来ると、N の実行が取り消され、N+1 は差分にコードがないのでテストを飛ばす。N のコードは PR の CI で通っているが、main の上では走らない。気になるなら `cancel-in-progress: ${{ github.event_name == 'pull_request' }}` にする（3.1 のレビューの指摘。design は concurrency を変えないと決めている）
   - テストを飛ばす判定（4.1・4.4）: PR の差分全体を比べるので、マージの前には観察できない。マージの後、コード以外のファイルだけを変える main への最初の push（例: release-0.5.0 の CHANGELOG）で、`test` と `test-no-optional` が skipped・実行が success になることを見る。この spec の中では、3.1 の静的な確認（`on` に `paths` がなく、テストの job に `if` がある）で代える
   - tag の push での公開（5.1〜5.4）: rc の tag（`v0.5.0-rc.1`）で PyPI・TestPyPI・pre-release の GitHub Release、正式版の tag で PyPI・TestPyPI・GitHub Release に出ること（release-0.5.0 が行う）
