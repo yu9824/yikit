@@ -1,0 +1,22 @@
+{
+  "feature_name": "packaging-and-ci",
+  "created_at": "2026-10-14T04:12:16Z",
+  "updated_at": "2026-10-14T05:30:00Z",
+  "language": "ja",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": false
+}
