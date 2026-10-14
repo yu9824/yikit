@@ -5,13 +5,13 @@ import warnings
 from itertools import product
 
 import numpy as np
-import optuna
 import pytest
 from sklearn.base import clone
 from sklearn.datasets import make_regression
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.utils import check_random_state
 
+optuna = pytest.importorskip("optuna")
 lightgbm = pytest.importorskip("lightgbm")
 
 from yikit.models import GBDTRegressor, Objective  # noqa: E402

@@ -39,7 +39,7 @@
   - 完了の状態: `ruff check src tests`、`ruff format --check src tests`、`mypy` がエラー 0 件、`grep -rn "version_info" src tests` が何も出さず、手元の `python -m pytest -ra` の結果が、`tests/test_version.py` のテストを除いて、1.1 で記録した基準と同じ数になる
   - _Requirements: 1.5, 8.1, 8.3, 9.1, 9.2_
 
-- [ ] 2.3 optional の依存がない環境でも、テストの読み込みが失敗しないようにする
+- [x] 2.3 optional の依存がない環境でも、テストの読み込みが失敗しないようにする
   - module の先頭で optuna を import している 3 つのテストのファイル（GBDT、optuna の探索、探索範囲）で、optuna とそれに頼る yikit の import を、optuna がなければ module ごと skip する `importorskip` の後に置く。テストの関数、補助の関数、他の行は変えない（drop-legacy-compat が後でこれらのファイルの他の行を直す）
   - optional の依存（colorlog・tqdm・ngboost・lightgbm・boruta・optuna・optuna_integration）を塞いで読み込めなくする `sitecustomize.py` を scratchpad に置き、`PYTHONPATH` で読ませて pytest を回す（何も入れずに `.[test]` だけの環境を真似る）。手順は design の OptionalTestGuard
   - 完了の状態: 塞いだ pytest で collection の error と failed が 0 件で、skip の理由が optional の依存がないことだけ。塞がない `python -m pytest -ra` の結果が、`tests/test_version.py` のテストを除いて 1.1 の基準と同じ数。`ruff check src tests` と `ruff format --check src tests` がエラー 0 件。塞いだ pytest の passed・skipped の数を Implementation Notes に書く
@@ -145,6 +145,7 @@
 - 1.3・4.1: リポジトリの最上位に古い `yikit.egg-info`（0.3.15、gitignore されている）があり、最上位で `python -m pytest` や `python -c` を実行すると `importlib.metadata.version("yikit")` がこれを読む。版の比較は `yikit._version` とする
 - 2.2: `ruff.toml` では F401 が unfixable。自動修正の後に残る `import sys` は手で消す（`--fixable F401` を CLI で付けてもよい）。UP036 の修正は `--unsafe-fixes` が要る
 - 2.3: 塞ぎ方は `sys.modules[name] = None`（`import` は `ModuleNotFoundError`、`importlib.util.find_spec` は None を返す）。`PYTHONDONTWRITEBYTECODE=1` と `-p no:cacheprovider` を付け、リポジトリに cache を残さない。2026-10-14 の変更の前は、3 つのファイルが集める段階で失敗し、残りは 296 passed・102 skipped だった。`importorskip` の後の import には `# noqa: E402` を付ける
+- 2.3 の結果（2026-10-14）: optional の依存を塞いだ pytest で 297 passed・105 skipped・collection の error 0 件（failed 1 件は `test_version_comes_from_generated_file` で 4.1 の前の既知の失敗。4.1 の後に 0 件を確かめ直す）。skip の理由はすべて optional の依存がないこと。依存がすべて入った環境の test ID は 702 件で変わらない。optuna があって optuna_integration がない環境では `tests/test_optuna.py` が `optuna.integration` の代わりの import で collection に失敗するが、前からある問題で CI のどの job にも当たらない（drop-legacy-compat がこの代わりの import を消す）
 - 3.x: 今の release workflow には actionlint（shellcheck SC2086、info）の指摘が 2 件ある。`"$GITHUB_OUTPUT"` で消える。scratchpad に置いた design どおりの下書きは actionlint の指摘 0 件だった
 - 3.2: 上書きの環境変数は `SETUPTOOLS_SCM_OVERRIDES_FOR_YIKIT: '{local_scheme = "no-local-version-strict"}'`。`fetch-depth` の式は `${{ startsWith(github.ref, 'refs/tags/') && 1 || 0 }}`（0 は偽なので、`&& 0 || 1` の順にしない）
 - 3.4: この spec が main に入った時点では、ngboost の行はまだ `<0.5.9; python_version < '3.14'` なので、dependabot が 0.5.9・0.5.10 まで広げる PR を出すことがある。`ignore` はそれを止めない（drop-legacy-compat がタスク 1 で今の行を読み直す）
