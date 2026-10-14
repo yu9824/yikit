@@ -1,4 +1,4 @@
-target-version = "py38"
+target-version = "py310"
 line-length = 79
 indent-width = 4
 extend-exclude = ["examples", "docs_src"]

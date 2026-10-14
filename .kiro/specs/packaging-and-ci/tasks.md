@@ -26,13 +26,13 @@
   - _Requirements: 3.4, 3.5_
 
 - [ ] 2. 手元の検査とテストを、Python 3.10 と optional の依存なしの CI に合わせる
-- [ ] 2.1 ruff と mypy の対象を Python 3.10 にする
+- [x] 2.1 ruff と mypy の対象を Python 3.10 にする
   - ruff の対象の版を 3.10 にする。規則・除外・必須の import・行の長さは変えない
   - mypy の対象の版を 3.10 にする。対象のファイルと `ignore_missing_imports` は変えない
   - 完了の状態: `ruff check src tests --statistics` に出る違反が UP035 の 3 件と UP036 の 2 件だけで、`mypy` がエラー 0 件で終わる
   - _Requirements: 8.1, 8.2_
 
-- [ ] 2.2 Python 3.8・3.9 のための書き分けを消す
+- [x] 2.2 Python 3.8・3.9 のための書き分けを消す
   - ruff の UP035・UP036 の修正（UP036 は unsafe）で、helpers と visualize の 3 つのモジュールの import を `collections.abc` に揃え、Python の版の分岐をなくす。使われなくなった `sys` の import を手で消す
   - helpers の「3.8 を外したら `Iterable[T]` にする」という注記を消す。`dummy_tqdm` の基底のクラスは変えない（MRO から `Generic` が外れるため）
   - ライブラリの版による書き分けと注記（`NDArray` の注記など）には触らない

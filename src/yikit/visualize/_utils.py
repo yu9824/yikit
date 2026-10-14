@@ -7,8 +7,9 @@ including font configuration and custom matplotlib settings context manager.
 from __future__ import annotations
 
 import platform
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 import matplotlib.pyplot as plt
 from sklearn.utils import Bunch
