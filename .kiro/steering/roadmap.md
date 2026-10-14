@@ -49,9 +49,9 @@ yikit 0.4.0 を出すための残りの作業です。0.4.0-rc.0 はすでに Py
 
 ## Specs (dependency order)
 - [x] dev-foundation -- 開発環境と CI（pytest を Python 3.8〜3.14 で。ruff・mypy は手元で実行）、依存の下限と extra の見直し、dependabot、Python 3.8 でも動く型の書き方への全体の書き換え、画像を比べるテストの安定化。Dependencies: none
-- [ ] module-quality -- モデル以外のモジュール（helpers・logging・metrics・feature_selection・visualize）の英語の docstring とテスト。Dependencies: dev-foundation
+- [x] module-quality -- モデル以外のモジュール（helpers・logging・metrics・feature_selection・visualize）の英語の docstring とテスト。Dependencies: dev-foundation
 - [x] optuna-tuning -- 探索範囲の共通ファイル、入れ子の解決、RecommendedParams、モデルの追加と削除、`Objective` が利用者の引数を上書きしない扱い。Dependencies: dev-foundation
-- [ ] ensemble-on-sklearn -- EnsembleRegressor を sklearn の Voting・Stacking で作り直す。Dependencies: optuna-tuning
+- [x] ensemble-on-sklearn -- EnsembleRegressor を sklearn の Voting・Stacking で作り直す。Dependencies: optuna-tuning
 
 ---
-_updated_at: 2026-10-09_
+_updated_at: 2026-10-14_
