@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.20.0
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: Python 3.9.13 ('yikit')
 #     language: python
@@ -41,3 +41,9 @@ X_selected.head()
 
 # %%
 selector.get_support()
+
+# %% [markdown]
+# ```perc="auto"```で決まった百分位
+
+# %%
+selector.perc_

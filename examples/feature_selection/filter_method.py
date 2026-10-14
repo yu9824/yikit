@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.20.0
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: py312
 #     language: python
@@ -38,6 +38,8 @@ sns.pairplot(X)
 
 # %% [markdown]
 # ### 削減してみる
+#
+# 相関係数の絶対値が```r```より大きく，p値が```alpha```より小さい組から特徴量を取り除く（負の相関も取り除く）．
 
 # %%
 selector = FilterSelector(r=0.85, n_jobs=-1)
@@ -45,13 +47,17 @@ selector.fit(X)
 X_selected = X.loc[:, selector.get_support()]
 X_selected.head()
 
+# %%
+selector.get_feature_names_out()
+
 # %% [markdown]
-# ### 削減されたペアを表示
+# ### 相関の強いペアを表示
 
 # %%
 for i in range(selector.corr_.shape[0]):
-    for j in range(i, selector.corr_.shape[1]):
-        if 1 > selector.corr_[i][j][0] > 0.9:
+    for j in range(i + 1, selector.corr_.shape[1]):
+        r, p = selector.corr_[i][j]
+        if abs(r) > selector.r and p < selector.alpha:
             print(selector.corr_[i][j], X.columns[i], X.columns[j])
 
 # %% [markdown]

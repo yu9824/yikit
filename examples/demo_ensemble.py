@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.20.0
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: Python 3.9.13 ('yikit')
 #     language: python
@@ -13,54 +13,75 @@
 # ---
 
 # %%
+import numpy as np
+import optuna
+import pandas as pd
+from lightgbm import LGBMRegressor
+from sklearn.datasets import load_diabetes
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import KFold, train_test_split
+
 from yikit.models import EnsembleRegressor, Objective
 
-import pandas as pd
-from sklearn.model_selection import train_test_split, KFold
-from sklearn.metrics import mean_squared_error
-from sklearn.datasets import load_diabetes
-import optuna
-from lightgbm import LGBMRegressor
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 # %%
 SEED = 334
-kf = KFold(n_splits = 5, shuffle=True, random_state=SEED)
+kf = KFold(n_splits=5, shuffle=True, random_state=SEED)
 
 # %%
 data = load_diabetes()
-X = pd.DataFrame(data.data, columns = data.feature_names)
-y = pd.Series(data.target, name = 'PRICE')
+X = pd.DataFrame(data.data, columns=data.feature_names)
+y = pd.Series(data.target, name="target")
 
 # %%
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state=SEED)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=SEED
+)
 
 # %%
-# rf = RandomForestRegressor(random_state = SEED, n_jobs = -1)
-lgbt = LGBMRegressor(random_state = SEED, n_jobs = -1)
-
-# %% tags=["outputPrepend"]
-objective = Objective(lgbt, X_train, y_train, scoring = 'neg_root_mean_squared_error', cv = kf)
-study = optuna.create_study(sampler = objective.sampler, direction = 'maximize')
-study.optimize(objective, n_trials = 100)
-
-# %%
-best_estimator = objective.model(**objective.fixed_params_, **study.best_params).fit(X_train, y_train)
-
-# %%
-mean_squared_error(best_estimator.predict(X_test), y_test, squared = False)
+lgbm = LGBMRegressor(random_state=SEED, n_jobs=-1, verbosity=-1)
 
 # %% [markdown]
-# 同じ条件にするために```boruta```を```False```に．
+# ```Objective```でハイパーパラメータを探索する．
 
 # %%
-er = EnsembleRegressor([lgbt], random_state = SEED, n_jobs = -1, boruta = False, scoring = 'neg_root_mean_squared_error', verbose = 0, cv = kf)
+objective = Objective(
+    lgbm,
+    X_train,
+    y_train,
+    scoring="neg_root_mean_squared_error",
+    cv=kf,
+    random_state=SEED,
+)
+study = optuna.create_study(sampler=objective.sampler, direction="maximize")
+study.optimize(objective, n_trials=100)
+
+# %%
+best_estimator = objective.get_best_estimator(study).fit(X_train, y_train)
+np.sqrt(mean_squared_error(y_test, best_estimator.predict(X_test)))
+
+# %% [markdown]
+# ```EnsembleRegressor```は各モデルを```OptunaSearchCV```で調整してからまとめる．
+# モデルが1つで```method="average"```なら，調整したモデルの予測をそのまま使う．
+# 特徴量を選ぶときは，```Pipeline```の最初に```BorutaPy```を入れたモデルを渡す．
+
+# %%
+er = EnsembleRegressor(
+    [lgbm],
+    method="average",
+    cv=kf,
+    n_jobs=-1,
+    random_state=SEED,
+    scoring="neg_root_mean_squared_error",
+    n_trials=100,
+)
 
 # %%
 er.fit(X_train, y_train)
 
 # %%
-mean_squared_error(er.predict(X_test), y_test, squared = False)
+np.sqrt(mean_squared_error(y_test, er.predict(X_test)))
 
 # %%
-for estimators in er.results_.estimators:
-    print(mean_squared_error(estimators[0].predict(X_test), y_test, squared = False))
+er.estimators_[0].best_params_
