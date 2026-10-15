@@ -10,7 +10,7 @@
   - 完了の状態: `tomllib` で読んだ依存の行が design の表と一致し、`python_version` を含む行がなく、`test`・`dev`・`docs` の extra が変わっておらず、yikit-dev に入っている各ライブラリの版が新しい範囲を満たす（`packaging.requirements` で照らす。読み取りだけ）。基準の XML がリポジトリの外にあり、Implementation Notes に、手元の版のファイルの確認の結果（または既知の失敗）、読み直した ngboost の行、基準の数（全体とファイルごと）、grep の行数がある
   - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 7.2_
 
-- [ ] 2. 古い版のための分岐を、ファイルのまとまりごとに消す
+- [x] 2. 古い版のための分岐を、ファイルのまとまりごとに消す
 - [x] 2.1 (P) helpers と feature_selection から scikit-learn<1.0 と Boruta<0.4 の記述と判定を消す
   - 特徴量の名前を取り出す共通の関数から scikit-learn の版の判定と、その docstring の記述を消し、使われなくなる import を消す。シグネチャと戻り値は変えない
   - feature_selection の 3 つの記述（import のコメント、`feature_names_in_` の説明、例のコメント）と、Boruta の `return_df` のコメントを、版に触れない説明にする
@@ -60,7 +60,7 @@
   - _Boundary: NgboostSweep_
   - _Requirements: 2.2, 3.3, 4.1_
 
-- [ ] 2.7 アンサンブルの特徴量の名前の判定を共通の関数に寄せ、古い版の記述を直す
+- [x] 2.7 アンサンブルの特徴量の名前の判定を共通の関数に寄せ、古い版の記述を直す
   - 複製した判定（版の判定と名前の取り出し）を消し、名前を記録するモデルがないときは helpers の共通の関数で名前を決める。使われなくなる import を消す（共通の関数のシグネチャと戻り値は 2.1 でも変わらない）
   - `feature_names_in_` の docstring の scikit-learn 1.0 の記述を消し、NGBRegressor が regressor と見なされない条件の記述を「ngboost before 0.5.2」に直す
   - テストから scikit-learn 1.0 の判定と skip、import の切り替えを消し、import を塞ぐテストは optuna-integration だけを塞ぐ。案内つきの ImportError が出て、原因の例外の名前が optuna-integration であることは今のまま確かめる。この確かめは、2.3 が optuna 本体の古い場所への切り替えを消した後でないと通らない（optuna 5 の `optuna.integration` が、塞がれた import を名前のない例外にして出し直すため）
@@ -129,6 +129,7 @@
     - 自然勾配の解き方は 0.5.8 で変わった（`_natural_gradient`、行列ごとの solve と `pinv`）。LogNormal は 0.5.8 まで 0.3.6 と同じ。design の T13 の「0.5.8 まで」は「0.5.8 の前まで」の意味としてコメントを書いた
     - 手元の 0.5.8 では、テストのデータで LogNormal と CRPScore を学習させても `pinv` は使われなかった。「0.5.8 の `pinv` で学習できるようになった」という因果は裏付けられていないので、コメントには書いていない
     - 0.4.0〜0.5.10 の `get_params` は `deep` を無視し、`Base__*` を返さない。`Base__*` を返すのは 0.5.11 だけ
+  - 2.7: `tests/test_ensemble.py` 112 のまま（node ID と結果は基準と同じ。DataFrame の名前の 3 つのテストは skip されずに走る）。import を塞ぐテストは `("optuna_integration",)` だけを塞いで通る。legacy grep のテキストの行 15 → 1（`tests/test_boruta.py` の 1 行だけ）
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
