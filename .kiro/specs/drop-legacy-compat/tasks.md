@@ -44,7 +44,7 @@
   - _Boundary: GBDTModel_
   - _Requirements: 3.1, 3.2, 3.3, 4.1, 4.2, 4.3, 5.2_
 
-- [ ] 2.5 (P) visualize とそのテストから seaborn<0.12・LightGBM 3・ngboost<0.4・optuna<3.1 のための処理を消す
+- [x] 2.5 (P) visualize とそのテストから seaborn<0.12・LightGBM 3・ngboost<0.4・optuna<3.1 のための処理を消す
   - permutation importance の図で、`errorbar=None` を常に渡し、`ci` の道と、その説明と、使われなくなる import を消す。seaborn 0.13 の並びのための指定は残す
   - y-y プロットの `NDArray` のコメントを型のためだけの import という説明にし、RMSE の docstring の scikit-learn 0.24.1 の記述を消す。学習曲線の LightGBM 3 のコメントを直す（判定のコードは変えない）
   - 図のテストの冒頭の Python 3.14 の注記、LightGBM の 2 つのコメント、study の方向を作る補助の optuna の版の分岐、Student's t の skip と、正規分布で代わりに試すテストのコメントを直す
@@ -124,6 +124,7 @@
   - 2.2: `tests/test_search_space.py` 106 → 104。消えた: `test_criterion_choices_by_sklearn_version[0.24.1-expected0]`・`[0.24.2-expected1]`。残った 9 件は parametrize の `expectedN` が振り直された（例: `[1.0-expected2]` → `[1.0-expected0]`）ので、名前が変わっただけとして扱う。全体 693 passed
   - 2.3: `tests/test_search_cv.py` 24 のまま（消えた: `test_predict_works_when_the_parent_defines_it_as_a_property`、足した: `test_predict_is_the_plain_method_of_optuna_search_cv`）。`tests/test_optuna.py` 136 のまま（node ID は変わらない）。全体 693 passed。legacy grep のテキストの行は 39
   - 2.4: `tests/test_gbdt.py` 15 → 13（消えた: `test_validation_fit_params_follow_the_fit_signature[lightgbm<3.3]`・`[lightgbm3.3]`）。全体 691 passed。legacy grep のテキストの行 39 → 30
+  - 2.5: `tests/test_visualize.py` 82 のまま（node ID と結果は基準と同じ。消した skip は今の環境では実行されていなかった）。`tests/imgs` は変わらない。legacy grep のテキストの行 30 → 18（この 4 つのファイルで 12 → 0）
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない

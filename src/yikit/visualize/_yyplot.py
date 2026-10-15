@@ -22,7 +22,8 @@ from numpy.typing import ArrayLike
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 if TYPE_CHECKING:
-    # ``NDArray`` is missing from numpy < 1.21, so import it for typing only.
+    # ``NDArray`` only appears in the string type expressions of ``cast``,
+    # so it is imported for type checking only.
     from numpy.typing import NDArray
 
 
@@ -34,7 +35,7 @@ def _rmse(y_true: ArrayLike, y_pred: ArrayLike) -> float:
     mean of the RMSE of each output, not the root of the overall MSE.
     scikit-learn's own RMSE function needs scikit-learn >= 1.4 and the
     ``squared=False`` option was removed later, so the square root is taken
-    here (works with scikit-learn >= 0.24.1).
+    here.
     """
     mse_of_each_output = mean_squared_error(
         y_true, y_pred, multioutput="raw_values"
