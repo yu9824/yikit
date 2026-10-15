@@ -10,12 +10,10 @@ so that ``yikit.models`` can be imported without optuna.
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import sklearn
 from sklearn.base import BaseEstimator, RegressorMixin, is_regressor
 from sklearn.ensemble import (
     RandomForestRegressor,
@@ -26,6 +24,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
+from yikit.helpers._validation import feature_names_of
 from yikit.models._params import apply_params, find_unspecified_random_states
 
 if TYPE_CHECKING:
@@ -156,37 +155,6 @@ def _n_features(X: Any) -> int:
             f"is {shape}."
         )
     return int(shape[1])
-
-
-def _sklearn_has_feature_names() -> bool:
-    """Return whether scikit-learn defines ``feature_names_in_`` (>= 1.0)."""
-    match = re.match(r"(\d+)\.(\d+)", sklearn.__version__)
-    if match is None:
-        raise ValueError(
-            f"Cannot read the version of scikit-learn: {sklearn.__version__!r}"
-        )
-    return (int(match.group(1)), int(match.group(2))) >= (1, 0)
-
-
-def _feature_names(X: Any) -> NDArray[Any] | None:
-    """Return the column names of ``X`` as ``feature_names_in_``, or None.
-
-    As in scikit-learn, the names are those of the ``columns`` of ``X``
-    (such as a ``pandas.DataFrame``) when they are all of type ``str``
-    (scikit-learn also ignores subclasses such as ``numpy.str_``). None is
-    returned when ``X`` has no columns, when one of the names is not a
-    ``str``, or with scikit-learn < 1.0 (which has no
-    ``feature_names_in_``).
-    """
-    columns = getattr(X, "columns", None)
-    if columns is None or not _sklearn_has_feature_names():
-        return None
-    names = np.array(columns, dtype=object)
-    if names.ndim != 1 or len(names) == 0:
-        return None
-    if not all(type(name) is str for name in names):
-        return None
-    return names
 
 
 def _import_search_regressor() -> tuple[Any, Any]:
@@ -414,9 +382,8 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         them (e.g. a ``Pipeline`` whose first step is ``BorutaPy``), the
         names of the ``columns`` of ``X`` (such as a ``pandas.DataFrame``)
         as an ndarray of dtype object, if they are all of type ``str`` (the
-        rule of scikit-learn). Defined only with scikit-learn >= 1.0, and
-        not defined (removed after a previous fit) when ``X`` has no such
-        names.
+        rule of scikit-learn). Not defined (removed after a previous fit)
+        when ``X`` has no such names.
 
     See Also
     --------
@@ -435,9 +402,9 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
     it (e.g. with ``sklearn.model_selection.cross_validate``).
 
     ``NGBRegressor`` of ngboost is not recognized as a regressor by
-    scikit-learn >= 1.6, nor by any scikit-learn with ngboost 0.3.x, so
-    ``fit`` rejects it (as ``VotingRegressor`` and ``StackingRegressor``
-    do). Wrap it as
+    scikit-learn >= 1.6, nor by older scikit-learn with ngboost before
+    0.5.2, so ``fit`` rejects it (as ``VotingRegressor`` and
+    ``StackingRegressor`` do). Wrap it as
     ``TransformedTargetRegressor(regressor=NGBRegressor(...))``. With
     ``opt=True``, ``OptunaSearchCV`` cannot tune the parameters of its
     ``Base`` (``regressor__Base__max_depth``, ...), because ``set_params``
@@ -648,7 +615,7 @@ class EnsembleRegressor(RegressorMixin, BaseEstimator):
         if hasattr(ensemble, "feature_names_in_"):
             self.feature_names_in_ = ensemble.feature_names_in_
         else:  # no model records them (e.g. a Pipeline of BorutaPy)
-            feature_names = _feature_names(X)
+            feature_names = feature_names_of(X)
             if feature_names is not None:
                 self.feature_names_in_ = feature_names
         return self

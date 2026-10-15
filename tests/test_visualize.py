@@ -33,8 +33,7 @@ from yikit.visualize import (
 )
 
 # optuna, lightgbm and ngboost are optional: the tests that use them import
-# them through ``pytest.importorskip`` and are skipped without them (ngboost
-# is not installed on Python 3.14, which it does not support).
+# them through ``pytest.importorskip`` and are skipped without them.
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
@@ -446,7 +445,7 @@ def _fit_lgbm_regressor(
     fit_params: dict[str, object] = {}
     if evaluated:
         # LightGBM 4.7 deprecates ``eval_set`` in favor of ``eval_X`` and
-        # ``eval_y``, which older versions (4.6 on Python 3.8) do not have.
+        # ``eval_y``, which earlier versions do not have.
         if (
             "eval_X"
             in inspect.signature(lightgbm.LGBMRegressor.fit).parameters
@@ -812,18 +811,14 @@ def _make_study_without_direction() -> optuna.Study:
     """Return a study with a complete trial and the direction ``NOT_SET``.
 
     ``optuna.create_study`` always sets a direction, so the study is made
-    in a storage: newer optuna takes the directions there, older optuna
-    leaves a new study without one. The calling test is skipped when
-    optuna is not installed.
+    in a storage, which takes the directions. The calling test is skipped
+    when optuna is not installed.
     """
     optuna = pytest.importorskip("optuna")
     not_set = optuna.study.StudyDirection.NOT_SET
 
     storage = optuna.storages.InMemoryStorage()
-    if "directions" in inspect.signature(storage.create_new_study).parameters:
-        study_id = storage.create_new_study(directions=[not_set])
-    else:
-        study_id = storage.create_new_study()
+    study_id = storage.create_new_study(directions=[not_set])
     study = optuna.load_study(
         study_name=storage.get_study_name_from_id(study_id), storage=storage
     )
@@ -1177,8 +1172,8 @@ def test_get_dist_figure_with_few_samples(loc, scale, shape, x_range):
     ],
 )
 def test_get_dist_figure_with_unusable_std(loc, scale, stds, x_range):
-    # ngboost < 0.4 has no Student's t, so the standard deviations of
-    # normal distributions are replaced instead.
+    # The standard deviations of normal distributions are replaced here;
+    # Student's t of an infinite standard deviation is tested separately.
     y_dist = _make_normal_dist(loc, scale)
     y_dist.std = lambda: np.array(stds)
     from yikit.visualize import get_dist_figure
@@ -1205,8 +1200,6 @@ def test_get_dist_figure_with_unusable_std(loc, scale, stds, x_range):
 
 def test_get_dist_figure_with_t_of_infinite_std():
     distns = pytest.importorskip("ngboost.distns")
-    if not hasattr(distns, "T"):
-        pytest.skip("ngboost < 0.4 has no Student's t distribution")
     from yikit.visualize import get_dist_figure
 
     # ngboost's T takes the rows (loc, log(scale), log(df)); df = 2 has an
@@ -1446,7 +1439,7 @@ def _make_unfitted_ngb_regressor() -> NGBRegressor:
 
 
 def _fit_lgbm_regressor_without_eval_data() -> LGBMRegressor:
-    # The record is {} in LightGBM >= 4 and None before.
+    # Without evaluation data, LightGBM records {}.
     return _fit_lgbm_regressor(eval_data=(), eval_names=None)
 
 

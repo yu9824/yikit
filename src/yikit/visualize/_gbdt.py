@@ -294,7 +294,7 @@ def _get_evals_result(
             f"{name} has no evaluation record ({attribute}) as it is not "
             f"fitted: {hint}"
         ) from error
-    # Without evaluation data, LightGBM 4 records {} and LightGBM 3 None.
+    # Without evaluation data, LightGBM records {}.
     if not evals_result or not all(evals_result.values()):
         raise ValueError(
             f"{name} has no evaluation record ({attribute} has no scores): "

@@ -7,13 +7,13 @@ build-backend = "setuptools.build_meta"
 name = "yikit"
 dynamic = ["version"]
 dependencies = [
-    "scikit-learn>=0.24.1",
+    "scikit-learn>=1.0",
     "numpy",
     "pandas",
     "joblib",
     "scipy",
     "matplotlib",
-    "seaborn",
+    "seaborn>=0.12",
 ]
 requires-python = ">=3.10"
 authors = [{ name = "yu9824" }]
@@ -46,11 +46,12 @@ dev = ["build", "jupytext", "ruff", "mypy"]
 optional = [
     "colorlog",
     "tqdm",
-    "ngboost>=0.3.6,<0.5.9; python_version < '3.14'",
-    "lightgbm",
+    # <0.5.11: 0.5.11 changes set_params/get_params of nested names; see tech.md.
+    "ngboost>=0.4,<0.5.11",
+    "lightgbm>=4.0",
     "Boruta>=0.4.3",
-    "optuna>=3.0",
-    "optuna-integration",
+    "optuna>=3.2",
+    "optuna-integration>=4.1",
 ]
 docs = [
     "sphinx",

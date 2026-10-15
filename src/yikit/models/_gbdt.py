@@ -37,17 +37,9 @@ def _validation_fit_params(
 ) -> dict[str, Any]:
     """Return the ``LGBMRegressor.fit`` arguments for early stopping.
 
-    The arguments are chosen from the signature of the installed
-    ``LGBMRegressor.fit``; the ``early_stopping`` callback works on both
-    LightGBM 3 and 4.
-
-    - LightGBM 4.7 deprecates ``eval_set`` in favor of ``eval_X`` and
-      ``eval_y``, so those are used when ``fit`` accepts them.
-    - Before LightGBM 3.3, ``fit`` logs every iteration unless ``verbose`` is
-      False (its default is True). LightGBM 3.3 deprecates ``verbose`` (its
-      default is ``"warn"``) and stops logging by itself when callbacks are
-      given, and LightGBM 4 removes it, so ``verbose`` is passed only when
-      its default is True.
+    LightGBM 4.7 deprecates ``eval_set`` in favor of ``eval_X`` and
+    ``eval_y``, so those are used when the installed ``LGBMRegressor.fit``
+    accepts them; otherwise ``eval_set`` is used.
     """
     params: dict[str, Any] = {
         "eval_metric": _EVAL_METRIC,
@@ -59,9 +51,6 @@ def _validation_fit_params(
         params.update(eval_X=(X_valid,), eval_y=(y_valid,))
     else:
         params["eval_set"] = [(X_valid, y_valid)]
-    verbose = _FIT_PARAMETERS.get("verbose")
-    if verbose is not None and verbose.default is True:
-        params["verbose"] = False
     return params
 
 
@@ -72,7 +61,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
     ``lightgbm.LGBMRegressor`` on the rest, and stops adding trees when
     neither the mean squared error nor the mean absolute error on the
     validation set improves for 20 rounds. Predictions use the best
-    iteration. It works with LightGBM 3 and 4.
+    iteration. It works with LightGBM 4.0 and later.
 
     Only the parameters below are accepted. To pass other LightGBM
     parameters, use ``lightgbm.LGBMRegressor`` directly; it is searched by
@@ -129,8 +118,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
         The fitted LightGBM regressor.
     best_iteration_ : int
         Number of trees chosen by early stopping and used by ``predict``.
-        It is read from the booster, because ``LGBMRegressor.best_iteration_``
-        stays None on LightGBM 3 when early stopping is set by a callback.
+        It is the ``best_iteration_`` of ``estimator_``.
     feature_importances_ : ndarray of shape (n_features,)
         The feature importances.
     n_features_in_ : int
@@ -250,7 +238,7 @@ class GBDTRegressor(RegressorMixin, BaseEstimator):
         self.estimator_.fit(
             X_train, y_train, **_validation_fit_params(X_valid, y_valid)
         )
-        self.best_iteration_ = self.estimator_.booster_.best_iteration
+        self.best_iteration_ = self.estimator_.best_iteration_
         self.feature_importances_ = self.estimator_.feature_importances_
         return self
 

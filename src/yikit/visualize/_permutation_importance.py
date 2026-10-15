@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from yikit.helpers import is_argument
 from yikit.visualize._utils import set_font, with_custom_matplotlib_settings
 
 if TYPE_CHECKING:
@@ -138,17 +137,13 @@ class SummarizePI:
         # ... from the top in the order of ``data``. ``order`` keeps that
         # order for numeric feature names too, which seaborn >= 0.13 would
         # otherwise sort. The error bars are drawn below, so seaborn's own
-        # are turned off (``ci`` before seaborn 0.12).
+        # are turned off.
         sns.barplot(
             data=data[[_MEAN]].transpose(),
             order=list(data.index),
             ax=self.ax,
             orient="h",
-            **(
-                {"errorbar": None}
-                if is_argument(sns.barplot, "errorbar")
-                else {"ci": None}
-            ),
+            errorbar=None,
         )
         # seaborn sets the y range to the bars and leaves autoscaling on;
         # keep that range instead of the margins the error bars would add.

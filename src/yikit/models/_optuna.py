@@ -786,10 +786,7 @@ class ParamDistributions(dict):  # a dict that OptunaSearchCV keeps as is
     >>> from sklearn.datasets import make_regression
     >>> from sklearn.linear_model import ElasticNet
     >>> from yikit.models import ParamDistributions
-    >>> try:
-    ...     from optuna_integration import OptunaSearchCV
-    ... except ImportError:  # old optuna that bundles the integration
-    ...     from optuna.integration import OptunaSearchCV
+    >>> from optuna_integration import OptunaSearchCV
     >>> X, y = make_regression(n_samples=50, n_features=5, random_state=334)
     >>> estimator = ElasticNet()
     >>> param_distributions = ParamDistributions(

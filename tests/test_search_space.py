@@ -324,8 +324,6 @@ def test_returns_new_objects_per_call(estimator, n_features):
 @pytest.mark.parametrize(
     ("version", "expected"),
     [
-        ("0.24.1", ["mse", "friedman_mse"]),
-        ("0.24.2", ["mse", "friedman_mse"]),
         ("1.0", ["squared_error", "friedman_mse"]),
         ("1.0.2", ["squared_error", "friedman_mse"]),
         ("1.3.2", ["squared_error", "friedman_mse"]),
@@ -676,8 +674,8 @@ def test_recommended_params_are_new_per_call(estimator, expected):
 
 def test_ngboost_detection_matches_its_set_params():
     ngboost = pytest.importorskip("ngboost")
-    # An explicit Base keeps ngboost's shared default tree untouched when
-    # an old ngboost (< 0.4.0) applies the nested name.
+    # An explicit Base keeps ngboost's shared default tree untouched even
+    # if the installed ngboost applies the nested name.
     model = ngboost.NGBRegressor(Base=DecisionTreeRegressor(max_depth=3))
     model.set_params(Base__max_depth=5)
     applied = model.Base.max_depth == 5

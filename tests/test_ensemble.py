@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 import pytest
-import sklearn
 from joblib import parallel_backend
 from numpy.testing import assert_allclose, assert_array_equal
 from sklearn.base import BaseEstimator, RegressorMixin, clone
@@ -46,11 +45,6 @@ N_FEATURES = 4
 CV = 3
 N_TRIALS = 2
 METHODS = ("average", "stacking", "blending")
-
-#: ``feature_names_in_`` exists from scikit-learn 1.0.
-HAS_FEATURE_NAMES = tuple(
-    int(part) for part in sklearn.__version__.split(".")[:2]
-) >= (1, 0)
 
 #: Small data shared by the tests.
 X, y = make_regression(
@@ -158,10 +152,7 @@ def _tuning_classes() -> tuple[type, type, type]:
         ``ParamDistributions``.
     """
     _skip_without_search_cv()
-    try:
-        from optuna_integration import OptunaSearchCV
-    except ImportError:  # old optuna that still bundles the integration
-        from optuna.integration import OptunaSearchCV
+    from optuna_integration import OptunaSearchCV
 
     from yikit.models._optuna import ParamDistributions
     from yikit.models._search_cv import OptunaSearchRegressor
@@ -387,9 +378,6 @@ def test_fitted_attributes(method, ensemble_type):
     assert_allclose(ensemble.predict(X), ensemble.estimator_.predict(X))
 
 
-@pytest.mark.skipif(
-    not HAS_FEATURE_NAMES, reason="feature_names_in_ needs scikit-learn 1.0"
-)
 @pytest.mark.parametrize("method", METHODS)
 def test_feature_names_of_a_dataframe(method):
     X_frame = pd.DataFrame(X, columns=COLUMNS)
@@ -422,9 +410,6 @@ def test_number_of_features_without_the_attribute_in_the_models(method):
     assert ensemble.predict(X).shape == (N_SAMPLES,)
 
 
-@pytest.mark.skipif(
-    not HAS_FEATURE_NAMES, reason="feature_names_in_ needs scikit-learn 1.0"
-)
 @pytest.mark.parametrize("model", ["boruta", "no-feature-count"])
 @pytest.mark.parametrize("method", METHODS)
 def test_feature_names_of_a_dataframe_without_the_attribute_in_the_models(
@@ -474,7 +459,7 @@ def test_no_feature_names_unless_the_column_names_are_strings(method, columns):
         cv=CV,
         opt=False,
     ).fit(pd.DataFrame(X, columns=COLUMNS), y)
-    assert hasattr(ensemble, "feature_names_in_") is HAS_FEATURE_NAMES
+    assert hasattr(ensemble, "feature_names_in_")
     # Fitted again on columns whose names are not all strings.
     ensemble.fit(pd.DataFrame(X, columns=columns), y)
 
@@ -1148,8 +1133,8 @@ def test_boruta_pipeline_is_tuned_on_the_parameters_of_its_regressor(method):
     assert y_pred.shape == (N_SAMPLES,)
     assert np.isfinite(y_pred).all()
     assert ensemble.n_features_in_ == N_FEATURES
-    if HAS_FEATURE_NAMES:  # read from the columns, as BorutaPy lacks them
-        assert list(ensemble.feature_names_in_) == COLUMNS
+    # read from the columns, as BorutaPy lacks them
+    assert list(ensemble.feature_names_in_) == COLUMNS
 
 
 # --- Pickle ------------------------------------------------------------------
@@ -1164,8 +1149,7 @@ def _assert_pickle_round_trip(
     assert type(loaded) is EnsembleRegressor
     assert_array_equal(loaded.predict(X_frame), ensemble.predict(X_frame))
     assert loaded.n_features_in_ == N_FEATURES
-    if HAS_FEATURE_NAMES:
-        assert list(loaded.feature_names_in_) == COLUMNS
+    assert list(loaded.feature_names_in_) == COLUMNS
 
 
 @pytest.mark.parametrize("method", METHODS)
@@ -1303,10 +1287,7 @@ def test_tuning_modules_are_imported_only_when_tuning(optuna):
 @pytest.mark.parametrize(
     "blocked, reimported",
     [
-        (
-            ("optuna_integration", "optuna.integration"),
-            ("yikit.models._search_cv",),
-        ),
+        (("optuna_integration",), ("yikit.models._search_cv",)),
         (("yikit.models._optuna",), ()),
         (("optuna",), ("yikit.models._optuna", "yikit.models._search_cv")),
     ],

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
-from sklearn.base import BaseEstimator, clone
+from sklearn.base import clone
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.datasets import make_regression
@@ -35,6 +35,7 @@ from optuna.distributions import (  # noqa: E402
     IntDistribution,
 )
 from optuna.trial import TrialState  # noqa: E402
+from optuna_integration import OptunaSearchCV  # noqa: E402
 
 import yikit.models  # noqa: E402
 from yikit.models import (  # noqa: E402
@@ -47,11 +48,6 @@ from yikit.models import (  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-try:
-    from optuna_integration import OptunaSearchCV
-except ImportError:  # old optuna that still bundles the integration
-    from optuna.integration import OptunaSearchCV
 
 SEED = 334
 
@@ -66,8 +62,7 @@ OPTUNA_SEARCH_CV_ABS_TOL = 0.2
 OPTUNA_SEARCH_CV_BEST_TRIAL_NUMBER = 3
 
 #: Expected values of ``test_create_study``. The tolerance covers the
-#: differences of the random forests between scikit-learn versions (about
-#: 0.15 between 0.24.1 and 1.9.1).
+#: differences of the random forests between scikit-learn versions.
 CREATE_STUDY_BEST_SCORE = -65.64
 CREATE_STUDY_ABS_TOL = 0.2
 CREATE_STUDY_BEST_TRIAL_NUMBER = 3
@@ -1201,11 +1196,6 @@ def test_param_distributions_of_unregistered_model_with_custom_params():
     )
 
 
-def _ngboost_set_params_ignores_nested_names() -> bool:
-    ngboost = pytest.importorskip("ngboost")
-    return ngboost.NGBRegressor.set_params is not BaseEstimator.set_params
-
-
 def _user_warnings(records: list[warnings.WarningMessage]) -> list[str]:
     return [
         str(record.message)
@@ -1228,7 +1218,6 @@ def _user_warnings(records: list[warnings.WarningMessage]) -> list[str]:
     ],
 )
 def test_ngboost_nested_names_warn(wrap, prefix):
-    ignores_nested_names = _ngboost_set_params_ignores_nested_names()
     estimator = wrap(_make_ngboost())
 
     with warnings.catch_warnings(record=True) as records:
@@ -1238,10 +1227,6 @@ def test_ngboost_nested_names_warn(wrap, prefix):
     nested_names = [f"{prefix}Base__max_depth", f"{prefix}Base__criterion"]
     assert set(nested_names) <= set(param_distributions)
     messages = _user_warnings(records)
-    if not ignores_nested_names:
-        # ngboost before 0.4.0 applies nested names in set_params.
-        assert messages == []
-        return
     assert len(messages) == 1
     (message,) = messages
     assert message.startswith(SET_PARAMS_WARNING)
@@ -1255,9 +1240,6 @@ def test_ngboost_nested_names_warn(wrap, prefix):
 
 
 def test_ngboost_warning_follows_custom_params():
-    if not _ngboost_set_params_ignores_nested_names():
-        pytest.skip("set_params of this ngboost applies nested names")
-
     estimator = _make_ngboost()
     custom_params = {"n_estimators": IntDistribution(10, 100)}
     with warnings.catch_warnings(record=True) as records:

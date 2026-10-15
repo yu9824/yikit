@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 import pytest
-import sklearn
 from numpy.testing import assert_allclose
 from sklearn.base import BaseEstimator, clone, is_regressor
 from sklearn.datasets import make_regression
@@ -22,17 +21,9 @@ from sklearn.linear_model import Lasso, Ridge
 from sklearn.model_selection import GroupKFold
 
 optuna = pytest.importorskip("optuna")
+pytest.importorskip("optuna_integration")
 
-try:
-    from optuna_integration import OptunaSearchCV
-except ImportError:  # old optuna that still bundles the integration
-    try:
-        from optuna.integration import OptunaSearchCV
-    except ImportError:
-        pytest.skip(
-            "OptunaSearchCV (optuna-integration) is not installed",
-            allow_module_level=True,
-        )
+from optuna_integration import OptunaSearchCV  # noqa: E402
 
 from yikit.models import ParamDistributions  # noqa: E402
 from yikit.models._search_cv import OptunaSearchRegressor  # noqa: E402
@@ -48,11 +39,6 @@ CV = 3
 
 #: Seconds to wait for the other thread in the tests of concurrent fits.
 TIMEOUT = 60.0
-
-#: ``feature_names_in_`` exists from scikit-learn 1.0.
-HAS_FEATURE_NAMES = tuple(
-    int(part) for part in sklearn.__version__.split(".")[:2]
-) >= (1, 0)
 
 #: Small data for the fast searches.
 X_SMALL, y_SMALL = make_regression(
@@ -74,46 +60,18 @@ ENSEMBLE_FACTORIES = pytest.mark.parametrize(
 )
 
 
-class _PropertyPredictSearchCV(OptunaSearchCV):
-    """``OptunaSearchCV`` whose ``predict`` is a property.
-
-    This is how optuna 3.0 to 3.6 (``optuna.integration``) and
-    optuna-integration 4.0.0 or older define ``predict``: reading it before
-    ``fit`` raises ``NotFittedError``, an ``AttributeError``.
-    """
-
-    @property
-    def predict(self) -> Any:
-        self._check_is_fitted()
-        return self.best_estimator_.predict
-
-
-class _OldParentSearchRegressor(
-    OptunaSearchRegressor, _PropertyPredictSearchCV
-):
-    """``OptunaSearchRegressor`` whose parent defines ``predict`` as above.
-
-    In the method resolution order, ``super()`` in the methods of
-    ``OptunaSearchRegressor`` reaches ``_PropertyPredictSearchCV``.
-    """
-
-
-def _make_search(
-    estimator: Any = None,
-    *,
-    search_class: type[Any] = OptunaSearchRegressor,
-    **kwargs: Any,
-) -> Any:
+def _make_search(estimator: Any = None, **kwargs: Any) -> Any:
     """Return a small, seeded search of ``estimator`` (Ridge by default).
 
-    ``search_class`` is the class of the search, and ``kwargs`` override
-    the default arguments of the search.
+    ``kwargs`` override the default arguments of the search.
     """
     if estimator is None:
         estimator = Ridge()
     params: dict[str, Any] = dict(n_trials=N_TRIALS, cv=CV, random_state=SEED)
     params.update(kwargs)
-    return search_class(estimator, ParamDistributions(estimator), **params)
+    return OptunaSearchRegressor(
+        estimator, ParamDistributions(estimator), **params
+    )
 
 
 class _RecordsHandler(logging.Handler):
@@ -214,32 +172,15 @@ def test_predict_is_present_before_fit() -> None:
     )
 
 
-def test_predict_works_when_the_parent_defines_it_as_a_property() -> None:
-    # The simulated old parent hides predict before fit.
-    assert not hasattr(
-        _make_search(search_class=_PropertyPredictSearchCV), "predict"
-    )
-    search = _make_search(search_class=_OldParentSearchRegressor)
-    assert hasattr(search, "predict")
+def test_predict_is_the_plain_method_of_optuna_search_cv() -> None:
+    # optuna-integration defines predict as a plain method, so it is present
+    # before fit and OptunaSearchRegressor inherits it as is.
+    parent_predict = inspect.getattr_static(OptunaSearchCV, "predict")
 
-    ensemble = StackingRegressor(
-        [
-            ("ridge", search),
-            (
-                "lasso",
-                _make_search(Lasso(), search_class=_OldParentSearchRegressor),
-            ),
-        ],
-        cv=CV,
-    )
-    ensemble.fit(X_SMALL, y_SMALL)
-
-    assert ensemble.predict(X_SMALL).shape == (N_SAMPLES,)
-    for fitted in ensemble.estimators_:
-        assert isinstance(fitted, _OldParentSearchRegressor)
-        assert_allclose(
-            fitted.predict(X_SMALL), fitted.best_estimator_.predict(X_SMALL)
-        )
+    assert not isinstance(parent_predict, property)
+    assert inspect.isfunction(parent_predict)
+    assert "predict" not in vars(OptunaSearchRegressor)
+    assert OptunaSearchRegressor.predict is OptunaSearchCV.predict
 
 
 @ENSEMBLE_FACTORIES
@@ -306,10 +247,6 @@ def test_no_n_features_in_without_refit() -> None:
     assert not hasattr(search, "feature_names_in_")
 
 
-@pytest.mark.skipif(
-    not HAS_FEATURE_NAMES,
-    reason="feature_names_in_ exists from scikit-learn 1.0",
-)
 def test_feature_names_in_comes_from_the_best_estimator() -> None:
     X_frame = pd.DataFrame(X_SMALL, columns=COLUMNS)
 
@@ -324,8 +261,6 @@ def test_feature_names_in_comes_from_the_best_estimator() -> None:
 def test_sklearn_ensembles_expose_the_features(
     make_ensemble: Callable[[list[tuple[str, Any]]], Any], as_frame: bool
 ) -> None:
-    if as_frame and not HAS_FEATURE_NAMES:
-        pytest.skip("feature_names_in_ exists from scikit-learn 1.0")
     X = pd.DataFrame(X_SMALL, columns=COLUMNS) if as_frame else X_SMALL
     ensemble = make_ensemble(
         [

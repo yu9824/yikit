@@ -10,21 +10,31 @@ sklearn 互換の部品を集めた Python ライブラリです。サーバー�
 ## Core Technologies
 
 - **Language**: Python 3.10 以上（`requires-python = ">=3.10"`）。CI で 3.10〜3.14 を確かめている。Python 3.8・3.9 では pip が 0.4.x の系列を選ぶ
-- **Framework**: scikit-learn（下限 0.24.1）
-- **Core deps**: numpy、pandas、scipy、joblib、matplotlib、seaborn
+- **Framework**: scikit-learn（下限 1.0。Python 3.10 では 1.7 系が入る。1.8 以降は Python 3.11 以上を求める）
+- **Core deps**: numpy、pandas、scipy、joblib、matplotlib、seaborn（seaborn だけ下限 0.12。他は下限を書かない）
 
 ## Key Libraries
 
-- **optuna**（>=3.0）: `IntDistribution`・`FloatDistribution` を使うため
-- **optuna-integration**: `OptunaSearchCV`。新しい optuna では `optuna.integration.sklearn` が非推奨なので、`optuna_integration` から import し、古い optuna には元の場所を使う
-- **lightgbm**: 3.x と 4.x の両方で動かす。4.0 で fit の `early_stopping_rounds`・`verbose` と、`silent` が削除されているので、callback（`lightgbm.early_stopping`）を使う
+- **scikit-learn**（>=1.0）: `feature_names_in_`・`get_feature_names_out`・木の `criterion="squared_error"` を使うため（1.0 から）
+- **optuna**（>=3.2）: `IntDistribution`・`FloatDistribution` を使うため（3.0 から）。3.2 は、optuna-integration 4.1 以上の `OptunaSearchCV` が import する `optuna.terminator` のため
+- **optuna-integration**（>=4.1）: `OptunaSearchCV` は `optuna_integration` からだけ import する（`optuna.integration` は使わない）。4.1 から `predict` が普通のメソッドになり、`StackingRegressor` などが fit の前に見つけられる
+- **lightgbm**（>=4.0）: 4.0 で fit の `early_stopping_rounds`・`verbose` と、コンストラクタの `silent` がなくなったので、early stopping は callback（`lightgbm.early_stopping`）を使う。4.7 で `eval_X`・`eval_y` が入り `eval_set` が非推奨になったので、fit の引数を見て使い分ける
+- **ngboost**（>=0.4,<0.5.11）: Python の版による除外はない（0.5.9・0.5.10 が Python 3.14 に対応）
+  - 下限 0.4: `set_params` が入れ子の名前を無視する（`ignores_nested_set_params` と警告の前提）
+  - `log_likelihood` は非公開の `pred_dist(X)._params` を使う。0.3.6 から同じ属性があり、0.4.0〜0.5.11 のソースで確かめた（下限の理由ではない）
+  - 上限 0.5.11 未満: 0.5.11 で `set_params`・`get_params` が入れ子の名前を扱うようになり、yikit はまだ合わせていない。上限を上げるときは、入れ子の名前の扱い（`set_params`・`get_params`）と `log_likelihood` の非公開の属性を新しい版で確かめ直し、`.github/dependabot.yml` の ngboost の `ignore`（0.5.11 以上）も外す
+  - 0.5.11 への対応は後のリリースに回した（2026-10-14 の作者の決定）。それまで dependabot は 0.5.11 以上の PR を出さない
+  - ngboost を入れると lifelines を通じて pandas<3.0 になる。pandas 3 は optional を入れない CI の job（Python 3.14 の `.[test]` だけ）で試す
+- **seaborn**（>=0.12）: `barplot` の `errorbar` を使うため（0.12.0 から）
 - **Boruta**（>=0.4.3）: 0.3 は `np.int` などを使っていて NumPy 1.24 以上で動かないため
 
 ## Development Standards
 
 ### 互換性
-- **依存の下限は 1.0.0 まで上げない**。例外は、古い下限が実際に壊れていて、新しい下限が他の依存の下限を上げない場合だけ（例: Boruta 0.4.3）
-- 使う API は下限の版にあるものに限る。版で分ける必要があるときは `sys.version_info` や `is_installed()` で分岐する
+- **依存の下限は、古い版のための分岐を消すのに要る版だけにする**（0.5.0 で決めた）。下限を上げるときは、それで消せる分岐をまとめて消す。消す分岐のないライブラリ（numpy・pandas・scipy・matplotlib・joblib など）には下限を書かない
+- 下限の版で動くことは CI で確かめない。CI の 3.10 の job には 3.11 以上の job より少し古い版（例: scikit-learn 1.7）が入るが、それ以外の job にはほぼ最新の版が入る
+- 使う API は下限の版にあるものに限る。下限より新しい版にしかない API は、引数や属性の有無で分ける（例: LightGBM 4.7 の `eval_X`）。型のためだけの import は「型」の節に従う
+- 古い環境（Python 3.8・3.9、scikit-learn<1.0 など）は 0.4.x の系列が受け持つ。古い環境向けの修正は、必要になったら `v0.4.0` の tag から保守用のブランチを切り、0.4.x のパッチ版として出す
 - dependabot は `versioning-strategy: increase-if-necessary` にし、下限を上げるだけの PR が来ないようにする
 
 ### 型
@@ -94,7 +104,7 @@ sklearn 互換の部品を集めた Python ライブラリです。サーバー�
 ## Key Technical Decisions
 
 - **src レイアウト**（`src/yikit/`）: テストが、インストールしたパッケージに対して走るようにするため
-- **optional extra に重い依存を寄せる**: 古い環境や軽い用途で、必要なものだけ入れられるようにするため
+- **optional extra に重い依存を寄せる**: 軽い用途や、重い依存を入れにくい環境で、必要なものだけ入れられるようにするため
 - **探索範囲は1か所で持つ**: `Objective` と `ParamDistributions` に同じ範囲を2回書くと、ずれが生じるため
 - **固定値を黙って入れない**: モデルの値から、利用者が明示したのか既定値のままなのかは判定できない。推奨値は `RecommendedParams` で明示的に適用してもらう
 

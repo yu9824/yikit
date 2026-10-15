@@ -5,9 +5,8 @@ the marks of a regressor added, so that ``VotingRegressor`` and
 ``StackingRegressor`` accept it, with the number and the names of the
 features of its best estimator exposed, and with the trial logs of optuna
 hidden while it is fitted with ``verbose=0``. It is internal to yikit and is
-not exported from ``yikit.models``. This module needs optuna-integration
-(or an old optuna that still bundles ``optuna.integration``), so it is
-imported only when it is used.
+not exported from ``yikit.models``. This module needs optuna-integration,
+so it is imported only when it is used.
 """
 
 from __future__ import annotations
@@ -17,11 +16,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 import optuna
-
-try:
-    from optuna_integration import OptunaSearchCV
-except ImportError:  # old optuna that still bundles the integration
-    from optuna.integration import OptunaSearchCV
+from optuna_integration import OptunaSearchCV
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -80,10 +75,10 @@ class OptunaSearchRegressor(OptunaSearchCV):
     does not define them, so ``VotingRegressor`` and ``StackingRegressor``
     reject it ("should be a regressor"). This class marks it as a
     regressor (``_estimator_type`` for scikit-learn < 1.6 and the
-    ``estimator_type`` tag for scikit-learn >= 1.6) and defines
-    ``predict`` as a plain method, which old versions of optuna define as a
-    property (see ``predict``). ``RegressorMixin`` is not mixed in, so
-    ``score`` keeps using ``scoring`` as in ``OptunaSearchCV``. The
+    ``estimator_type`` tag for scikit-learn >= 1.6). ``predict`` is the
+    plain method of ``OptunaSearchCV``, which is present before ``fit``
+    as ``StackingRegressor`` requires. ``RegressorMixin`` is not mixed
+    in, so ``score`` keeps using ``scoring`` as in ``OptunaSearchCV``. The
     constructor is not overridden, so the parameters, ``get_params``,
     ``set_params`` and ``sklearn.base.clone`` are those of
     ``OptunaSearchCV``. It is defined at the top level of its module so
@@ -166,38 +161,6 @@ class OptunaSearchRegressor(OptunaSearchCV):
                 super().fit(X, y, groups=groups, **fit_params)
         return self
 
-    def predict(self, X: Any, **kwargs: Any) -> Any:
-        """Predict with the best estimator found by the search.
-
-        ``OptunaSearchCV`` of optuna 3.0 to 3.6 (``optuna.integration``) and
-        of optuna-integration 4.0.0 or older defines ``predict`` as a
-        property that raises ``NotFittedError`` (an ``AttributeError``)
-        before ``fit``, so ``hasattr(unfitted_search, "predict")`` is False
-        and ``StackingRegressor`` rejects the search ("does not implement
-        the method predict"). This plain method is always present; it calls
-        ``predict`` of ``OptunaSearchCV``, which works whether the parent
-        defines it as a method or as a property that returns
-        ``best_estimator_.predict``.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Samples to predict.
-        **kwargs : dict
-            Passed to ``predict`` of the best estimator.
-
-        Returns
-        -------
-        ndarray of shape (n_samples,) or (n_samples, n_outputs)
-            Predicted values.
-
-        Raises
-        ------
-        sklearn.exceptions.NotFittedError
-            If the search is not fitted yet.
-        """
-        return super().predict(X, **kwargs)
-
     def _from_best_estimator(self, name: str) -> Any:
         """Return the attribute ``name`` of ``best_estimator_``.
 
@@ -234,9 +197,9 @@ class OptunaSearchRegressor(OptunaSearchCV):
         """Names of the features seen by ``best_estimator_`` during ``fit``.
 
         ndarray of shape (``n_features_in_``,). Defined only when the best
-        estimator has it (scikit-learn >= 1.0, fitted on data whose features
-        all have string names, such as a ``pandas.DataFrame``); otherwise it
-        raises ``AttributeError``, as ``n_features_in_`` does.
+        estimator has it (fitted on data whose features all have string
+        names, such as a ``pandas.DataFrame``); otherwise it raises
+        ``AttributeError``, as ``n_features_in_`` does.
         ``VotingRegressor`` and ``StackingRegressor`` copy it from their
         estimators.
         """

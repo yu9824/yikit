@@ -14,14 +14,14 @@ yikit は、表形式データの**回帰**を中心とした機械学習の作�
 
 - 数百〜数千サンプル程度の小さな表形式データで、複数の回帰モデルを比較・調整する
 - 交差検証の中で特徴量選択とハイパーパラメータ探索を行い、結果を図で確かめる
-- インターネットにつながらない古い環境にも持ち込み、そのまま動かす
+- インターネットにつながらない環境にも持ち込んで使う（Python 3.8 などの古い環境では 0.4.x の系列を使う）
 
 ## Value Proposition
 
 - **sklearn の流儀に乗る**: `fit`/`predict`/`transform`、`get_params`/`set_params`、`clone` が効くので、`Pipeline`・`cross_validate`・`StackingRegressor` などにそのまま入れられる
 - **探索範囲の既定値をまとめて持つ**: よく使うモデルについて、実績のある探索範囲を1か所で管理し、`Objective` と `OptunaSearchCV` の両方から同じ範囲を使える
 - **利用者の指定を尊重する**: 渡されたモデルに入っている引数（`n_jobs`、`random_state` など）を勝手に書き換えない。yikit の推奨値は、利用者が明示的に適用する形（例: `RecommendedParams`）で提供する
-- **古い環境でも動く**: 1.0.0 までは依存パッケージの下限を不用意に上げない
+- **依存の下限を必要な分だけにする**: 下限は古い版のための分岐を消すのに要る版だけにする。Python 3.8 などの古い環境は 0.4.x の系列が受け持つ
 
 ## Product Principles
 
@@ -30,4 +30,4 @@ yikit は、表形式データの**回帰**を中心とした機械学習の作�
 
 ---
 _Focus on patterns and purpose, not exhaustive feature lists_
-_updated_at: 2026-10-09_
+_updated_at: 2026-10-15_

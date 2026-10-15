@@ -10,7 +10,6 @@ import threading
 import numpy as np
 import pandas as pd
 import pytest
-import sklearn
 from joblib import Parallel, delayed
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
@@ -639,26 +638,13 @@ def test_tqdm_joblib_does_not_move_the_bar_after_it_is_closed():
 # --- feature_names_of --------------------------------------------------------
 
 
-@pytest.mark.parametrize("version", ["1.0.0", "1.3.2", "1.9.1", "1.10.dev0"])
-def test_feature_names_of_returns_str_column_names(monkeypatch, version):
-    monkeypatch.setattr(sklearn, "__version__", version)
-
+def test_feature_names_of_returns_str_column_names():
     names = feature_names_of(_frame(COLUMNS))
 
     assert isinstance(names, np.ndarray)
     assert names.dtype == object
     assert names.tolist() == COLUMNS
     assert all(type(name) is str for name in names)
-
-
-@pytest.mark.parametrize("version", ["0.24.1", "0.24.2", "0.9.0"])
-def test_feature_names_of_returns_none_before_sklearn_1_0(
-    monkeypatch, version
-):
-    # scikit-learn < 1.0 has no ``feature_names_in_``.
-    monkeypatch.setattr(sklearn, "__version__", version)
-
-    assert feature_names_of(_frame(COLUMNS)) is None
 
 
 @pytest.mark.parametrize(
@@ -672,11 +658,7 @@ def test_feature_names_of_returns_none_before_sklearn_1_0(
     ],
     ids=["int", "mixed", "numpy-str", "str-and-numpy-str"],
 )
-def test_feature_names_of_returns_none_unless_all_names_are_str(
-    monkeypatch, columns
-):
-    monkeypatch.setattr(sklearn, "__version__", "1.9.1")
-
+def test_feature_names_of_returns_none_unless_all_names_are_str(columns):
     assert feature_names_of(_frame(columns)) is None
 
 
@@ -685,25 +667,12 @@ def test_feature_names_of_returns_none_unless_all_names_are_str(
     [X, X.tolist(), pd.DataFrame(X).to_numpy()],
     ids=["ndarray", "list", "ndarray-from-dataframe"],
 )
-def test_feature_names_of_returns_none_without_columns(monkeypatch, data):
-    monkeypatch.setattr(sklearn, "__version__", "1.9.1")
-
+def test_feature_names_of_returns_none_without_columns(data):
     assert feature_names_of(data) is None
 
 
-def test_feature_names_of_returns_none_for_no_columns(monkeypatch):
-    monkeypatch.setattr(sklearn, "__version__", "1.9.1")
-
+def test_feature_names_of_returns_none_for_no_columns():
     assert feature_names_of(pd.DataFrame(index=range(3))) is None
-
-
-def test_feature_names_of_raises_for_an_unreadable_sklearn_version(
-    monkeypatch,
-):
-    monkeypatch.setattr(sklearn, "__version__", "unknown")
-
-    with pytest.raises(ValueError, match="scikit-learn"):
-        feature_names_of(_frame(COLUMNS))
 
 
 @pytest.mark.parametrize(
@@ -717,8 +686,8 @@ def test_feature_names_of_raises_for_an_unreadable_sklearn_version(
     ids=["str", "int", "numpy-str", "ndarray"],
 )
 def test_feature_names_of_agrees_with_the_installed_sklearn(data):
-    # The installed scikit-learn (not a mocked version) sets the same
-    # ``feature_names_in_``, or none at all.
+    # The installed scikit-learn sets the same ``feature_names_in_``, or
+    # none at all.
     expected = getattr(StandardScaler().fit(data), "feature_names_in_", None)
 
     names = feature_names_of(data)
