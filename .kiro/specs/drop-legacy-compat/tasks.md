@@ -69,7 +69,7 @@
   - _Depends: 2.3_
   - _Requirements: 3.1, 3.3, 3.4, 3.5, 4.1, 4.2, 5.1, 5.2, 5.4_
 
-- [ ] 3. steering の tech.md と product.md を 0.5.0 の依存の方針に書き換える
+- [x] 3. steering の tech.md と product.md を 0.5.0 の依存の方針に書き換える
   - tech.md の互換性、Key Libraries、Core Technologies の Framework と Core deps の行を、design の CompatSteering のとおりに書き換える（下限は消した分岐が要る版だけ、下限は CI で確かめない、古い環境は 0.4.x の系列、6 つのライブラリの下限と ngboost の上限とその理由、0.5.11 への対応を後のリリースに回したこと、dependabot の ngboost の `ignore`、ngboost による pandas<3.0）。型のためだけの import の決まりは書き直さず、「型」の節を参照する
   - tech.md の Key Technical Decisions の「optional extra に重い依存を寄せる」の理由から「古い環境」を外し、design の CompatSteering の文にする。項目の名前と他の項目は変えない
   - product.md の Target Use Cases と Value Proposition の古い環境についての 2 つの記述を書き換える。両方の `updated_at` を更新する
@@ -130,6 +130,8 @@
     - 手元の 0.5.8 では、テストのデータで LogNormal と CRPScore を学習させても `pinv` は使われなかった。「0.5.8 の `pinv` で学習できるようになった」という因果は裏付けられていないので、コメントには書いていない
     - 0.4.0〜0.5.10 の `get_params` は `deep` を無視し、`Base__*` を返さない。`Base__*` を返すのは 0.5.11 だけ
   - 2.7: `tests/test_ensemble.py` 112 のまま（node ID と結果は基準と同じ。DataFrame の名前の 3 つのテストは skip されずに走る）。import を塞ぐテストは `("optuna_integration",)` だけを塞いで通る。legacy grep のテキストの行 15 → 1（`tests/test_boruta.py` の 1 行だけ）
+  - 3: tech.md の Framework の行は、design の「3.11 以上には 1.9 以降」ではなく「1.8 以降は Python 3.11 以上を求める」と書いた（PyPI の requires_python: 1.7.2 は >=3.10、1.8.0 は >=3.11。CI の今の状態に頼らない書き方にするため）
+  - 3・4.3: 「ngboost を入れると pandas<3.0 になる」は lifelines 0.30.1 以上の `pandas<3.0` による（0.30.0 には上限がない）。4.3 で `test (3.14)` の log の pandas が 3 未満であることを確かめ、3 以上なら tech.md の Key Libraries と CHANGELOG の材料を直す
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
