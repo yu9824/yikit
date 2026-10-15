@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. 前提を確かめ、依存の宣言を消す分岐が要る版にそろえる
+- [x] 1. 前提を確かめ、依存の宣言を消す分岐が要る版にそろえる
   - packaging-and-ci が main に入っていることを確かめる（`requires-python = ">=3.10"`、`typing_extensions` の行がない、`ruff.toml` が `py310`、CI の行列が 3.10〜3.14、CI に Python 3.14 で `.[test]` だけを入れる job がある）。入っていなければ作業を止めて作者に知らせる
   - 手元の環境を確かめる: 作業ツリーに `src/yikit/_version.py` があり、yikit-dev で `yikit.__version__` が `"unknown"` でないこと。どちらかが満たされなければ、作者に承認を求め、packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1。setuptools-scm を入れ、build isolation を使わず依存も入れ直さずに editable を入れ直す）と同じ手順で入れ直す。承認がなければ何も入れず、基準で落ちる `tests/test_version.py` のテストを既知の失敗として Implementation Notes に書く（4.1 の判定から除く）
   - main から作業ブランチを切る。この spec の文書（`.kiro/specs/drop-legacy-compat/`）が main になければ、基準を取る前に作業ブランチにコミットする（Implementation Notes と CHANGELOG の材料は tasks.md に書くため）
@@ -105,10 +105,20 @@
   - _Requirements: 1.4, 2.1, 2.3, 3.5, 4.4, 4.6, 7.1, 7.3_
 
 ## Implementation Notes
+- 作者の決定（2026-10-15、実装の開始時）:
+  - 4.2: yikit-dev に ngboost 0.5.10（sympy を含む）を入れてよい。調べるために 0.5.11 を一時的に入れ、最後に 0.5.10 に戻すこともよい
+  - 4.3: CI の手動実行の代わりに、作業の最後に開く PR の CI で確かめる
+  - 1: 手元の `src/yikit/_version.py` は packaging-and-ci の 4.1 の入れ直しで作られており、`yikit.__version__` は `"unknown"` でないので、入れ直しは要らない。入れ直すときは build isolation ありの `pip install -e . --no-deps`（packaging-and-ci の 4.1 の作者の決定）
+  - 1・4.1: 基準と後の XML は `/Users/yu9824/.cache/yikit-drop-legacy-compat/` に置く
 - `tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py` は、packaging-and-ci（OptionalTestGuard）で先頭の optuna と yikit の import が `pytest.importorskip("optuna")` の後に移っている。2.2・2.3・2.4 でこの 3 つを直すときも、その順を保つ（optional の依存なしの job でテストを集められなくなるため）
 - 共通: 何かを入れる・ダウンロードする前（scratchpad への `pip download` や `pip install --target` も含む）に作者の承認を得る。`conductivity-prediction-old` には何も入れない。tag を付けず、下限の版を試す CI の job を作らない
 - 共通: packaging-and-ci と共有するファイル（`pyproject.toml`、`.kiro/steering/tech.md`、`src/yikit/visualize/_yyplot.py`、`tests/test_gbdt.py`・`tests/test_optuna.py`・`tests/test_search_space.py`）では、design の Boundary Commitments の行と節だけを触る
 - 共通: 書き換えたコメントや docstring が legacy grep（design の Validation Hooks）に掛からないようにする（例: 「ngboost 0.3」「scikit-learn < 1.0」と書かない）。ファイルを限って grep を実行すると、各タスクの完了を確かめられる
+- 1 の結果（2026-10-15、変える前、main d29301d）:
+  - 前提はすべて満たす（`requires-python = ">=3.10"`、`typing_extensions` なし、ruff `py310`、CI 3.10〜3.14 と `test-no-optional`、`_version.py` あり、`__version__` = `0.4.1.dev15+g439f1eeb9.d20261014`）。入れ直しはしていない
+  - 読み直した ngboost の行: `"ngboost>=0.3.6,<0.5.9; python_version < '3.14'",`（dependabot による拡大は起きていなかった）
+  - 基準: `/Users/yu9824/.cache/yikit-drop-legacy-compat/baseline.xml`。702 passed・0 skipped・0 failed・0 error・542 warnings（既知の失敗なし）。ファイルごと: boruta 23、ensemble 112、filtermethod 15、gbdt 15、helpers 83、logging 23、metrics 12、optuna 136、params 48、public_api 21、search_cv 24、search_space 106、version 2、visualize 82
+  - legacy grep: 83 行（src 35: _filter 3、_wrapper 1、_validation 5、_ngboost 1、_ensemble 5、_gbdt(models) 5、_optuna 2、_search_cv 6、_search_space 2、_gbdt(visualize) 1、_permutation_importance 2、_yyplot 2。tests 48: boruta 1、ensemble 9、filtermethod 4、gbdt 4、helpers 2、metrics 1、optuna 5、params 1、search_cv 11、search_space 3、visualize 7）
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
 - 1: ngboost の行は、この spec の前に dependabot の PR で `<0.5.9` が広がっていることがある（packaging-and-ci の dependabot の `ignore` は 0.5.11 以上だけを止める）。読み直した行をここに書く
