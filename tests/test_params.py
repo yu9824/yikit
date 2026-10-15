@@ -407,7 +407,8 @@ def test_ngboost_nested_names_and_random_state_take_effect(small_data):
     X, y = small_data
     estimator = _small_ngb(ngboost)
     snapshot = _snapshot(estimator)
-    # deep=False: ngboost < 0.4 returns the nested Base__* names otherwise.
+    # deep=False asks for the top-level parameters only, whether or not
+    # get_params honours deep.
     original_params = estimator.get_params(deep=False)
     original_base_params = estimator.Base.get_params()
 

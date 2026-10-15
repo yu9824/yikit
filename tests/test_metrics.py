@@ -67,7 +67,9 @@ def test_removed_rmse_raises_import_error():
         ("Normal", "CRPScore"),
         # LogNormal and Exponential have censored scores only, so
         # NGBRegressor wraps them. LogNormal with CRPScore is left out
-        # because ngboost 0.3.6 cannot fit it.
+        # because 0.3.6 could not fit it, and LogNormal and the
+        # natural-gradient solve are the same as in 0.3.6 before 0.5.8,
+        # so versions in the supported range may fail to fit it.
         ("LogNormal", "LogScore"),
         ("Exponential", "LogScore"),
         ("Exponential", "CRPScore"),

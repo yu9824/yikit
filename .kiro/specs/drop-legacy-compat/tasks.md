@@ -53,7 +53,7 @@
   - _Boundary: VisualizeModule_
   - _Requirements: 2.3, 3.1, 3.2, 3.3, 4.1, 4.2, 5.2_
 
-- [ ] 2.6 (P) ngboost についての記述を下限と上限に合わせる
+- [x] 2.6 (P) ngboost についての記述を下限と上限に合わせる
   - `log_likelihood` が使う非公開の属性について、確かめた範囲を「0.4.0 through 0.5.11」にする（コードは変えない）
   - log-likelihood のテストで LogNormal と CRPScore を外す理由を、design の T13 のとおりに直す（組み合わせは外したまま）。そのとき「ngboost 0.3」と続けて書かない（「as in 0.3.6」のように書き、legacy grep に掛からないようにする）。パラメータのテストの `deep=False` のコメントを版に触れない説明にする
   - 完了の状態: `pytest tests/test_metrics.py tests/test_params.py -ra` が通り、`git diff -- src/yikit/metrics/_ngboost.py tests/test_metrics.py tests/test_params.py` の変更がコメントの行だけで、legacy grep がこの 3 つのファイルで何も出さない
@@ -125,6 +125,10 @@
   - 2.3: `tests/test_search_cv.py` 24 のまま（消えた: `test_predict_works_when_the_parent_defines_it_as_a_property`、足した: `test_predict_is_the_plain_method_of_optuna_search_cv`）。`tests/test_optuna.py` 136 のまま（node ID は変わらない）。全体 693 passed。legacy grep のテキストの行は 39
   - 2.4: `tests/test_gbdt.py` 15 → 13（消えた: `test_validation_fit_params_follow_the_fit_signature[lightgbm<3.3]`・`[lightgbm3.3]`）。全体 691 passed。legacy grep のテキストの行 39 → 30
   - 2.5: `tests/test_visualize.py` 82 のまま（node ID と結果は基準と同じ。消した skip は今の環境では実行されていなかった）。`tests/imgs` は変わらない。legacy grep のテキストの行 30 → 18（この 4 つのファイルで 12 → 0）
+  - 2.6: コメントだけを変えた。node ID は変わらない（metrics 12、params 48）。legacy grep のテキストの行 18 → 15。上流のソースで確かめたこと:
+    - 自然勾配の解き方は 0.5.8 で変わった（`_natural_gradient`、行列ごとの solve と `pinv`）。LogNormal は 0.5.8 まで 0.3.6 と同じ。design の T13 の「0.5.8 まで」は「0.5.8 の前まで」の意味としてコメントを書いた
+    - 手元の 0.5.8 では、テストのデータで LogNormal と CRPScore を学習させても `pinv` は使われなかった。「0.5.8 の `pinv` で学習できるようになった」という因果は裏付けられていないので、コメントには書いていない
+    - 0.4.0〜0.5.10 の `get_params` は `deep` を無視し、`Base__*` を返さない。`Base__*` を返すのは 0.5.11 だけ
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない

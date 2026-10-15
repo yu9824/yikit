@@ -118,7 +118,8 @@ def log_likelihood(estimator, X, y):
         )
     log_score_dist = _log_score_manifold(estimator.Dist)
     # ``NGBoost.score`` builds its scoring object from the same parameters
-    # (``pred_dist(X)._params``, present in ngboost 0.3.6 through 0.5.8).
+    # (``pred_dist(X)._params``, the same in the source of ngboost 0.4.0
+    # through 0.5.11).
     params = estimator.pred_dist(X)._params
     # ``total_score`` without weights is the mean negative log-likelihood.
     return -log_score_dist(params).total_score(np.asarray(y))
