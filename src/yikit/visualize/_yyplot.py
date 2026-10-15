@@ -9,7 +9,7 @@ metrics such as :math:`R^2`, RMSE, MAE, and MSE.
 
 from __future__ import annotations
 
-import sys
+from collections.abc import Sequence
 from functools import reduce
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
@@ -20,11 +20,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import ArrayLike
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
-if sys.version_info >= (3, 9):
-    from collections.abc import Sequence
-else:
-    from typing import Sequence
 
 if TYPE_CHECKING:
     # ``NDArray`` is missing from numpy < 1.21, so import it for typing only.

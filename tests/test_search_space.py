@@ -5,11 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
-from optuna.distributions import (
-    CategoricalDistribution,
-    FloatDistribution,
-    IntDistribution,
-)
 from sklearn.base import clone
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.cross_decomposition import PLSRegression
@@ -23,9 +18,17 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR, LinearSVR
 from sklearn.tree import DecisionTreeRegressor
 
-import yikit.models._search_space as search_space_module
-from yikit.helpers import is_installed
-from yikit.models._search_space import (
+optuna = pytest.importorskip("optuna")
+
+from optuna.distributions import (  # noqa: E402
+    CategoricalDistribution,
+    FloatDistribution,
+    IntDistribution,
+)
+
+import yikit.models._search_space as search_space_module  # noqa: E402
+from yikit.helpers import is_installed  # noqa: E402
+from yikit.models._search_space import (  # noqa: E402
     _criterion_choices,
     get_recommended_params,
     get_search_space,

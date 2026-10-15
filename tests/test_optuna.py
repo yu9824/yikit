@@ -9,10 +9,7 @@ import warnings
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import optuna
 import pytest
-from optuna.distributions import FloatDistribution, IntDistribution
-from optuna.trial import TrialState
 from sklearn.base import BaseEstimator, clone
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.cross_decomposition import PLSRegression
@@ -31,8 +28,16 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
-import yikit.models
-from yikit.models import (
+optuna = pytest.importorskip("optuna")
+
+from optuna.distributions import (  # noqa: E402
+    FloatDistribution,
+    IntDistribution,
+)
+from optuna.trial import TrialState  # noqa: E402
+
+import yikit.models  # noqa: E402
+from yikit.models import (  # noqa: E402
     Objective,
     ParamDistributions,
     RecommendedParams,

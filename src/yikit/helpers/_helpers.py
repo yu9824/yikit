@@ -11,16 +11,11 @@ from __future__ import annotations
 import functools
 import importlib.util
 import inspect
-import sys
 import threading
+from collections.abc import Callable, Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 import joblib
-
-if sys.version_info >= (3, 9):
-    from collections.abc import Callable, Iterable, Iterator
-else:
-    from typing import Callable, Iterable, Iterator
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -106,7 +101,6 @@ def is_argument(__callable: Callable[..., Any], arg_name: str) -> bool:
     return arg_name in set(inspect.signature(__callable).parameters.keys())
 
 
-# HACK: when drop python3.8, use `dummy_tqdm(Iterable[T])`
 class dummy_tqdm(Iterable, Generic[T]):
     """Stand-in for ``tqdm`` that shows no progress bar.
 
