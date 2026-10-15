@@ -87,7 +87,7 @@
   - 完了の状態: ruff と mypy がエラー 0 件、legacy grep の出力が `tests/test_boruta.py` の 1 行だけ、optional の依存を塞いだ pytest で集める段階のエラーと failed が 0 件、pytest に failed と error がなく（1 で既知の失敗とした `tests/test_version.py` のテストは除き、それが基準と同じ結果であることだけを見る）、node ID ごとの違いの内訳（消した・足した・skip でなくなった）が Implementation Notes に書かれている
   - _Requirements: 3.1, 3.2, 3.3, 3.5, 4.1, 4.2, 4.5, 4.6, 5.1, 5.2, 5.3_
 
-- [ ] 4.2 作者の承認を得て ngboost 0.5.10 でテストを回し、0.5.11 の違いを記録する
+- [x] 4.2 作者の承認を得て ngboost 0.5.10 でテストを回し、0.5.11 の違いを記録する
   - 作者に、yikit-dev へ `ngboost==0.5.10`（sympy が一緒に入る）を入れる承認を求める。調べるためだけに 0.5.11 を入れて 0.5.10 に戻すことも同じ確認で尋ねる。承認がなければ何も入れず、0.5.10 は 4.3 の CI だけで確かめると Implementation Notes に書いて、4.3 に進む
   - 承認があれば、0.5.10 を入れて `python -m pytest -ra` の全体を回す。0.5.11 の承認もあれば、0.5.11 を入れて ngboost に関わるテスト（metrics、search_space、optuna、params、ensemble、visualize の ngboost のテスト）を回し、落ちたテストと理由を記録してから 0.5.10 に戻す。0.5.11 に合わせるコードの変更はしない
   - 0.5.11 の結果が、1 と 3 で書いた上限の理由（`pyproject.toml` のコメント、tech.md の Key Libraries）と食い違えば、その記述を直す
@@ -142,6 +142,12 @@
     - ファイルごと: boruta 23、ensemble 112、filtermethod 15、gbdt 13、helpers 76、logging 23、metrics 12、optuna 136、params 48、public_api 21、search_cv 24、search_space 104、version 2、visualize 82
   - optional の依存を塞いだ run（`scratchpad/pc/noopt/sitecustomize.py`、何も入れていない）: 291 passed・105 skipped・集める段階のエラー 0・failed 0
   - 4.1 は確かめるだけのタスクでコードの変更がないため、レビューは親が kiro-review の手順で行った（inline）
+- 4.2 の結果（2026-10-15、2acef5c、作者の承認の範囲）:
+  - yikit-dev に `ngboost==0.5.10` を入れた（0.5.8 から。一緒に入ったのは sympy 1.14.0 と、sympy が要る mpmath 1.3.0 だけ。pandas 2.3.3・lifelines 0.30.3 などは変わらない）
+  - 0.5.10 で `python -m pytest -ra` の全体: 691 passed・0 skipped・0 failed（4.1 と同じ）
+  - 調べるためだけに 0.5.11 を入れ、metrics・search_space・optuna・params・ensemble・visualize のテストを回した: 493 passed・1 failed。落ちたのは `tests/test_search_space.py::test_ngboost_detection_matches_its_set_params` だけ（0.5.11 では入れ子の名前が `set_params` で効くのに、`ignores_nested_set_params(NGBRegressor())` が True を返す）
+  - この結果は、`pyproject.toml` のコメントと tech.md の Key Libraries に書いた上限の理由（0.5.11 で `set_params`・`get_params` が入れ子の名前を扱う）と合うので、記述は直していない。0.5.11 に合わせるコードの変更はしていない
+  - 最後に 0.5.10 に戻した（`pip list` で ngboost 0.5.10 を確かめた）
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
