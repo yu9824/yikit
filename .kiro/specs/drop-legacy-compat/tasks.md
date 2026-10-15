@@ -78,7 +78,7 @@
   - _Requirements: 1.3, 2.4, 6.1, 6.2, 6.3, 6.4_
 
 - [ ] 4. 統合の確認
-- [ ] 4.1 手元で静的検査・型検査・legacy grep・テストの全体を通し、基準と比べる
+- [x] 4.1 手元で静的検査・型検査・legacy grep・テストの全体を通し、基準と比べる
   - `ruff check src tests`、`ruff format --check src tests`、`mypy` を実行する
   - design の Validation Hooks の legacy grep を実行する
   - `python -m pytest -ra --junitxml=<1 と同じ場所>/after.xml` で全体を実行し、1 の基準の XML とテストの node ID ごとに比べる。違いが、消したテスト・足したテスト・古い版のための skip の分だけであることを確かめる
@@ -132,6 +132,16 @@
   - 2.7: `tests/test_ensemble.py` 112 のまま（node ID と結果は基準と同じ。DataFrame の名前の 3 つのテストは skip されずに走る）。import を塞ぐテストは `("optuna_integration",)` だけを塞いで通る。legacy grep のテキストの行 15 → 1（`tests/test_boruta.py` の 1 行だけ）
   - 3: tech.md の Framework の行は、design の「3.11 以上には 1.9 以降」ではなく「1.8 以降は Python 3.11 以上を求める」と書いた（PyPI の requires_python: 1.7.2 は >=3.10、1.8.0 は >=3.11。CI の今の状態に頼らない書き方にするため）
   - 3・4.3: 「ngboost を入れると pandas<3.0 になる」は lifelines 0.30.1 以上の `pandas<3.0` による（0.30.0 には上限がない）。4.3 で `test (3.14)` の log の pandas が 3 未満であることを確かめ、3 以上なら tech.md の Key Libraries と CHANGELOG の材料を直す
+- 4.1 の結果（2026-10-15、e502bd5）:
+  - `ruff check src tests`・`ruff format --check src tests`・`mypy` はエラー 0 件。legacy grep（`-I`）は `tests/test_boruta.py:81` の 1 行だけ。`main` からの差分に、`__init__.py` と `__all__` の変更はない
+  - 全体: `/Users/yu9824/.cache/yikit-drop-legacy-compat/after.xml`。691 passed・0 skipped・0 failed・0 error（`tests/test_version.py` も基準と同じく 2 passed）。95 秒で、止まらなかった
+  - 基準（702）との node ID ごとの違い。結果が変わったテストは 0 件。skip でなくなったテストは 0 件（基準の環境では、消した skip は実行されていなかった）
+    - 消した（11）: gbdt 2（`test_validation_fit_params_follow_the_fit_signature[lightgbm<3.3]`・`[lightgbm3.3]`）、helpers 7（`test_feature_names_of_returns_none_before_sklearn_1_0[0.24.1|0.24.2|0.9.0]`、`test_feature_names_of_raises_for_an_unreadable_sklearn_version`、`test_feature_names_of_returns_str_column_names[1.0.0|1.3.2|1.9.1|1.10.dev0]` の 4 件を 1 件にした分の 3）、search_space 2（`test_criterion_choices_by_sklearn_version[0.24.1-expected0]`・`[0.24.2-expected1]`）
+    - 入れ替えた（1）: search_cv の `test_predict_works_when_the_parent_defines_it_as_a_property` → `test_predict_is_the_plain_method_of_optuna_search_cv`
+    - 名前だけ変わった（9）: search_space の `test_criterion_choices_by_sklearn_version` の残り 9 件（parametrize の `expectedN` が 2 つずつ振り直された）
+    - ファイルごと: boruta 23、ensemble 112、filtermethod 15、gbdt 13、helpers 76、logging 23、metrics 12、optuna 136、params 48、public_api 21、search_cv 24、search_space 104、version 2、visualize 82
+  - optional の依存を塞いだ run（`scratchpad/pc/noopt/sitecustomize.py`、何も入れていない）: 291 passed・105 skipped・集める段階のエラー 0・failed 0
+  - 4.1 は確かめるだけのタスクでコードの変更がないため、レビューは親が kiro-review の手順で行った（inline）
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
