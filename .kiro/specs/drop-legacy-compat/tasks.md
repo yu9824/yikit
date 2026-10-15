@@ -11,7 +11,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 7.2_
 
 - [ ] 2. 古い版のための分岐を、ファイルのまとまりごとに消す
-- [ ] 2.1 (P) helpers と feature_selection から scikit-learn<1.0 と Boruta<0.4 の記述と判定を消す
+- [x] 2.1 (P) helpers と feature_selection から scikit-learn<1.0 と Boruta<0.4 の記述と判定を消す
   - 特徴量の名前を取り出す共通の関数から scikit-learn の版の判定と、その docstring の記述を消し、使われなくなる import を消す。シグネチャと戻り値は変えない
   - feature_selection の 3 つの記述（import のコメント、`feature_names_in_` の説明、例のコメント）と、Boruta の `return_df` のコメントを、版に触れない説明にする
   - テストから、scikit-learn の版の差し替え、1.0 より前で None になるテスト、読めない版で失敗するテストを消し、`get_feature_names_out` のテストの skip の印（`requires_feature_names_out`）を消す。入っている scikit-learn と同じ名前になるテストは残す

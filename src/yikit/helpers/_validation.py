@@ -7,40 +7,12 @@ directly.
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import sklearn
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-
-
-def _sklearn_has_feature_names() -> bool:
-    """Return whether the installed scikit-learn has ``feature_names_in_``.
-
-    ``feature_names_in_`` was added in scikit-learn 1.0.
-
-    Returns
-    -------
-    bool
-        True if the version of scikit-learn is 1.0 or later.
-
-    Raises
-    ------
-    ValueError
-        If ``sklearn.__version__`` does not start with
-        ``<major>.<minor>``.
-    """
-    version = sklearn.__version__
-    match = re.match(r"(\d+)\.(\d+)", version)
-    if match is None:
-        raise ValueError(
-            f"Cannot parse the scikit-learn version {version!r}; expected "
-            "it to start with '<major>.<minor>'."
-        )
-    return (int(match.group(1)), int(match.group(2))) >= (1, 0)
 
 
 def feature_names_of(X: Any) -> NDArray[Any] | None:
@@ -59,22 +31,15 @@ def feature_names_of(X: Any) -> NDArray[Any] | None:
     -------
     numpy.ndarray of shape (n_features,) or None
         The column names as an array of ``dtype=object``. None if ``X`` has
-        no ``columns``, if there are no columns, if any name is not a
-        ``str``, or if scikit-learn is older than 1.0 (which has no
-        ``feature_names_in_``).
-
-    Raises
-    ------
-    ValueError
-        If ``X`` has columns and the version of scikit-learn cannot be
-        read.
+        no ``columns``, if there are no columns, or if any name is not a
+        ``str``.
 
     Examples
     --------
     >>> import pandas as pd
     >>> from yikit.helpers._validation import feature_names_of
     >>> X = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]], columns=["a", "b"])
-    >>> feature_names_of(X)  # None with scikit-learn < 1.0
+    >>> feature_names_of(X)
     array(['a', 'b'], dtype=object)
     >>> print(feature_names_of(X.to_numpy()))
     None
@@ -82,7 +47,7 @@ def feature_names_of(X: Any) -> NDArray[Any] | None:
     None
     """
     columns = getattr(X, "columns", None)
-    if columns is None or not _sklearn_has_feature_names():
+    if columns is None:
         return None
     names = np.array(columns, dtype=object)
     if names.ndim != 1 or len(names) == 0:

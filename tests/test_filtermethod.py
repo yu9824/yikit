@@ -7,16 +7,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from sklearn.datasets import load_iris
-from sklearn.feature_selection import SelectorMixin
 
 from yikit.feature_selection import FilterSelector
 
 SEED = 334
-
-requires_feature_names_out = pytest.mark.skipif(
-    not hasattr(SelectorMixin, "get_feature_names_out"),
-    reason="get_feature_names_out needs scikit-learn >= 1.0",
-)
 
 
 def _chain_data() -> np.ndarray:
@@ -124,7 +118,6 @@ def test_filter_selector_same_result_with_progress_and_jobs(verbose, n_jobs):
     np.testing.assert_array_equal(selector.corr_, expected.corr_)
 
 
-@requires_feature_names_out
 def test_filter_selector_feature_names_out_dataframe():
     X = pd.DataFrame(_chain_data(), columns=list("abcdefg"))
 
@@ -142,7 +135,6 @@ def test_filter_selector_feature_names_out_dataframe():
     assert selector.transform(X).shape == (50, 5)
 
 
-@requires_feature_names_out
 def test_filter_selector_feature_names_out_ndarray():
     X = _chain_data()
     selector = FilterSelector(verbose=False)

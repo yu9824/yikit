@@ -26,7 +26,7 @@ import numpy as np
 from joblib import Parallel, delayed
 from scipy.stats import pearsonr
 from sklearn.base import BaseEstimator
-from sklearn.feature_selection import SelectorMixin  # >= 0.23.2
+from sklearn.feature_selection import SelectorMixin
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_is_fitted
 
@@ -83,8 +83,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
         The number of features seen during ``fit``.
     feature_names_in_ : numpy.ndarray of shape (n_features_in_,)
         The names of the features seen during ``fit``. Defined only when
-        ``X`` has feature names that are all strings (with scikit-learn
-        1.0 or later).
+        ``X`` has feature names that are all strings.
 
     Examples
     --------
@@ -108,7 +107,7 @@ class FilterSelector(SelectorMixin, BaseEstimator):
     >>> selector = FilterSelector(verbose=False).fit(X)
     >>> selector.get_support()
     array([False, False,  True,  True])
-    >>> selector.get_feature_names_out()  # scikit-learn >= 1.0
+    >>> selector.get_feature_names_out()
     array(['c', 'd'], dtype=object)
     >>> selector.transform(X).shape
     (50, 2)

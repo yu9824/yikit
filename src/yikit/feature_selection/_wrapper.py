@@ -398,7 +398,8 @@ class BorutaPy(boruta.BorutaPy):
             return super()._transform(X, weak, return_df)
         if hasattr(X, "iloc"):  # pandas.DataFrame
             X = np.asarray(X)
-        # Without return_df, which boruta < 0.4 does not take.
+        # Without return_df, boruta returns the selected columns of the
+        # NumPy array.
         return super()._transform(X, weak)
 
     def get_support(self, weak: bool = False) -> np.ndarray:
