@@ -157,6 +157,7 @@
   - 5 つの job のすべてに ngboost 0.5.10 が入り、`test (3.14)` の skip は 0 件（ngboost のテストは skip されずに走った）
   - 3.10 だけ 1 件多いのは、`test_criterion_choices_fit_without_future_warning` が `_criterion_choices()` の選択肢ごとに作られ、scikit-learn 1.7.2 では `"friedman_mse"` も入るため（新しい版のために残した分岐。想定どおり）
   - pandas: 3.14 では lifelines 0.30.3 の `pandas<3.0` で 2.3.3 になった（tech.md の記述どおり）。3.10 は lifelines 0.30.0（pandas の上限なし）だが、pandas 3 は Python 3.11 以上を求めるので 2.3.3 になる
+- 機能の検証（kiro-validate-impl、2026-10-15、a30ef6c）: GO。手元の yikit-dev の editable の dist-info は 0.4 の依存の宣言（`ngboost<0.5.9`、`scikit-learn>=0.24.1` など）のままで、ngboost 0.5.10 を入れた今は `pip check` が不整合を出す。テストには影響しない。直すには build isolation ありの `pip install -e . --no-deps` で入れ直す
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
@@ -166,10 +167,11 @@
 - 2.7: `tests/test_ensemble.py` の import を塞ぐテストは、2.3 の前に `optuna_integration` だけを塞ぐと、optuna 5 の `optuna.integration` が名前のない `ModuleNotFoundError` を出し直して `cause.name in blocked` が落ちる
 - 0.5.11 への対応（この spec の外。後のリリースに回すと作者が 2026-10-14 に決定。`.github/dependabot.yml` の ngboost の `ignore` は packaging-and-ci が足す）の材料: 0.5.11 は `set_params` が入れ子の名前を `Base` に渡し、`get_params(deep=True)` が `Base__*` を返す。合わせるには、`ignores_nested_set_params` を振る舞いで判定し、`ParamDistributions` の警告と `EnsembleRegressor` の docstring を版に合わせ、`test_ngboost_detection_matches_its_set_params` などを見直す。0.5.11 の既定の木の `criterion` は `"squared_error"`
 - release-0.5.0 の CHANGELOG の材料:
-  - 依存の下限を上げた: scikit-learn>=1.0（0.24.1 から。`feature_names_in_`・`get_feature_names_out`・`"squared_error"` を前提にする）、seaborn>=0.12（`barplot` の `errorbar`）、lightgbm>=4.0（LightGBM 3 の扱いをやめた）、ngboost>=0.4（0.3.6 から。`set_params` の扱い）、optuna>=3.2（3.0 から。optuna-integration 4.1 以上が `optuna.terminator` を使うため）、optuna-integration>=4.1（下限なしから。`OptunaSearchCV.predict` が普通のメソッド）
+  - 依存の下限を上げた: scikit-learn>=1.0（0.24.1 から。`feature_names_in_`・`get_feature_names_out`・`"squared_error"` を前提にする）、seaborn>=0.12（下限なしから。`barplot` の `errorbar`）、lightgbm>=4.0（下限なしから。LightGBM 3 の扱いをやめた）、ngboost>=0.4（0.3.6 から。`set_params` の扱い）、optuna>=3.2（3.0 から。optuna-integration 4.1 以上が `optuna.terminator` を使うため）、optuna-integration>=4.1（下限なしから。`OptunaSearchCV.predict` が普通のメソッド）
   - ngboost は Python 3.14 でも入る。上限は `<0.5.9` から `<0.5.11` に上げた。0.5.11 は `set_params`・`get_params` の変更に yikit がまだ合わせていないので外している（入っていれば pip が 0.5.10 に下げる）。0.5.11 への対応は後のリリースで行う
-  - `OptunaSearchCV` は optuna-integration からだけ使う。optuna-integration を入れずに optuna 3.x の `optuna.integration` で `EnsembleRegressor(opt=True)` を使っていた環境では ImportError になる（`pip install "yikit[optional]"` で入る）
+  - `OptunaSearchCV` は optuna-integration からだけ使う。optuna-integration を入れずに optuna 3.x の `optuna.integration` で `EnsembleRegressor(opt=True)` を使っていた環境では ImportError になる（案内のとおり `pip install optuna optuna-integration`、または `pip install "yikit[optional]"` で入る）
   - 公開 API と、宣言した範囲の版での結果は変わらない。古い環境（Python 3.8・3.9、scikit-learn<1.0 など）は 0.4.x を使う
   - 3.14 でも ngboost が入るので、lifelines を通じて pandas<3.0 になる（ngboost を入れた環境）。pandas 3 では、optional の依存を入れない 3.14 の CI の job で試している
   - CI で確かめた版（PR #38、run 38687353076）: Python 3.10〜3.14 のすべてで ngboost 0.5.10・lightgbm 4.7.0・optuna 5.0.0・optuna-integration 5.0.0・seaborn 0.13.2、scikit-learn は 3.10 で 1.7.2・3.11 以上で 1.9.1、pandas は 2.3.3。optional の依存を入れない 3.14 の job は pandas 3.0.6
   - ngboost 0.5.11 では、`ignores_nested_set_params` の判定のテスト 1 件だけが落ちる（4.2）。0.5.11 への対応は後のリリースで行う
+  - licond への連絡: `yikit>=0.5.0` を求めると、Python 3.10 以上に加えて、上げた下限（scikit-learn>=1.0 など）も満たす必要がある
