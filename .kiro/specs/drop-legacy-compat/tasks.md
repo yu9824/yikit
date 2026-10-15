@@ -19,7 +19,7 @@
   - _Boundary: ValidationAndSelection_
   - _Requirements: 3.1, 3.3, 4.1, 4.2, 5.1, 5.2_
 
-- [ ] 2.2 (P) 探索範囲から scikit-learn<1.0 と ngboost<0.4 の道を消す
+- [x] 2.2 (P) 探索範囲から scikit-learn<1.0 と ngboost<0.4 の道を消す
   - 木の `criterion` の候補から 1.0 より前の道とその記述を消す。1.9 の道と、読めない版での ValueError は残す
   - 入れ子の名前を無視するモデルの判定から `set_params` の比較と「Older ngboost」の記述を消し、ngboost が入っていれば NGBRegressor を返す。docstring を合わせ、使われなくなる import を消す
   - テストの候補の表から 0.24 の行を消し、判定のテストのコメントを版に触れない説明にする。判定が実際の `set_params` の振る舞いと合うことを確かめるテストと、ngboost がないときのテストは残す
@@ -119,6 +119,9 @@
   - 読み直した ngboost の行: `"ngboost>=0.3.6,<0.5.9; python_version < '3.14'",`（dependabot による拡大は起きていなかった）
   - 基準: `/Users/yu9824/.cache/yikit-drop-legacy-compat/baseline.xml`。702 passed・0 skipped・0 failed・0 error・542 warnings（既知の失敗なし）。ファイルごと: boruta 23、ensemble 112、filtermethod 15、gbdt 15、helpers 83、logging 23、metrics 12、optuna 136、params 48、public_api 21、search_cv 24、search_space 106、version 2、visualize 82
   - legacy grep: 83 行（src 35: _filter 3、_wrapper 1、_validation 5、_ngboost 1、_ensemble 5、_gbdt(models) 5、_optuna 2、_search_cv 6、_search_space 2、_gbdt(visualize) 1、_permutation_importance 2、_yyplot 2。tests 48: boruta 1、ensemble 9、filtermethod 4、gbdt 4、helpers 2、metrics 1、optuna 5、params 1、search_cv 11、search_space 3、visualize 7）
+- 2.1・2.2 の結果（4.1 で node ID を比べるときの材料）:
+  - 2.1: `tests/test_helpers.py` 83 → 76。消えた: `test_feature_names_of_returns_str_column_names[1.0.0|1.3.2|1.9.1|1.10.dev0]`（パラメータなしの 1 件に）、`test_feature_names_of_returns_none_before_sklearn_1_0[0.24.1|0.24.2|0.9.0]`、`test_feature_names_of_raises_for_an_unreadable_sklearn_version`。`tests/test_filtermethod.py` は 15 のまま（skip の印だけ消えた）。legacy grep 83 → 68
+  - 2.2: `tests/test_search_space.py` 106 → 104。消えた: `test_criterion_choices_by_sklearn_version[0.24.1-expected0]`・`[0.24.2-expected1]`。残った 9 件は parametrize の `expectedN` が振り直された（例: `[1.0-expected2]` → `[1.0-expected0]`）ので、名前が変わっただけとして扱う。全体 693 passed
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
 - 1: ngboost の行は、この spec の前に dependabot の PR で `<0.5.9` が広がっていることがある（packaging-and-ci の dependabot の `ignore` は 0.5.11 以上だけを止める）。読み直した行をここに書く

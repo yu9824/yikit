@@ -29,7 +29,6 @@ from optuna.distributions import (
     FloatDistribution,
     IntDistribution,
 )
-from sklearn.base import BaseEstimator
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.ensemble import RandomForestRegressor
@@ -54,8 +53,7 @@ if TYPE_CHECKING:
 def _criterion_choices(version: str | None = None) -> list[str]:
     """Return the tree criteria usable without warnings in scikit-learn.
 
-    ``"squared_error"`` was added in scikit-learn 1.0 (replacing ``"mse"``),
-    and ``"friedman_mse"`` is deprecated since scikit-learn 1.9.
+    ``"friedman_mse"`` is deprecated since scikit-learn 1.9.
 
     Parameters
     ----------
@@ -66,7 +64,6 @@ def _criterion_choices(version: str | None = None) -> list[str]:
     Returns
     -------
     list of str
-        ``["mse", "friedman_mse"]`` before 1.0,
         ``["squared_error", "friedman_mse"]`` before 1.9, and
         ``["squared_error"]`` otherwise.
 
@@ -83,8 +80,6 @@ def _criterion_choices(version: str | None = None) -> list[str]:
             "it to start with '<major>.<minor>'."
         )
     major_minor = (int(match.group(1)), int(match.group(2)))
-    if major_minor < (1, 0):
-        return ["mse", "friedman_mse"]
     if major_minor < (1, 9):
         return ["squared_error", "friedman_mse"]
     return ["squared_error"]
@@ -223,9 +218,7 @@ def _build_ignores_nested_set_params() -> tuple[type, ...]:
 
     Since ngboost 0.4.0, ``set_params`` of ``NGBRegressor`` only calls
     ``setattr``, so a name such as ``Base__max_depth`` does not reach its
-    ``Base``. Older ngboost inherits ``set_params`` from scikit-learn and
-    applies nested names. The type is included only when ngboost is
-    installed and overrides ``set_params``.
+    ``Base``. The type is included only when ngboost is installed.
 
     Returns
     -------
@@ -237,8 +230,7 @@ def _build_ignores_nested_set_params() -> tuple[type, ...]:
             NGBRegressor,
         )
 
-        if NGBRegressor.set_params is not BaseEstimator.set_params:
-            return (NGBRegressor,)
+        return (NGBRegressor,)
     return ()
 
 
@@ -507,7 +499,7 @@ def ignores_nested_set_params(model: Any) -> bool:
     Returns
     -------
     bool
-        ``True`` for ``NGBRegressor`` (and its subclasses) when the
-        installed ngboost overrides ``set_params``, ``False`` otherwise.
+        ``True`` for ``NGBRegressor`` (and its subclasses) when ngboost is
+        installed, ``False`` otherwise.
     """
     return isinstance(model, _IGNORES_NESTED_SET_PARAMS)
