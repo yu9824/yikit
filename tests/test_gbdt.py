@@ -71,10 +71,12 @@ def test_learns_only_on_the_training_split(data):
 
 
 def test_stops_early(data):
+    """The regressor and its booster agree on the best iteration."""
     X, y = data
     model = GBDTRegressor(n_estimators=1000, random_state=SEED).fit(X, y)
 
     assert 0 < model.best_iteration_ < 1000
+    assert model.best_iteration_ == model.estimator_.best_iteration_
     assert model.best_iteration_ == model.estimator_.booster_.best_iteration
 
 
@@ -126,12 +128,6 @@ def _fit_parameters(fit):
     return inspect.signature(fit).parameters
 
 
-def _fit_3_2(self, X, y, eval_set=None, verbose=True, callbacks=None): ...
-
-
-def _fit_3_3(self, X, y, eval_set=None, verbose="warn", callbacks=None): ...
-
-
 def _fit_4_6(self, X, y, eval_set=None, callbacks=None): ...
 
 
@@ -141,16 +137,14 @@ def _fit_4_7(
 
 
 @pytest.mark.parametrize(
-    ("fit", "uses_eval_xy", "passes_verbose"),
+    ("fit", "uses_eval_xy"),
     [
-        pytest.param(_fit_3_2, False, True, id="lightgbm<3.3"),
-        pytest.param(_fit_3_3, False, False, id="lightgbm3.3"),
-        pytest.param(_fit_4_6, False, False, id="lightgbm4.0-4.6"),
-        pytest.param(_fit_4_7, True, False, id="lightgbm>=4.7"),
+        pytest.param(_fit_4_6, False, id="lightgbm4.0-4.6"),
+        pytest.param(_fit_4_7, True, id="lightgbm>=4.7"),
     ],
 )
 def test_validation_fit_params_follow_the_fit_signature(
-    monkeypatch, fit, uses_eval_xy, passes_verbose
+    monkeypatch, fit, uses_eval_xy
 ):
     from yikit.models import _gbdt
 
@@ -166,10 +160,7 @@ def test_validation_fit_params_follow_the_fit_signature(
     else:
         assert "eval_X" not in params
         assert params["eval_set"] == [(X_valid, y_valid)]
-    if passes_verbose:
-        assert params["verbose"] is False
-    else:
-        assert "verbose" not in params
+    assert "verbose" not in params
     assert params["eval_metric"] == ["mse", "mae"]
     assert len(params["callbacks"]) == 1
 

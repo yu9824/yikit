@@ -36,7 +36,7 @@
   - _Boundary: TuningSearch_
   - _Requirements: 3.1, 3.2, 3.3, 3.5, 4.1, 4.2, 4.3, 5.1, 5.2, 5.4_
 
-- [ ] 2.4 (P) GBDTRegressor から LightGBM 3 のための判定と記述を消す
+- [x] 2.4 (P) GBDTRegressor から LightGBM 3 のための判定と記述を消す
   - early stopping の引数を決める関数から `verbose` の判定とその説明を消す。`eval_X`・`eval_y`（LightGBM 4.7）の分岐は残す
   - `best_iteration_` を LightGBM の回帰モデルの `best_iteration_` から読み、属性と class の docstring の LightGBM 3 の記述を直す
   - テストから LightGBM 3 の署名と `verbose` の次元を消し、4.0〜4.6 と 4.7 以降の署名のどちらでも `verbose` を渡さないことを確かめる。`best_iteration_` が回帰モデルの値と booster の値に等しいことを確かめる
@@ -123,6 +123,7 @@
   - 2.1: `tests/test_helpers.py` 83 → 76。消えた: `test_feature_names_of_returns_str_column_names[1.0.0|1.3.2|1.9.1|1.10.dev0]`（パラメータなしの 1 件に）、`test_feature_names_of_returns_none_before_sklearn_1_0[0.24.1|0.24.2|0.9.0]`、`test_feature_names_of_raises_for_an_unreadable_sklearn_version`。`tests/test_filtermethod.py` は 15 のまま（skip の印だけ消えた）。legacy grep 83 → 68
   - 2.2: `tests/test_search_space.py` 106 → 104。消えた: `test_criterion_choices_by_sklearn_version[0.24.1-expected0]`・`[0.24.2-expected1]`。残った 9 件は parametrize の `expectedN` が振り直された（例: `[1.0-expected2]` → `[1.0-expected0]`）ので、名前が変わっただけとして扱う。全体 693 passed
   - 2.3: `tests/test_search_cv.py` 24 のまま（消えた: `test_predict_works_when_the_parent_defines_it_as_a_property`、足した: `test_predict_is_the_plain_method_of_optuna_search_cv`）。`tests/test_optuna.py` 136 のまま（node ID は変わらない）。全体 693 passed。legacy grep のテキストの行は 39
+  - 2.4: `tests/test_gbdt.py` 15 → 13（消えた: `test_validation_fit_params_follow_the_fit_signature[lightgbm<3.3]`・`[lightgbm3.3]`）。全体 691 passed。legacy grep のテキストの行 39 → 30
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
