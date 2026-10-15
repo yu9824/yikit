@@ -77,7 +77,7 @@
   - 完了の状態: tech.md と product.md に「1.0.0 まで上げない」「古い環境でも動く」「古い環境や軽い用途で」の記述がなく、Key Libraries に 6 つのライブラリの下限（ngboost は上限も）と理由、0.5.11 を後に回したことと dependabot の `ignore` があり、`git diff -- .kiro/steering` で packaging-and-ci の節と、Key Technical Decisions の他の項目に変更がない
   - _Requirements: 1.3, 2.4, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 4. 統合の確認
+- [x] 4. 統合の確認
 - [x] 4.1 手元で静的検査・型検査・legacy grep・テストの全体を通し、基準と比べる
   - `ruff check src tests`、`ruff format --check src tests`、`mypy` を実行する
   - design の Validation Hooks の legacy grep を実行する
@@ -95,7 +95,7 @@
   - 完了の状態: Implementation Notes に、入れた ngboost の版、0.5.10 での pytest の結果、0.5.11 で落ちたテストの一覧（または承認がなかったこと）が書かれ、上限の理由の記述がその結果と合っている
   - _Requirements: 2.2, 2.4, 7.2, 7.4_
 
-- [ ] 4.3 作業ブランチで CI を手動実行し、Python 3.10〜3.14 と、optional の依存のない 3.14 で通ることと、3.14 で ngboost のテストが走ることを確かめる
+- [x] 4.3 作業ブランチで CI を手動実行し、Python 3.10〜3.14 と、optional の依存のない 3.14 で通ることと、3.14 で ngboost のテストが走ることを確かめる
   - 作業ブランチを push し、CI を手動実行する。下限の版を入れて試す job は足さず、tag も付けない。workflow は変えない（packaging-and-ci が持つ）
   - optional の依存を入れるテストの 5 つの job の結果と、各 job の `pip install` の log から scikit-learn・lightgbm・ngboost・optuna・optuna-integration・seaborn・pandas の版を記録する。3.14 の job の skip の一覧に ngboost のテストがないことを確かめる
   - 同じ run で、packaging-and-ci の 3.14 の `.[test]` だけの job `test-no-optional`（作者が 2026-10-14 に決定。pandas 3 と、optional の依存がないときの動作を受け持つ）の結果を確かめる。log から pandas と scikit-learn の版を記録し、pandas 3 以上が入り、optional の依存が入っていないことを確かめる
@@ -148,6 +148,15 @@
   - 調べるためだけに 0.5.11 を入れ、metrics・search_space・optuna・params・ensemble・visualize のテストを回した: 493 passed・1 failed。落ちたのは `tests/test_search_space.py::test_ngboost_detection_matches_its_set_params` だけ（0.5.11 では入れ子の名前が `set_params` で効くのに、`ignores_nested_set_params(NGBRegressor())` が True を返す）
   - この結果は、`pyproject.toml` のコメントと tech.md の Key Libraries に書いた上限の理由（0.5.11 で `set_params`・`get_params` が入れ子の名前を扱う）と合うので、記述は直していない。0.5.11 に合わせるコードの変更はしていない
   - 最後に 0.5.10 に戻した（`pip list` で ngboost 0.5.10 を確かめた）
+- 4.3 の結果（2026-10-15、PR #38 の CI、run 38687353076、head d23a400。作者の決定どおり、手動実行の代わりに PR の CI で確かめた）:
+  - 7 つの job（`changes`、`test (3.10)`〜`test (3.14)`、`test-no-optional`）がすべて成功。止まった job はない（2〜3 分）
+  - 入った版（scikit-learn / lightgbm / ngboost / optuna / optuna-integration / seaborn / pandas / lifelines）:
+    - 3.10: 1.7.2 / 4.7.0 / 0.5.10 / 5.0.0 / 5.0.0 / 0.13.2 / 2.3.3 / 0.30.0。692 passed
+    - 3.11・3.12・3.13・3.14: 1.9.1 / 4.7.0 / 0.5.10 / 5.0.0 / 5.0.0 / 0.13.2 / 2.3.3 / 0.30.3。691 passed
+    - `test-no-optional`（3.14、`.[test]` だけ）: scikit-learn 1.9.1、pandas 3.0.6、seaborn 0.13.2。optional の依存は入っていない。291 passed・105 skipped
+  - 5 つの job のすべてに ngboost 0.5.10 が入り、`test (3.14)` の skip は 0 件（ngboost のテストは skip されずに走った）
+  - 3.10 だけ 1 件多いのは、`test_criterion_choices_fit_without_future_warning` が `_criterion_choices()` の選択肢ごとに作られ、scikit-learn 1.7.2 では `"friedman_mse"` も入るため（新しい版のために残した分岐。想定どおり）
+  - pandas: 3.14 では lifelines 0.30.3 の `pandas<3.0` で 2.3.3 になった（tech.md の記述どおり）。3.10 は lifelines 0.30.0（pandas の上限なし）だが、pandas 3 は Python 3.11 以上を求めるので 2.3.3 になる
 - 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
@@ -162,3 +171,5 @@
   - `OptunaSearchCV` は optuna-integration からだけ使う。optuna-integration を入れずに optuna 3.x の `optuna.integration` で `EnsembleRegressor(opt=True)` を使っていた環境では ImportError になる（`pip install "yikit[optional]"` で入る）
   - 公開 API と、宣言した範囲の版での結果は変わらない。古い環境（Python 3.8・3.9、scikit-learn<1.0 など）は 0.4.x を使う
   - 3.14 でも ngboost が入るので、lifelines を通じて pandas<3.0 になる（ngboost を入れた環境）。pandas 3 では、optional の依存を入れない 3.14 の CI の job で試している
+  - CI で確かめた版（PR #38、run 38687353076）: Python 3.10〜3.14 のすべてで ngboost 0.5.10・lightgbm 4.7.0・optuna 5.0.0・optuna-integration 5.0.0・seaborn 0.13.2、scikit-learn は 3.10 で 1.7.2・3.11 以上で 1.9.1、pandas は 2.3.3。optional の依存を入れない 3.14 の job は pandas 3.0.6
+  - ngboost 0.5.11 では、`ignores_nested_set_params` の判定のテスト 1 件だけが落ちる（4.2）。0.5.11 への対応は後のリリースで行う
