@@ -2,6 +2,30 @@
 
 Notable changes to yikit. Git tags use `vX.Y.Z-rc.N`, and PyPI shows the same versions as `X.Y.ZrcN`.
 
+## [0.5.0-rc.1] - 2026-10-15
+
+This release candidate raises the minimum versions: Python 3.10, and the libraries that yikit no longer special-cases for old versions. Within the supported versions, the public API and the results do not change. On Python 3.8 and 3.9, pip keeps installing 0.4.x, which remains the series for those environments.
+
+### Supported environments
+
+- **Breaking**: Python 3.10 or later is required (Python 3.10–3.14).
+- **Breaking**: the minimum versions are raised to those that yikit relies on.
+  - `scikit-learn>=1.0` (was 0.24.1) and `seaborn>=0.12` (no minimum before).
+  - In the `optional` extra: `lightgbm>=4.0` (no minimum before), `ngboost>=0.4` (was 0.3.6), `optuna>=3.2` (was 3.0) and `optuna-integration>=4.1` (no minimum before).
+- The `optional` extra now installs ngboost on Python 3.14 too, and its upper bound is raised from `<0.5.9` to `<0.5.11`. 0.5.11 changes how `set_params` and `get_params` handle nested names, and yikit does not support that yet. With ngboost installed, its dependency lifelines keeps pandas below 3.0.
+- `typing_extensions` is no longer a dependency.
+
+### Changes
+
+- `GBDTRegressor` supports LightGBM 4 only.
+- `EnsembleRegressor(opt=True)` imports `OptunaSearchCV` from optuna-integration only. Without optuna-integration, it raises ImportError even when optuna 3.x provides `optuna.integration`. Install it with `pip install optuna-integration` or `pip install "yikit[optional]"`.
+
+### Packaging
+
+- The version comes from the git tag (setuptools-scm). `yikit.__version__` works as before in an installed package. A source tree that is not installed reports `"unknown"`, and an install from `main` reports a development version after the latest tag, such as `0.5.1.devN` after 0.5.0.
+- The license is declared as a PEP 639 expression (`License-Expression: Apache-2.0`).
+- The sdist now also contains the tests (with their reference images), the examples, the documentation sources and this changelog, so the tests pass in an unpacked sdist. The wheel contents do not change.
+
 ## [0.4.0] - 2026-10-14
 
 The first stable release of 0.4. There are no changes since 0.4.0-rc.1. If you upgrade from 0.3.x, read [0.4.0-rc.1](#040-rc1---2026-10-14) and [0.4.0-rc.0](#040-rc0---2026-01-28).
@@ -149,6 +173,7 @@ Many of these changes break existing code, and they are marked **Breaking**. If 
 - `get_dist_figure` is exported only when ngboost is installed, and `get_learning_curve_gb` only when ngboost or LightGBM is installed.
 - Python 3.13 and 3.14 are supported, and Python 3.7 and 3.8 are dropped (3.8 is restored in 0.4.0-rc.1). ngboost is not installed on Python 3.14.
 
+[0.5.0-rc.1]: https://github.com/yu9824/yikit/compare/v0.4.0...v0.5.0-rc.1
 [0.4.0]: https://github.com/yu9824/yikit/compare/v0.4.0-rc.1...v0.4.0
 [0.4.0-rc.1]: https://github.com/yu9824/yikit/compare/v0.4.0-rc.0...v0.4.0-rc.1
 [0.4.0-rc.0]: https://github.com/yu9824/yikit/compare/v0.3.19...v0.4.0-rc.0
