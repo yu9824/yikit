@@ -27,7 +27,7 @@
   - _Boundary: SearchSpace_
   - _Requirements: 3.1, 3.2, 3.3, 4.1, 4.2, 4.3, 5.2, 5.3_
 
-- [ ] 2.3 (P) optuna の探索から古い optuna と optuna-integration のための処理を消す
+- [x] 2.3 (P) optuna の探索から古い optuna と optuna-integration のための処理を消す
   - `OptunaSearchCV` を optuna-integration からだけ import し、optuna 本体の古い場所への切り替えと、その説明を消す。`ParamDistributions` の例の import も 1 行にする
   - `predict` の上書きと、それを説明する docstring を消す（optuna-integration 4.1 から親のメソッドが同じ呼び方をする）。`feature_names_in_` の docstring の scikit-learn 1.0 の記述を消す。tags と `_estimator_type` は残す
   - 探索のテストは、optuna-integration がなければ module ごと skip する形にし、import の切り替え、scikit-learn 1.0 の判定と skip、`predict` が property の古い親を真似るクラスとそのテスト、それだけのための引数を消す。`predict` が `OptunaSearchCV` の普通のメソッドで、yikit のクラスが上書きしていないことを確かめるテストを足す
@@ -122,6 +122,8 @@
 - 2.1・2.2 の結果（4.1 で node ID を比べるときの材料）:
   - 2.1: `tests/test_helpers.py` 83 → 76。消えた: `test_feature_names_of_returns_str_column_names[1.0.0|1.3.2|1.9.1|1.10.dev0]`（パラメータなしの 1 件に）、`test_feature_names_of_returns_none_before_sklearn_1_0[0.24.1|0.24.2|0.9.0]`、`test_feature_names_of_raises_for_an_unreadable_sklearn_version`。`tests/test_filtermethod.py` は 15 のまま（skip の印だけ消えた）。legacy grep 83 → 68
   - 2.2: `tests/test_search_space.py` 106 → 104。消えた: `test_criterion_choices_by_sklearn_version[0.24.1-expected0]`・`[0.24.2-expected1]`。残った 9 件は parametrize の `expectedN` が振り直された（例: `[1.0-expected2]` → `[1.0-expected0]`）ので、名前が変わっただけとして扱う。全体 693 passed
+  - 2.3: `tests/test_search_cv.py` 24 のまま（消えた: `test_predict_works_when_the_parent_defines_it_as_a_property`、足した: `test_predict_is_the_plain_method_of_optuna_search_cv`）。`tests/test_optuna.py` 136 のまま（node ID は変わらない）。全体 693 passed。legacy grep のテキストの行は 39
+- 4.1: 作業ツリーに追跡していない古い `__pycache__/*.pyc` があり、legacy grep に "Binary file ... matches" の行が混ざる。判定は `-I`（または `--exclude-dir=__pycache__`）を付けて、テキストの行だけを数える
 - 1・4.1: pytest の基準の XML と後の XML は、リポジトリの外の固定の場所に置き、そのパスをここに書く。リポジトリには入れない。セッションごとに消える scratchpad には置かない
 - 1・4.1: `src/yikit/_version.py` は setuptools-scm が editable の入れ直しのときに書く（git で追跡しない）。ないと `tests/test_version.py` の版のファイルのテストが「入れ直す」の案内で落ちる。入れ直しは packaging-and-ci の editable の入れ直しのタスク（今の番号で 4.1）と同じ手順で、作者の承認の後に行う。build isolation を使う `pip install -e .` は setuptools-scm を取りに行くので、承認なしに実行しない
 - 1: ngboost の行は、この spec の前に dependabot の PR で `<0.5.9` が広がっていることがある（packaging-and-ci の dependabot の `ignore` は 0.5.11 以上だけを止める）。読み直した行をここに書く
